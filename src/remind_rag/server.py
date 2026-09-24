@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -43,13 +44,24 @@ idx = Index(_default_db())
 server = MCPServer(
     name="remind-rag",
     instructions=(
-        "Search index over the REMIND model source (GAMS core/modules, main.gms switches, R scripts, tutorials). "
-        f"Paths are relative to the REMIND checkout at {idx.root}. "
-        "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...), get_switch for cm_*/c_* "
-        "configuration switches and module selections, list_realizations for a module's variants, and search for "
-        "conceptual questions. Results cite path:line; read the file for more context when needed."
+        "Search index over the REMIND model source (GAMS core/modules, main.gms switches, scenario configs, "
+        f"R scripts, tutorials). Paths are relative to the REMIND checkout at {idx.root}. "
+        "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which modules provide / "
+        "consume them, get_switch for cm_*/c_* switches and module selections, get_module for a module's "
+        "realizations, interfaces and limitations, get_scenario for a scenario's settings, and search for "
+        "conceptual questions (pass scenario=... only when the question is about a specific scenario). "
+        "Results cite path:line; read the file for more context when needed."
     ),
 )
+
+
+def _has_table(name: str) -> bool:
+    return idx.db.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (name,)).fetchone() is not None
+
+
+def _description(name: str) -> str:
+    row = idx.db.execute("SELECT description FROM symbols WHERE name = ?", (name,)).fetchone()
+    return row[0] if row else ""
 
 
 def _fmt_chunk(r, rank: int | None = None) -> str:
@@ -60,7 +72,7 @@ def _fmt_chunk(r, rank: int | None = None) -> str:
 
 @server.tool()
 def search(query: str, k: int = 6, module: str | None = None, realization: str | None = None,
-           kind: str | None = None) -> str:
+           kind: str | None = None, phase: str | None = None, scenario: str | None = None) -> str:
     """Hybrid (keyword + semantic) search over REMIND code and docs.
 
     Args:
@@ -69,9 +81,18 @@ def search(query: str, k: int = 6, module: str | None = None, realization: str |
         module: restrict to a module, e.g. "33", "carbonRemoval", "33_carbonRemoval" or "core".
         realization: restrict to a realization, e.g. "portfolio", "nash".
         kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,
-            gams_block, r_code, md_section.
+            module_interface, limitations, scenario, gams_block, r_code, md_section.
+        phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,
+            bounds, postsolve, ...
+        scenario: a scenario name from config/scenario_config*.csv (e.g. "SSP2-PkBudg1000"). Drops
+            realizations the scenario does not select and ranks code compiled out by its switches low.
+            Only use it when the question is about that scenario.
     """
-    rows = idx.search(query, k=max(1, min(k, 20)), module=module, realization=realization, kind=kind)
+    try:
+        rows = idx.search(query, k=max(1, min(k, 20)), module=module, realization=realization, kind=kind,
+                          phase=phase, scenario=scenario)
+    except ValueError as e:
+        return str(e)
     if not rows:
         return "No results."
     return "\n\n".join(_fmt_chunk(r, i) for i, r in enumerate(rows, 1))
@@ -81,19 +102,38 @@ def search(query: str, k: int = 6, module: str | None = None, realization: str |
 def get_symbol(name: str, max_uses: int = 40) -> str:
     """Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.
 
-    Returns its declaration(s) with domain and description/unit, the equation definition if it is an
-    equation, and where it is used (path:line, grouped by module/phase).
+    Returns its declaration(s) with domain and description/unit, which module provides it and which modules
+    consume it (gms::codeCheck), the equation definition if it is an equation, and where it is used
+    (path:line with the enclosing equation).
     """
     decls = idx.db.execute("SELECT * FROM symbols WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     out = []
     if decls:
         out.append("## Declarations")
+        # identical declarations repeated in every realization of a module are listed once
+        groups: dict[tuple, list] = {}
         for d in decls:
-            loc = d["module"] or "top-level"
-            if d["realization"]:
-                loc += f"/{d['realization']}"
-            out.append(f"- {d['kind']} {d['name']}({d['domain']}) \"{d['description']}\"  "
-                       f"[{loc}] {d['path']}:{d['line']}")
+            groups.setdefault((d["kind"], d["name"], d["domain"], d["description"], d["module"]), []).append(d)
+        for (kind, nm, domain, description, module), ds in groups.items():
+            first = ds[0]
+            where = f"{first['path']}:{first['line']}"
+            reals = [d["realization"] for d in ds if d["realization"]]
+            loc = (module or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
+                                             else f"/{reals[0]}" if reals else "")
+            out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
+                       + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else ""))
+    if _has_table("module_interfaces"):
+        rows = idx.db.execute("SELECT module, direction FROM module_interfaces WHERE name = ? COLLATE NOCASE",
+                              (name,)).fetchall()
+        if rows:
+            prov = sorted({r["module"] for r in rows if r["direction"] == "out"})
+            cons = sorted({r["module"] for r in rows if r["direction"] == "in"})
+            out.append(f"## Module interface (gms::codeCheck)\n- provided by: {', '.join(prov) or '?'}\n"
+                       f"- consumed by: {', '.join(cons) or 'none'}")
+        skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
+        if skipped:
+            out.append("## Deliberately not used in (not_used.txt)")
+            out += [f"- {r['module']}/{r['realization']}: {r['reason']}" for r in skipped[:20]]
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
         out.append("## Equation definition\n" + _fmt_chunk(r))
@@ -144,22 +184,73 @@ def get_switch(name: str) -> str:
 
 
 @server.tool()
-def list_realizations(module: str) -> str:
-    """List the realizations of a module (e.g. "45", "carbonprice") with their descriptions, and the
-    default realization selected in main.gms."""
+def get_module(module: str) -> str:
+    """Everything about a module (e.g. "33", "carbonRemoval", "core"): description, realizations with the
+    default one, known limitations, and its interfaces (what it provides to / consumes from other modules)."""
     rows = idx.db.execute(
-        "SELECT * FROM chunks WHERE kind IN ('module_doc', 'realization_doc') ORDER BY module, realization, line_start"
+        "SELECT * FROM chunks WHERE kind IN ('module_doc', 'realization_doc', 'limitations') "
+        "ORDER BY realization IS NOT NULL, realization, line_start"
     ).fetchall()
     rows = [r for r in rows if _module_match(module, r["module"])]
-    if not rows:
+    is_core = module.lower() == "core"
+    if not rows and not is_core:
         return f"Module {module!r} not found."
-    mod = rows[0]["module"]
-    sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
-    out = [f"# {mod}" + (f"  (default realization in main.gms: {sel['default_value']})" if sel else "")]
+    mod = "core" if is_core else rows[0]["module"]
+    out = []
+    if not is_core:
+        sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
+        out.append(f"# {mod}" + (f"  (default realization in main.gms: {sel['value']})" if sel else ""))
     for r in rows:
-        label = "module" if r["kind"] == "module_doc" else f"realization {r['realization']}"
+        label = {"module_doc": "module", "limitations": f"limitations ({r['realization'] or 'module'})"}.get(
+            r["kind"], f"realization {r['realization']}")
         out.append(f"## {label}  {r['path']}:{r['line_start']}\n{r['text'][:1500]}")
+    if _has_table("module_interfaces"):
+        ifs = idx.db.execute("SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name",
+                             (mod,)).fetchall()
+        for direction, label in (("out", "provides (outputs)"), ("in", "consumes (inputs)")):
+            names = [r["name"] for r in ifs if r["direction"] == direction]
+            switches = [n for n in names if n.startswith("c")] if direction == "in" else []
+            names = [n for n in names if n not in switches]
+            if not names and not switches:
+                continue
+            other = "in" if direction == "out" else "out"
+            arrow = "-> used by" if direction == "out" else "<- from"
+            lines = [f"## Interfaces: {label}, {len(names) + len(switches)}"]
+            for n in names[:80]:
+                peers = sorted({r[0] for r in idx.db.execute(
+                    "SELECT module FROM module_interfaces WHERE name = ? AND direction = ?", (n, other))} - {mod})
+                lines.append(f"- {n}: {_description(n)[:100]}  {arrow} {', '.join(peers) or '-'}")
+            if len(names) > 80:
+                lines.append(f"- ... {len(names) - 80} more")
+            if switches:
+                lines.append(f"- switches read: {', '.join(switches)}")
+            out.append("\n".join(lines))
     return "\n\n".join(out)
+
+
+@server.tool()
+def get_scenario(name: str) -> str:
+    """Settings of a scenario from config/scenario_config*.csv (after copyConfigFrom), and which switches
+    and module realizations differ from the main.gms defaults."""
+    resolved = idx.scenario_values(name)
+    if resolved is None:
+        similar = idx.db.execute("SELECT DISTINCT name FROM scenarios WHERE name LIKE ? LIMIT 20",
+                                 (f"%{name}%",)).fetchall()
+        return f"Scenario {name!r} not found." + (f" Similar: {', '.join(r[0] for r in similar)}" if similar else "")
+    _, row = resolved
+    settings = json.loads(row["settings"])
+    out = [f"# {row['name']}  [{row['path']}:{row['line']}]", row["description"] or "", "## Settings"]
+    out += [f"- {k} = {v}" for k, v in settings.items()]
+    defaults = {r["name"]: r["value"] for r in idx.db.execute("SELECT name, value FROM switches")}
+    changed = [k for k in settings if k in defaults and str(defaults[k]).lower() != str(settings[k]).lower()]
+    if changed:
+        out.append("## Differs from main.gms")
+        out += [f"- {k}: {defaults[k]} -> {settings[k]}" for k in changed]
+    others = idx.db.execute("SELECT path FROM scenarios WHERE name = ? COLLATE NOCASE AND path != ?",
+                            (row["name"], row["path"])).fetchall()
+    if others:
+        out.append("(also defined in: " + ", ".join(r[0] for r in others) + ")")
+    return "\n".join(out)
 
 
 def main() -> None:

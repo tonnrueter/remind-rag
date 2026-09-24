@@ -1,0 +1,47 @@
+
+=== data/remind-jina-v0.db  (model=jina, chunks=3500)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42     33% / 0.17    100% / 0.78     50% / 0.33    100% / 0.29    100% / 1.00      0% / 0.00    100% / 0.88     60% / 0.60     69% / 0.53        5 ms
+vector       33% / 0.33     33% / 0.33    100% / 0.83      0% / 0.00    100% / 1.00     33% / 0.38      0% / 0.00     50% / 0.50     40% / 0.27     41% / 0.38      110 ms
+hybrid       33% / 0.33      0% / 0.06    100% / 1.00     50% / 0.17    100% / 1.00     67% / 0.23      0% / 0.00    100% / 0.81     80% / 0.54     62% / 0.47      116 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  sym-captureRate: ['main.gms:1722 (switch)', 'core/bounds.gms:408 (gams_block)', 'core/datainput.gms:542 (gams_block)']
+  real-optimization: ['modules/80_optimization/nash/solve.gms:9 (gams_block)', 'core/sets.gms:952 (declaration)', 'tutorials/17_Regions.md:1 (md_section)']
+  xref-co2captureCdr: ['modules/33_carbonRemoval/portfolio/equations.gms:71 (equation)', 'modules/37_industry/subsectors/preloop.gms:9 (gams_block)', 'modules/33_carbonRemoval/portfolio/equations.gms:61 (equation)']
+  xref-taxrev: ['modules/02_welfare/ineqLognormal/equations.gms:160 (equation)', 'modules/02_welfare/ineqLognormal/equations.gms:152 (equation)', 'modules/21_tax/on/declarations.gms:114 (declaration)']
+  xref-scc: ['modules/21_tax/on/equations.gms:342 (equation)', 'modules/21_tax/on/equations.gms:331 (equation)', 'tutorials/16_taxation_mechanism_toy_model.md:82 (md_section)']
+  con-dacEnergy: ['core/bounds.gms:375 (gams_block)', 'modules/70_water/heat/output.gms:192 (gams_block)', 'modules/70_water/heat/output.gms:217 (gams_block)']
+  con-H2bio: ['main.gms:1016 (switch)', 'main.gms:664 (switch)', 'main.gms:1540 (switch)']
+  iface-33inputs: ['modules/33_carbonRemoval/portfolio/datainput.gms:35 (gams_block)', 'CHANGELOG.md:380 (md_section)', 'CHANGELOG.md:201 (md_section)']
+  iface-sccConsumers: ['modules/51_internalizeDamages/BurkeLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/KWTCintItr/postsolve.gms:57 (gams_block)', 'modules/51_internalizeDamages/KW_SEitr/postsolve.gms:33 (gams_block)']
+  sc-carbonprice: ['modules/45_carbonprice/NPi2025/datainput.gms:9 (gams_block)', 'modules/45_carbonprice/functionalFormRegi/declarations.gms:37 (declaration)', 'modules/45_carbonprice/functionalFormRegi/declarations.gms:57 (declaration)']
+  sc-earlyreti: ['modules/47_regipol/none/bounds.gms:33 (gams_block)', 'modules/47_regipol/regiCarbonPrice/bounds.gms:270 (gams_block)', 'modules/47_regipol/none/bounds.gms:53 (gams_block)']
+
+=== data/remind-jina.db  (model=jina, chunks=4706)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42      0% / 0.05    100% / 0.78    100% / 0.46    100% / 0.29    100% / 0.75     50% / 0.22    100% / 0.88     60% / 0.60     76% / 0.53        6 ms
+vector       33% / 0.33     33% / 0.33    100% / 0.83     50% / 0.33    100% / 1.00     33% / 0.39      0% / 0.00     50% / 0.50     40% / 0.40     48% / 0.45      128 ms
+hybrid       33% / 0.33      0% / 0.05    100% / 1.00    100% / 0.75    100% / 1.00     67% / 0.23    100% / 1.00    100% / 0.83     60% / 0.60     72% / 0.63      160 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  sym-captureRate: ['core/datainput.gms:549 (gams_block)', 'main.gms:1722 (switch)', 'core/bounds.gms:408 (gams_block)']
+  sym-EJ2TWa: ['modules/45_carbonprice/expoLinear/declarations.gms:9 (declaration)', 'modules/21_tax/on/declarations.gms:107 (declaration)', 'modules/45_carbonprice/functionalFormRegi/declarations.gms:9 (declaration)']
+  real-optimization: ['core/sets.gms:952 (declaration)', 'tutorials/17_Regions.md:1 (md_section)', 'modules/80_optimization/testOneRegi/solve.gms:9 (gams_block)']
+  xref-co2captureCdr: ['modules/33_carbonRemoval/module.gms:1 (module_interface)', 'modules/33_carbonRemoval/portfolio/equations.gms:71 (equation)', 'modules/39_carbonUtilization/module.gms:1 (module_interface)']
+  xref-taxrev: ['modules/02_welfare/ineqLognormal/equations.gms:152 (equation)', 'modules/02_welfare/ineqLognormal/equations.gms:160 (equation)', 'modules/21_tax/on/declarations.gms:121 (declaration)']
+  xref-scc: ['modules/21_tax/on/equations.gms:331 (equation)', 'tutorials/16_taxation_mechanism_toy_model.md:82 (md_section)', 'modules/21_tax/on/datainput.gms:8 (gams_block)']
+  con-dacEnergy: ['core/bounds.gms:375 (gams_block)', 'modules/70_water/heat/output.gms:192 (gams_block)', 'modules/70_water/heat/output.gms:295 (gams_block)']
+  con-H2bio: ['main.gms:1016 (switch)', 'core/datainput.gms:800 (gams_block)', 'core/datainput.gms:542 (gams_block)']
+
+=== data/remind-bge.db  (model=bge, chunks=4706)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42      0% / 0.05    100% / 0.78    100% / 0.46    100% / 0.29    100% / 0.75     50% / 0.22    100% / 0.88     60% / 0.60     76% / 0.53        5 ms
+vector      100% / 0.78     33% / 0.37    100% / 1.00     25% / 0.28    100% / 1.00    100% / 0.53     50% / 0.50     75% / 0.75     60% / 0.38     69% / 0.59       53 ms
+hybrid       67% / 0.67     33% / 0.08    100% / 1.00     75% / 0.54    100% / 1.00    100% / 0.48    100% / 1.00    100% / 1.00    100% / 0.90     86% / 0.74       60 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  xref-taxrev: ['modules/21_tax/on/equations.gms:413 (gams_block)', 'modules/02_welfare/ineqLognormal/equations.gms:160 (equation)', 'modules/21_tax/off/declarations.gms:9 (declaration)']
+  xref-scc: ['modules/45_carbonprice/expoLinear/datainput.gms:9 (gams_block)', 'modules/45_carbonprice/NPi2025/datainput.gms:9 (gams_block)', 'modules/02_welfare/ineqLognormal/equations.gms:152 (equation)']
+  con-H2bio: ['core/sets.gms:1539 (declaration)', 'core/sets.gms:1489 (declaration)', 'core/sets.gms:1323 (declaration)']
+  iface-33inputs: ['modules/33_carbonRemoval/portfolio/equations.gms:98 (gams_block)', 'modules/33_carbonRemoval/portfolio/equations.gms:226 (gams_block)', 'modules/33_carbonRemoval/portfolio/equations.gms:111 (gams_block)']

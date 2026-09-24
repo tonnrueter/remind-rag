@@ -1,0 +1,44 @@
+[
+  {
+    "answer": "Early retirement is modeled via variable `vm_capEarlyReti` — the fraction of standing capacity retired early in a given time step for technologies in set `teEarlyReti` (`core/bounds.gms:435-443`).\n\n- **Rate limit**: `q_smoothphaseoutCapEarlyReti` (`core/equations.gms:976-983`) caps how fast early retirement can ramp up between time steps, using regional/tech rate `pm_regiEarlyRetiRate`.\n- **Bounds**: only allowed for `teEarlyReti` techs; before 2035 restricted to USA/EUR regions; disabled outside 2010–2110 (`core/bounds.gms:448-471`).\n- **Tech-specific tuning** (`core/datainput.gms:775-798`): coal (`pc`) gets faster allowed retirement (×1.2); flexible/CHP/district-heating/steel/biomass techs retire slower (×0.25–0.7) to reflect real-world inertia.",
+    "cost_usd": 0.094672,
+    "turns": 3,
+    "duration_s": 17.2,
+    "input_tokens": 92450,
+    "output_tokens": 521,
+    "is_error": false,
+    "id": "sym-capEarlyReti",
+    "type": "symbol",
+    "arm": "rag",
+    "question": "How is early retirement of power plants represented in the model?",
+    "reference": "Via vm_capEarlyReti(tall,all_regi,all_te), the fraction of early retired capacity of total standing capacity [share]; only increasable for technologies with early retirement switched on."
+  },
+  {
+    "answer": "CO2 captured by module 33 (carbonRemoval) enters the core's CCUS chain via `vm_co2capture_cdr(t,regi,\"cco2\",\"ico2\",te,rlf)`, which is constrained in `q33_ccsbal` (modules/33_carbonRemoval/portfolio/equations.gms:71-85) to equal DAC removal plus energy/calcination captures. Since `vm_co2capture_cdr` uses the same `teCCS2rlf`/injection-storage domain as core's `vm_co2CCS`, it is summed alongside core capture into the storage/CCU/valve balance `q_balCCUvsCCS` (core/equations.gms:877-889), which splits total captured CO2 (`v_co2capture`) into `vm_co2CCS`, `vm_co2CCUshort`, and `v_co2capturevalve`.",
+    "cost_usd": 0.1062664,
+    "turns": 4,
+    "duration_s": 13.6,
+    "input_tokens": 95400,
+    "output_tokens": 581,
+    "is_error": false,
+    "id": "xref-co2captureCdr",
+    "type": "cross-module",
+    "arm": "rag",
+    "question": "Where is the CO2 captured by the carbon removal module fed into the core CCUS balance?",
+    "reference": "core/equations.gms (~line 868) adds sum(teCCS2rlf, vm_co2capture_cdr(t,regi,\"cco2\",\"ico2\",te,rlf)) to the captured-CO2 balance."
+  },
+  {
+    "answer": "Module `51_internalizeDamages` (e.g. `DiceLikeItr`) computes the SCC parameter `p51_scc` and converts it into `pm_taxCO2eqSCC` — modules/51_internalizeDamages/DiceLikeItr/postsolve.gms:25: `pm_taxCO2eqSCC(t,regi)$(t.val ge 2025) = p51_scc(t) * sm_c_2_co2/1000;`\n\nIt's then added to the base carbon tax and regional markup in `core/presolve.gms:10`: `pm_taxCO2eqSum(ttot,regi) = pm_taxCO2eq(ttot,regi) + pm_taxCO2eqRegi(ttot,regi) + pm_taxCO2eqSCC(ttot,regi);`\n\n`pm_taxCO2eqSum` is the total carbon price applied in emission-tax equations (e.g. `modules/21_tax/on/equations.gms:79`). Under `47_regipol/regiCarbonPrice`, `pm_taxCO2eqSCC` is zeroed out for regions/years with a prescribed policy price (postsolve.gms:154, 965, 989).",
+    "cost_usd": 0.1404594,
+    "turns": 5,
+    "duration_s": 15.9,
+    "input_tokens": 135092,
+    "output_tokens": 814,
+    "is_error": false,
+    "id": "xref-scc",
+    "type": "cross-module",
+    "arm": "rag",
+    "question": "How does the social cost of carbon get into the carbon tax?",
+    "reference": "51_internalizeDamages computes the SCC between iterations from 50_damages damages and a MAGICC temperature impulse response, stores it in pm_taxCO2eqSCC, which is added to the carbon tax."
+  }
+]

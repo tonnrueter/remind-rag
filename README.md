@@ -5,7 +5,10 @@ exposed as an MCP server for Claude Code (and opencode).
 
 - Structure-aware chunking of GAMS: declaration blocks, equations (with their `*'` doc comment),
   `main.gms` switches (docs + default + allowed values), module/realization descriptions.
-- Symbol table from declarations + where-used index over all GAMS/R lines.
+- Symbol table from declarations + where-used index over all GAMS/R lines (with enclosing equation).
+- `$ifthen` switch conditions per chunk; scenario rows from `config/scenario_config*.csv`.
+- Optional: module interfaces (who provides / consumes what), `@limitations` docs and `not_used.txt` reasons
+  from PIK's `gms::codeCheck` and `goxygen::extractDocumentation` (`r/export_gms.R`).
 - Hybrid retrieval: SQLite FTS5 (BM25, identifiers kept whole) + sqlite-vec (local CPU embeddings via
   fastembed), merged with reciprocal rank fusion. Everything lives in one SQLite file.
 
@@ -15,7 +18,11 @@ exposed as an MCP server for Claude Code (and opencode).
 cd rag
 $env:UV_NATIVE_TLS = 1          # PIK TLS proxy: use the Windows certificate store
 uv sync
-uv run python -m remind_rag.index --root ..\remind --model bge    # ~10 min on a laptop CPU
+
+# optional, needs R: current gms/goxygen from the sibling clones into a project-local library
+R CMD INSTALL -l r/library ..\gms ..\goxygen
+
+uv run python -m remind_rag.index --root ..\remind --model bge --gms-export   # ~15 min on a laptop CPU
 uv run python -m remind_rag.index --root ..\remind --model jina   # optional: ~4x slower AND worse retrieval here (see FINDINGS)
 ```
 
@@ -36,10 +43,11 @@ Check with `/mcp` inside Claude Code. Tools:
 
 | tool | use for |
 |---|---|
-| `search(query, k, module, realization, kind)` | conceptual / free-text questions |
-| `get_symbol(name)` | exact GAMS identifiers: declaration, description + unit, equation, use sites |
+| `search(query, k, module, realization, kind, phase, scenario)` | conceptual / free-text questions; `scenario` drops unselected realizations and down-ranks code compiled out by that scenario's switches |
+| `get_symbol(name)` | exact GAMS identifiers: declaration, description + unit, providing/consuming modules, equation, use sites |
 | `get_switch(name)` | `cm_*` / `c_*` switches and module selections: docs, default, allowed values, references |
-| `list_realizations(module)` | a module's realizations and their descriptions |
+| `get_module(module)` | description, realizations (+ default), limitations, interfaces (inputs/outputs) |
+| `get_scenario(name)` | a scenario's settings and what differs from the `main.gms` defaults |
 
 ## Use from opencode (untested)
 

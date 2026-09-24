@@ -1,7 +1,7 @@
 # REMIND RAG — findings (2026-09-24)
 
-*Version v0.0.1 — indexes kept as `data/remind-bge-v0.db` / `data/remind-jina-v0.db`, raw eval runs in
-`eval/results/`.*
+Sections 1–6 describe **v0.0.1** (indexes kept as `data/remind-bge-v0.db` / `data/remind-jina-v0.db`);
+section 7 describes **v0.1.0** (gms/goxygen, switch conditions, scenarios). Raw eval runs are in `eval/results/`.
 
 Minimal local RAG over REMIND code + docs (674 files, 3.2 MB → 3,500 chunks), exposed to Claude Code as an
 MCP server (`search`, `get_symbol`, `get_switch`, `list_realizations`). Question: does it beat "a bunch of
@@ -111,3 +111,70 @@ Caveats: n=10 questions, one run per arm (LLM runs vary), grading by me against 
    ~50, including debugging/workflow questions where `AGENT.md` should matter).
 3. Test opencode + Qwen against the same server and eval set.
 4. Phase 2: pik-piam packages, with incremental indexing.
+
+## 7. v0.1.0 — gms/goxygen, switch conditions, scenarios
+
+### What changed
+- **`gms::codeCheck` (0.35.0) + `goxygen::extractDocumentation` (1.5.1)**, installed from the local clones
+  (identical to pik-piam upstream) into `r/library`, exported by `r/export_gms.R` (2.6 s) and ingested when
+  `data/gms_export.json` exists — the index still builds without R.
+  - per module an *Outputs* and an *Inputs* chunk ("provides vm_x → used by core, 47_regipol …");
+  - `get_symbol` shows provider/consumers and `not_used.txt` reasons; new `get_module` (description,
+    realizations + default, limitations, interfaces);
+  - 21 `@limitations` blocks as typed chunks.
+- **`$ifthen` conditions** (from the Gemini blueprint): 416 `$ifthen` blocks tracked per line; chunks never
+  span a condition change; 530 chunks carry "Only compiled if: …" in header + metadata.
+- **Scenarios**: 577 rows of `config/scenario_config*.csv` as chunks (with `copyConfigFrom`), `get_scenario`
+  (settings + diff to `main.gms`), and opt-in `search(scenario=…)`: drops realizations the scenario does not
+  select, down-ranks code compiled out by its switch values. `run=<output folder>` (via `cfg.txt`) is not
+  implemented — no run folders here to test against.
+- Query side: a query naming an identifier also pulls that symbol's interface record; a query naming a
+  scenario pulls its row; identical declarations (one per realization) count once. Module names in headers
+  are spelled out ("carbonRemoval (carbon removal)").
+
+### Side results
+- **Our regex parser was already complete**: codeCheck finds 1,858 declarations, our parser misses none
+  (it additionally sees 41 `c_*` switches in `standalone/`). codeCheck's value is the *interfaces*.
+- gms 0.35 runs codeCheck in ~2 s (token lexer); the installed 0.33.6 was much slower — worth upgrading
+  the system library too.
+- Note: codeCheck's "provided by" is the *declaring* module (e.g. `pm_taxCO2eqSum` "from 46_carbonpriceRegi",
+  although `core/presolve.gms:10` computes it); many `not_used.txt` reasons are placeholders ("???",
+  "questionnaire").
+- Two doc bugs in REMIND found on the way: `modules/11_aerosols/exoGAINS2025/realization.gms:18` has the
+  `@limitations` text of EDGE-transport (copy-paste); scenario `SSP2-PkBudg1000` describes itself as
+  "SSP2-PkBudg1050 … 1150 Gt" (`config/scenario_config.csv:12`).
+
+### Retrieval (29 questions = 21 old + 8 new: interface, limitations, scenario; recall@5 / MRR@10, hybrid)
+
+| index | ALL | interface | scenario | cross-module | symbol |
+|---|---|---|---|---|---|
+| bge v0 | 83 % / 0.65 | 50 % / 0.19 | 50 % / 0.25 | 67 % / 0.22 | 100 % / 0.90 |
+| bge v1 draft (kept as `-v1-draft.db`) | 83 % / 0.70* | 50 % / 0.22 | 100 % / 1.00 | 67 % / 0.44 | 80 % / 0.70 |
+| **bge v1** | **86 % / 0.74** | 75 % / 0.54 | 100 % / 1.00 | 33 % / 0.08 | 100 % / 0.90 |
+| jina v0 | 62 % / 0.47 | 50 % / 0.17 | 0 % / 0.00 | 0 % / 0.06 | 80 % / 0.54 |
+| jina v1 | 72 % / 0.63 | 100 % / 0.75 | 100 % / 1.00 | 0 % / 0.05 | 60 % / 0.60 |
+
+jina gains most from v1 (62 → 72 %, MRR 0.47 → 0.63; best on interface questions) — the extra English
+(interface chunks, spelled-out module names) suits it — but still trails bge clearly (vector-only 48 % vs
+69 %) while costing 45 min to build (bge 11 min), 35.5 MB (bge 27.6 MB) and 2–3× query latency. bge stays
+the default; both v1 indexes are kept.
+
+(*79 % / 0.67 before the query-side scenario detection was added.) The first v1 draft *regressed*: long
+"interfaces declared here" header lines pushed chunk text out of the 1,000-char embedding window, and the
+combined in/out interface list was split arbitrarily. Fixed by compact headers and separate in/out chunks.
+Per-category numbers move in steps of 25–100 % (1–4 questions each) and the set was used for tuning, so only
+the overall trend is meaningful; I stopped tuning at this point.
+
+### End-to-end (headless Sonnet, Read/Grep/Glob ± MCP, graded 0–2)
+
+| 8 new questions | score | mean cost | mean turns | mean time | input tokens |
+|---|---|---|---|---|---|
+| baseline | 15/16 | $0.129 | 5.8 | 26 s | 139k |
+| rag v1 | 16/16 | $0.092 | 3.4 | 12 s | 96k |
+
+- Largest gains on **scenario** questions: baseline 10–13 turns / $0.21–0.24 each (grepping through CSVs
+  and `main.gms`), RAG 4–5 turns / ~$0.11 via `get_scenario` / scenario chunks.
+- Baseline's one error: "what does module 33 need" — incomplete list and an output (`vm_co2capture_cdr`)
+  listed as input; RAG answered from the codeCheck interfaces, complete.
+- Rerun of 3 old cross-module questions with v1: 5/6 (v0: 6/6) — one answer cited the wrong core equation
+  despite the tools returning the right line. Single runs; within LLM variance.

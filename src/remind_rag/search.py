@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, store
+from .scenarios import eval_condition
 
 RRF_K = 60
 STOPWORDS = set(
@@ -24,6 +26,7 @@ class Index:
         self.meta = {r["key"]: r["value"] for r in self.db.execute("SELECT key, value FROM meta")}
         self.model = self.meta["model"]
         self.root = Path(self.meta["root"])
+        self._scenario_names: list[str] | None = None
 
     # ---------------------------------------------------------------- rankers
 
@@ -68,20 +71,69 @@ class Index:
                 "SELECT id FROM chunks WHERE kind = 'equation' AND name = ?", (name,)
             ):
                 ids.append(cid)
-            for path, line in self.db.execute("SELECT path, line FROM symbols WHERE name = ?", (name,)):
+            # declarations: identical copies (same description, e.g. one per realization of a module) count once
+            decl_ids, seen_desc = [], set()
+            for path, line, desc in self.db.execute(
+                    "SELECT path, line, description FROM symbols WHERE name = ?", (name,)):
+                if desc in seen_desc:
+                    continue
+                seen_desc.add(desc)
                 row = self.db.execute(
                     "SELECT id FROM chunks WHERE path = ? AND line_start <= ? AND line_end >= ? AND kind = 'declaration'",
                     (path, line, line),
                 ).fetchone()
                 if row:
-                    ids.append(row[0])
+                    decl_ids.append(row[0])
+            # the providing module's interface record (who provides / consumes it), right after the first declaration
+            iface_ids = [cid for (cid,) in self.db.execute(
+                "SELECT id FROM chunks WHERE kind = 'module_interface' AND text LIKE 'Outputs of%' AND instr(text, ?) > 0",
+                (f"\n{name}:",))]
+            ids += decl_ids[:1] + iface_ids + decl_ids[1:]
         return list(dict.fromkeys(ids))
+
+    def known_scenarios(self, query: str) -> list[int]:
+        """Chunk ids of scenarios named in the query (e.g. 'SSP2-PkBudg1000'); longest names first."""
+        if self._scenario_names is None:
+            try:
+                self._scenario_names = sorted({r[0] for r in self.db.execute("SELECT name FROM scenarios")},
+                                              key=len, reverse=True)
+            except sqlite3.OperationalError:  # index built before scenarios existed
+                self._scenario_names = []
+        found = [n for n in self._scenario_names
+                 if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", query, re.I)]
+        ids = []
+        for name in found[:3]:
+            # the same scenario is often defined in several config files; boost one, preferably the main one
+            row = self.db.execute(
+                "SELECT id FROM chunks WHERE kind = 'scenario' AND name = ? "
+                "ORDER BY path = 'config/scenario_config.csv' DESC, id LIMIT 1", (name,)).fetchone()
+            if row:
+                ids.append(row[0])
+        return ids
 
     # ---------------------------------------------------------------- public
 
+    def scenario_values(self, scenario: str) -> tuple[dict[str, str], sqlite3.Row] | None:
+        """Switch values of a scenario: main.gms values overridden by its scenario_config row."""
+        row = self.db.execute(
+            "SELECT * FROM scenarios WHERE name = ? COLLATE NOCASE ORDER BY path = 'config/scenario_config.csv' DESC",
+            (scenario,)).fetchone()
+        if row is None:
+            return None
+        values = {r["name"]: (r["value"] or "") for r in self.db.execute("SELECT name, value FROM switches")}
+        values.update(json.loads(row["settings"]))
+        return values, row
+
     def search(self, query: str, k: int = 6, module: str | None = None, realization: str | None = None,
-               kind: str | None = None, mode: str = "hybrid") -> list[sqlite3.Row]:
-        filtered = bool(module or realization or kind)
+               kind: str | None = None, phase: str | None = None, scenario: str | None = None,
+               mode: str = "hybrid") -> list[sqlite3.Row]:
+        values = None
+        if scenario:
+            resolved = self.scenario_values(scenario)
+            if resolved is None:
+                raise ValueError(f"unknown scenario {scenario!r}")
+            values = resolved[0]
+        filtered = bool(module or realization or kind or phase or scenario)
         n = 400 if filtered else 60
         idents = self.known_identifiers(query)
         rankings: list[tuple[list[int], float]] = []
@@ -93,20 +145,32 @@ class Index:
         if mode == "hybrid" and idents:
             # a known identifier in the query: its declaration / definition goes first
             rankings.append((self.definition_chunks(idents), 2.0))
+        if mode == "hybrid" and (scen_ids := self.known_scenarios(query)):
+            rankings.append((scen_ids, 2.0))
         scores: dict[int, float] = {}
         for ranking, weight in rankings:
             for rank, cid in enumerate(ranking):
                 scores[cid] = scores.get(cid, 0.0) + weight / (RRF_K + rank + 1)
+        rows = self._rows(list(scores))
+        if values is not None:
+            for cid, r in rows.items():
+                if _inactive_realization(r, values):
+                    scores[cid] = 0.0  # dropped below
+                elif r["conditions"] and any(eval_condition(c, values) is False for c in json.loads(r["conditions"])):
+                    scores[cid] *= 0.3  # code compiled out in this scenario: keep, but rank low
         ordered = sorted(scores, key=scores.__getitem__, reverse=True)
-        rows = self._rows(ordered)
         out = []
         for cid in ordered:
             r = rows[cid]
+            if scores[cid] == 0.0:
+                continue
             if module and not _module_match(module, r["module"]):
                 continue
             if realization and (r["realization"] or "").lower() != realization.lower():
                 continue
             if kind and r["kind"] != kind:
+                continue
+            if phase and (r["phase"] or "").lower() != phase.lower():
                 continue
             out.append(r)
             if len(out) >= k:
@@ -118,6 +182,14 @@ class Index:
             return {}
         q = f"SELECT * FROM chunks WHERE id IN ({','.join('?' * len(ids))})"
         return {r["id"]: r for r in self.db.execute(q, ids)}
+
+
+def _inactive_realization(r: sqlite3.Row, values: dict[str, str]) -> bool:
+    """Chunk of a module realization that the scenario does not select (module switch = module name)."""
+    if not r["realization"] or not r["module"] or r["module"] == "core":
+        return False
+    selected = values.get(r["module"].partition("_")[2])
+    return selected is not None and selected.lower() != r["realization"].lower()
 
 
 def _module_match(wanted: str, module: str | None) -> bool:

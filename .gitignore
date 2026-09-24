@@ -15,3 +15,5 @@ data/
 eval/results/*.log
 eval/results/mcp-*.json
 eval/results/static-context.md
+# project-local R library (gms/goxygen installed from the local clones)
+r/library/

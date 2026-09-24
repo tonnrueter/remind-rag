@@ -23,14 +23,18 @@ def _location(c: Chunk) -> str:
         return f"REMIND core, {c.phase} ({c.path})"
     if c.module:
         num, _, name = c.module.partition("_")
-        loc = f"Module {num} {name}"
+        # camelCase module names are single tokens for BM25 and opaque-ish for embeddings: add plain words
+        words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|_", " ", name).lower()
+        loc = f"Module {num} {name}" + (f" ({words})" if words != name.lower() else "")
         if c.realization:
             loc += f", realization {c.realization}"
         return f"{loc}, {c.phase} ({c.path})"
     return c.path
 
 
-def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch]) -> str:
+def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
+                iface: dict[str, dict[str, list[str]]] | None = None) -> str:
+    iface = iface or {}
     parts = [_location(c)]
     if c.kind == "equation" and c.name:
         parts.append(f"Equation {c.name}: {_short(sym_desc.get(c.name, ''), 160)}")
@@ -52,13 +56,32 @@ def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch])
         parts.append(f"Documentation section: {c.name or ''}")
     elif c.kind == "r_code":
         parts.append("R code" + (f", functions {c.name}" if c.name else ""))
+    elif c.kind == "scenario":
+        parts.append(f"Scenario configuration {c.name}")
+    elif c.kind == "module_interface":
+        parts.append(f"Module interfaces (inputs/outputs) of {c.name}")
+    elif c.kind == "limitations":
+        parts.append(f"Known limitations of {c.name}")
+
+    if c.conditions:
+        parts.append("Only compiled if: " + _short(" and ".join(c.conditions), 200))
+
+    if c.kind == "declaration" and iface:
+        # keep this short: only the first MAX_EMBED_CHARS of header + text get embedded
+        roles = []
+        for n in [n for n in IDENT_RE.findall(c.name or "") if n in iface][:4]:
+            users = [u for u in iface[n]["consumed_by"] if u != c.module]
+            roles.append(f"{n} (used by {', '.join(users) if len(users) <= 2 else f'{len(users)} modules'})")
+        if roles:
+            parts.append("Interfaces: " + "; ".join(roles))
 
     if c.kind in {"equation", "gams_block", "switch"}:
         seen, uses = {c.name}, []
         for ident in IDENT_RE.findall(c.text):
             if ident not in seen and ident in sym_desc:
                 seen.add(ident)
-                uses.append(f"{ident} ({_short(sym_desc[ident], 60)})")
+                src = [m for m in iface.get(ident, {}).get("provided_by", []) if m != c.module]
+                uses.append(f"{ident} ({_short(sym_desc[ident], 60)}" + (f"; from {src[0]})" if src else ")"))
                 if len(uses) >= MAX_USES:
                     break
         if uses:

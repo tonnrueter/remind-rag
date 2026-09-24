@@ -1,0 +1,32 @@
+
+=== data/remind-bge-v0.db  (model=bge, chunks=3500)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42     33% / 0.17    100% / 0.78     50% / 0.33    100% / 0.29    100% / 1.00      0% / 0.00    100% / 0.88     60% / 0.60     69% / 0.53        2 ms
+vector      100% / 0.78     33% / 0.37    100% / 1.00      0% / 0.04    100% / 0.67    100% / 0.53     50% / 0.17     75% / 0.75     60% / 0.50     66% / 0.53       13 ms
+hybrid       67% / 0.67     67% / 0.22    100% / 1.00     50% / 0.19    100% / 1.00    100% / 0.48     50% / 0.25    100% / 1.00    100% / 0.90     83% / 0.65       16 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  xref-taxrev: ['modules/21_tax/on/equations.gms:413 (gams_block)', 'modules/21_tax/on/declarations.gms:114 (declaration)', 'modules/02_welfare/ineqLognormal/equations.gms:160 (equation)']
+  con-H2bio: ['core/sets.gms:1539 (declaration)', 'core/sets.gms:1489 (declaration)', 'core/sets.gms:1323 (declaration)']
+  iface-33inputs: ['modules/37_industry/subsectors/equations.gms:207 (gams_block)', 'modules/45_carbonprice/functionalForm/datainput.gms:312 (gams_block)', 'modules/39_carbonUtilization/on/equations.gms:9 (gams_block)']
+  iface-sccConsumers: ['modules/51_internalizeDamages/DiceLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/BurkeLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/KotzWenzCPreg/declarations.gms:9 (declaration)']
+  sc-earlyreti: ['core/bounds.gms:435 (gams_block)', 'core/equations.gms:968 (equation)', 'modules/47_regipol/none/bounds.gms:33 (gams_block)']
+
+=== data/remind-jina-v0.db  (model=jina, chunks=3500)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42     33% / 0.17    100% / 0.78     50% / 0.33    100% / 0.29    100% / 1.00      0% / 0.00    100% / 0.88     60% / 0.60     69% / 0.53        2 ms
+vector       33% / 0.33     33% / 0.33    100% / 0.83      0% / 0.00    100% / 1.00     33% / 0.38      0% / 0.00     50% / 0.50     40% / 0.27     41% / 0.38       37 ms
+hybrid       33% / 0.33      0% / 0.06    100% / 1.00     50% / 0.17    100% / 1.00     67% / 0.23      0% / 0.00    100% / 0.81     80% / 0.54     62% / 0.47       39 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  sym-captureRate: ['main.gms:1722 (switch)', 'core/bounds.gms:408 (gams_block)', 'core/datainput.gms:542 (gams_block)']
+  real-optimization: ['modules/80_optimization/nash/solve.gms:9 (gams_block)', 'core/sets.gms:952 (declaration)', 'tutorials/17_Regions.md:1 (md_section)']
+  xref-co2captureCdr: ['modules/33_carbonRemoval/portfolio/equations.gms:71 (equation)', 'modules/37_industry/subsectors/preloop.gms:9 (gams_block)', 'modules/33_carbonRemoval/portfolio/equations.gms:61 (equation)']
+  xref-taxrev: ['modules/02_welfare/ineqLognormal/equations.gms:160 (equation)', 'modules/02_welfare/ineqLognormal/equations.gms:152 (equation)', 'modules/21_tax/on/declarations.gms:114 (declaration)']
+  xref-scc: ['modules/21_tax/on/equations.gms:342 (equation)', 'modules/21_tax/on/equations.gms:331 (equation)', 'tutorials/16_taxation_mechanism_toy_model.md:82 (md_section)']
+  con-dacEnergy: ['core/bounds.gms:375 (gams_block)', 'modules/70_water/heat/output.gms:192 (gams_block)', 'modules/70_water/heat/output.gms:217 (gams_block)']
+  con-H2bio: ['main.gms:1016 (switch)', 'main.gms:664 (switch)', 'main.gms:1540 (switch)']
+  iface-33inputs: ['modules/33_carbonRemoval/portfolio/datainput.gms:35 (gams_block)', 'CHANGELOG.md:380 (md_section)', 'CHANGELOG.md:201 (md_section)']
+  iface-sccConsumers: ['modules/51_internalizeDamages/KotzWenzCPreg/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/DiceLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/BurkeLikeItr/declarations.gms:9 (declaration)']
+  sc-carbonprice: ['modules/45_carbonprice/NPi2025/datainput.gms:9 (gams_block)', 'modules/45_carbonprice/functionalFormRegi/declarations.gms:37 (declaration)', 'modules/45_carbonprice/functionalFormRegi/declarations.gms:57 (declaration)']
+  sc-earlyreti: ['modules/47_regipol/none/bounds.gms:33 (gams_block)', 'modules/47_regipol/regiCarbonPrice/bounds.gms:270 (gams_block)', 'modules/47_regipol/none/bounds.gms:53 (gams_block)']

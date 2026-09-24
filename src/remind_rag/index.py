@@ -1,6 +1,6 @@
 """Build the index: walk corpus -> chunk -> enrich -> embed -> SQLite.
 
-    uv run python -m remind_rag.index --root ../remind --model jina
+    uv run python -m remind_rag.index --root ../remind [--model bge|jina] [--gms-export]
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import embeddings, store
+from . import embeddings, gmsdata, scenarios, store
 from .chunkers import chunk_file, path_meta
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
@@ -62,7 +62,7 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
     return len(uses)
 
 
-def build(root: Path, db_path: Path, model: str) -> dict:
+def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None) -> dict:
     t0 = time.perf_counter()
     files = list(iter_files(root))
     parsed = {rel: chunk_file(rel, text) for rel, text in files}
@@ -70,17 +70,27 @@ def build(root: Path, db_path: Path, model: str) -> dict:
     symbols = [s for pf in parsed.values() for s in pf.symbols]
     switches = {sw.name: sw for pf in parsed.values() for sw in pf.switches}
     sym_desc = symbol_descriptions(symbols)
+    scens = scenarios.read_scenarios(root)
+    # extra chunks go after the file chunks, so file chunk ids (used for switches below) stay contiguous
+    chunks += scenarios.scenario_chunks(scens)
+    iface = {}
+    if gms_export:
+        iface = gmsdata.interface_map(gms_export)
+        chunks += gmsdata.module_interface_chunks(gms_export, sym_desc)
+        chunks += gmsdata.limitations_chunks(gms_export, root)
+        print(gmsdata.parser_diff(gms_export, {s.name for s in symbols if s.kind != "set"}))
     for c in chunks:
-        c.header = make_header(c, sym_desc, switches)
+        c.header = make_header(c, sym_desc, switches, iface)
     t_chunk = time.perf_counter() - t0
 
     dim = embeddings.MODELS[model][1]
     db = store.create(db_path, dim)
     db.executemany(
-        "INSERT INTO chunks (id, path, kind, name, detail, module, realization, phase, line_start, line_end, header, text)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO chunks (id, path, kind, name, detail, module, realization, phase, line_start, line_end, header,"
+        " text, conditions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [(i + 1, c.path, c.kind, c.name, c.detail, c.module, c.realization, c.phase,
-          c.line_start, c.line_end, c.header, c.text) for i, c in enumerate(chunks)],
+          c.line_start, c.line_end, c.header, c.text, json.dumps(c.conditions) if c.conditions else None)
+         for i, c in enumerate(chunks)],
     )
     store.build_fts(db)
     db.executemany(
@@ -94,10 +104,22 @@ def build(root: Path, db_path: Path, model: str) -> dict:
         first_id[rel] = offset + 1
         offset += len(pf.chunks)
     db.executemany(
-        "INSERT INTO switches VALUES (?,?,?,?,?,?)",
-        [(sw.name, sw.default, sw.allowed, sw.path, sw.line, first_id[sw.path] + sw.chunk_index)
+        "INSERT INTO switches VALUES (?,?,?,?,?,?,?)",
+        [(sw.name, sw.default, sw.allowed, sw.value, sw.path, sw.line, first_id[sw.path] + sw.chunk_index)
          for pf in parsed.values() for sw in pf.switches],
     )
+    db.executemany("INSERT INTO scenarios VALUES (?,?,?,?,?)",
+                   [(s.name, s.path, s.line, json.dumps(s.settings), s.description) for s in scens])
+    if gms_export:
+        folders = gmsdata.module_folders(gms_export)
+        db.executemany("INSERT INTO module_interfaces VALUES (?,?,?)",
+                       [(folders.get(r["module"], r["module"]), r["name"], r["direction"])
+                        for r in gms_export["interfaces"]])
+        db.executemany("INSERT INTO not_used VALUES (?,?,?,?,?)",
+                       [(r["module"], r["realization"], r["name"], r.get("type") or "", r.get("reason") or "")
+                        for r in gms_export["not_used"] or []])
+        db.executemany("INSERT INTO meta VALUES (?, ?)",
+                       [(f"version_{k}", v) for k, v in gms_export["versions"].items()])
 
     n_uses = build_uses(db, files)
 
@@ -128,6 +150,8 @@ def build(root: Path, db_path: Path, model: str) -> dict:
         "symbols": len(symbols),
         "symbol_uses": n_uses,
         "switches": len(switches),
+        "scenarios": len(scens),
+        "gms_export": bool(gms_export),
         "chunk_seconds": round(t_chunk, 1),
         "embed_seconds": round(t_embed, 1),
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -143,8 +167,11 @@ def build(root: Path, db_path: Path, model: str) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", type=Path, required=True, help="REMIND checkout")
-    ap.add_argument("--model", choices=sorted(embeddings.MODELS), default="jina")
+    ap.add_argument("--model", choices=sorted(embeddings.MODELS), default="bge")
     ap.add_argument("--db", type=Path, help="default: data/remind-<model>.db")
+    ap.add_argument("--gms-json", type=Path, default=DEFAULT_DB_DIR / "gms_export.json",
+                    help="gms/goxygen export (r/export_gms.R); used if it exists")
+    ap.add_argument("--gms-export", action="store_true", help="(re)run r/export_gms.R before indexing")
     ap.add_argument("--no-embed", action="store_true",
                     help="existing db: only rebuild keyword index and where-used table (no re-embedding)")
     args = ap.parse_args()
@@ -156,7 +183,12 @@ def main() -> None:
         print(f"rebuilt keyword index and {n} symbol uses in {db_path}")
         return
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    print(json.dumps(build(args.root, db_path, args.model), indent=2))
+    if args.gms_export:
+        gmsdata.run_export(args.root, args.gms_json)
+    export = gmsdata.load(args.gms_json)
+    if export is None:
+        print(f"no gms export at {args.gms_json}: indexing without module interfaces / limitations")
+    print(json.dumps(build(args.root, db_path, args.model, export), indent=2))
 
 
 if __name__ == "__main__":

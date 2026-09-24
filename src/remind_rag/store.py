@@ -14,7 +14,8 @@ CREATE TABLE chunks (
     path TEXT, kind TEXT, name TEXT, detail TEXT,
     module TEXT, realization TEXT, phase TEXT,
     line_start INTEGER, line_end INTEGER,
-    header TEXT, text TEXT
+    header TEXT, text TEXT,
+    conditions TEXT  -- JSON list of enclosing $ifthen conditions
 );
 CREATE INDEX chunks_path ON chunks(path);
 CREATE TABLE symbols (
@@ -24,9 +25,15 @@ CREATE TABLE symbols (
 CREATE INDEX symbols_name ON symbols(name COLLATE NOCASE);
 -- symbol_uses is (re)created by index.build_uses
 CREATE TABLE switches (
-    name TEXT, default_value TEXT, allowed TEXT, path TEXT, line INTEGER, chunk_id INTEGER
+    name TEXT, default_value TEXT, allowed TEXT, value TEXT, path TEXT, line INTEGER, chunk_id INTEGER
 );
 CREATE INDEX switches_name ON switches(name COLLATE NOCASE);
+-- from gms::codeCheck (r/export_gms.R); module = folder name, e.g. 33_carbonRemoval or core
+CREATE TABLE module_interfaces (module TEXT, name TEXT, direction TEXT);
+CREATE INDEX module_interfaces_name ON module_interfaces(name COLLATE NOCASE);
+CREATE TABLE not_used (module TEXT, realization TEXT, name TEXT, type TEXT, reason TEXT);
+CREATE TABLE scenarios (name TEXT, path TEXT, line INTEGER, settings TEXT, description TEXT);
+CREATE INDEX scenarios_name ON scenarios(name COLLATE NOCASE);
 """
 
 

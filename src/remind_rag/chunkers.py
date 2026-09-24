@@ -27,6 +27,7 @@ class Chunk:
     realization: str | None = None
     phase: str | None = None
     detail: str | None = None  # e.g. declaration kind ("positive variables")
+    conditions: list[str] = field(default_factory=list)  # $ifthen conditions enclosing the whole chunk
     header: str = ""  # filled by enrich
 
 
@@ -45,8 +46,9 @@ class Symbol:
 @dataclass
 class Switch:
     name: str
-    default: str
+    default: str  # documented default (from `!! def = ...`), else the assigned value
     allowed: str
+    value: str  # value actually assigned in main.gms
     path: str
     line: int
     chunk_index: int = -1  # index into the file's chunk list
@@ -147,6 +149,56 @@ STRING_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
 NEW_SWITCH_DOC_RE = re.compile(r"^\*+'?\s*(c_|cm_|c\d\d_)\w+|^\*'?-{5,}")
 
 
+IFTHEN_RE = re.compile(r"^\s*\$ifthen[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
+ELSEIF_RE = re.compile(r"^\s*\$elseif[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
+ELSE_RE = re.compile(r"^\s*\$else(?:\.(\w+))?\s*(?:!!.*)?$", re.I)
+ENDIF_RE = re.compile(r"^\s*\$endif(?:\.(\w+))?", re.I)
+
+
+def _line_conditions(lines: list[str]) -> list[tuple[str, ...]]:
+    """For every line, the stack of $ifthen/$elseif/$else conditions it is compiled under.
+    An $elseif/$else branch is written as the negation of the earlier branches plus its own condition."""
+    stack: list[list[str]] = []  # per open block: conditions of the branches seen so far
+    current: list[str] = []  # effective condition per open block
+    out: list[tuple[str, ...]] = []
+    for line in lines:
+        if m := IFTHEN_RE.match(line):
+            out.append(tuple(current))
+            stack.append([m.group(2)])
+            current.append(m.group(2))
+            continue
+        if stack and (m := ELSEIF_RE.match(line)):
+            out.append(tuple(current[:-1]))
+            prev = " and ".join(f"not ({c})" for c in stack[-1])
+            stack[-1].append(m.group(2))
+            current[-1] = f"{prev} and ({m.group(2)})"
+            continue
+        if stack and ELSE_RE.match(line):
+            out.append(tuple(current[:-1]))
+            current[-1] = " and ".join(f"not ({c})" for c in stack[-1])
+            continue
+        if stack and ENDIF_RE.match(line):
+            out.append(tuple(current[:-1]))
+            stack.pop()
+            current.pop()
+            continue
+        out.append(tuple(current))
+    return out
+
+
+def _common_conditions(lines: list[str], conds: list[tuple[str, ...]], s: int, e: int) -> list[str]:
+    """Conditions shared by all code lines of [s, e) (comments and blanks don't count)."""
+    common: tuple[str, ...] | None = None
+    for i in range(s, e):
+        if not lines[i].strip() or lines[i].startswith("*"):
+            continue
+        c = conds[i]
+        common = c if common is None else tuple(x for x in common if x in c)
+        if not common:
+            return []
+    return list(common or ())
+
+
 def _is_comment(line: str) -> bool:
     return line.startswith("*")
 
@@ -245,15 +297,17 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
                 bang = m.group(3) or ""
                 d = DEF_RE.search(bang)
                 r = REGEXP_RE.search(bang)
-                anchors.append((i, m.group(1), (d.group(1) if d else m.group(2)).strip(), r.group(1) if r else "", False))
+                anchors.append((i, m.group(1), (d.group(1) if d else m.group(2)).strip(), r.group(1) if r else "", False,
+                                m.group(2).strip()))
                 continue
             m = ASSIGN_RE.match(line)
             if m and "def" in m.group(3):
                 d = DEF_RE.search(m.group(3))
                 r = REGEXP_RE.search(m.group(3))
-                anchors.append((i, m.group(1), (d.group(1) if d else m.group(2)).strip(), r.group(1) if r else "", True))
+                anchors.append((i, m.group(1), (d.group(1) if d else m.group(2)).strip(), r.group(1) if r else "", True,
+                                m.group(2).strip()))
         start = 0
-        for idx, (ai, name, default, allowed, param_style) in enumerate(anchors):
+        for idx, (ai, name, default, allowed, param_style, value) in enumerate(anchors):
             end = ai + 1
             if param_style:  # the option list follows the assignment, until the next switch's doc starts
                 while end < len(lines) and _is_comment(lines[end]) and not NEW_SWITCH_DOC_RE.match(lines[end]):
@@ -265,7 +319,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
                 c = _make_chunk(path, lines, s2, e2, "switch", meta, name=name)
                 if c:
                     special.append(c)
-            out.switches.append(Switch(name, default, allowed, path, ai + 1, chunk_index=first))
+            out.switches.append(Switch(name, default, allowed, value, path, ai + 1, chunk_index=first))
             for j in range(start, end):
                 covered[j] = True
             start = end
@@ -288,7 +342,9 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
         for j in range(s, e):
             covered[j] = True
 
-    # 4) everything else: split at comment-block starts and blank lines, then pack
+    # 4) everything else: split at comment-block starts and blank lines, then pack -- but never across a
+    # change of $ifthen condition, so switch-dependent code gets chunks of its own
+    line_conds = _line_conditions(lines)
     rest: list[tuple[int, int]] = []
     i = 0
     while i < len(lines):
@@ -296,7 +352,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
             i += 1
             continue
         j = i
-        while j < len(lines) and not covered[j]:
+        while j < len(lines) and not covered[j] and line_conds[j] == line_conds[i]:
             j += 1
         bounds = {k for k in range(i + 1, j)
                   if (_is_comment(lines[k]) and not _is_comment(lines[k - 1])) or not lines[k - 1].strip()}
@@ -308,6 +364,8 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
             special.append(c)
 
     special.sort(key=lambda c: c.line_start)
+    for c in special:
+        c.conditions = _common_conditions(lines, line_conds, c.line_start - 1, c.line_end)
     out.chunks = special
     # switch chunk_index must refer to the sorted list
     for sw in out.switches:

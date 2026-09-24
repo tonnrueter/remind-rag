@@ -1,0 +1,38 @@
+
+=== data/remind-bge-v0.db  (model=bge, chunks=3500)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42     33% / 0.17    100% / 0.78     50% / 0.33    100% / 0.29    100% / 1.00      0% / 0.00    100% / 0.88     60% / 0.60     69% / 0.53        4 ms
+vector      100% / 0.78     33% / 0.37    100% / 1.00      0% / 0.04    100% / 0.67    100% / 0.53     50% / 0.17     75% / 0.75     60% / 0.50     66% / 0.53       22 ms
+hybrid       67% / 0.67     67% / 0.22    100% / 1.00     50% / 0.19    100% / 1.00    100% / 0.48     50% / 0.25    100% / 1.00    100% / 0.90     83% / 0.65       34 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  xref-taxrev: ['modules/21_tax/on/equations.gms:413 (gams_block)', 'modules/21_tax/on/declarations.gms:114 (declaration)', 'modules/02_welfare/ineqLognormal/equations.gms:160 (equation)']
+  con-H2bio: ['core/sets.gms:1539 (declaration)', 'core/sets.gms:1489 (declaration)', 'core/sets.gms:1323 (declaration)']
+  iface-33inputs: ['modules/37_industry/subsectors/equations.gms:207 (gams_block)', 'modules/45_carbonprice/functionalForm/datainput.gms:312 (gams_block)', 'modules/39_carbonUtilization/on/equations.gms:9 (gams_block)']
+  iface-sccConsumers: ['modules/51_internalizeDamages/DiceLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/BurkeLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/KotzWenzCPreg/declarations.gms:9 (declaration)']
+  sc-earlyreti: ['core/bounds.gms:435 (gams_block)', 'core/equations.gms:968 (equation)', 'modules/47_regipol/none/bounds.gms:33 (gams_block)']
+
+=== data/remind-bge-v1-draft.db  (model=bge, chunks=4693)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42     33% / 0.17    100% / 0.78     50% / 0.15    100% / 0.29    100% / 0.75     50% / 0.22    100% / 0.88     60% / 0.60     72% / 0.50        5 ms
+vector      100% / 0.78     33% / 0.38    100% / 1.00     75% / 0.36    100% / 1.00    100% / 0.53     50% / 0.50     75% / 0.75     40% / 0.30     72% / 0.59       35 ms
+hybrid       67% / 0.67     67% / 0.44    100% / 1.00     50% / 0.22    100% / 1.00    100% / 0.48    100% / 1.00    100% / 1.00     80% / 0.70     83% / 0.70       49 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  sym-EJ2TWa: ['modules/31_fossil/timeDepGrades/declarations.gms:30 (declaration)', 'modules/30_biomass/magpie/declarations.gms:9 (declaration)', 'modules/21_tax/on/declarations.gms:107 (declaration)']
+  xref-taxrev: ['modules/21_tax/on/equations.gms:413 (gams_block)', 'modules/02_welfare/ineqLognormal/equations.gms:160 (equation)', 'modules/02_welfare/ineqLognormal/equations.gms:152 (equation)']
+  con-H2bio: ['core/sets.gms:1539 (declaration)', 'core/sets.gms:1489 (declaration)', 'core/sets.gms:1323 (declaration)']
+  iface-33inputs: ['modules/33_carbonRemoval/module.gms:1 (module_interface)', 'modules/37_industry/subsectors/datainput.gms:263 (gams_block)', 'modules/39_carbonUtilization/on/equations.gms:9 (gams_block)']
+  iface-sccConsumers: ['modules/51_internalizeDamages/off/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/DiceLikeItr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/BurkeLikeItr/declarations.gms:9 (declaration)']
+
+=== data/remind-bge.db  (model=bge, chunks=4706)
+mode         conceptual   cross-module           docs      interface    limitations    realization       scenario         switch         symbol            ALL   median latency
+bm25         67% / 0.42     33% / 0.17    100% / 0.78     75% / 0.40    100% / 0.29    100% / 0.75     50% / 0.22    100% / 0.88     60% / 0.60     76% / 0.53        5 ms
+vector      100% / 0.78     33% / 0.38    100% / 1.00     25% / 0.28    100% / 1.00    100% / 0.53     50% / 0.50     75% / 0.75     60% / 0.38     69% / 0.59       38 ms
+hybrid       67% / 0.67     67% / 0.44    100% / 1.00     50% / 0.23    100% / 1.00    100% / 0.48    100% / 1.00    100% / 1.00    100% / 0.90     86% / 0.73       54 ms
+(cells: recall@5 / MRR@10)
+hybrid misses (top-3 shown):
+  xref-taxrev: ['modules/21_tax/on/equations.gms:413 (gams_block)', 'modules/02_welfare/ineqLognormal/equations.gms:160 (equation)', 'modules/21_tax/off/declarations.gms:9 (declaration)']
+  con-H2bio: ['core/sets.gms:1539 (declaration)', 'core/sets.gms:1489 (declaration)', 'core/sets.gms:1323 (declaration)']
+  iface-33inputs: ['modules/39_carbonUtilization/module.gms:1 (module_interface)', 'core/declarations.gms:1 (module_interface)', 'modules/37_industry/subsectors/datainput.gms:263 (gams_block)']
+  iface-sccConsumers: ['modules/51_internalizeDamages/off/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/KW_SEitr/declarations.gms:9 (declaration)', 'modules/51_internalizeDamages/DiceLikeItr/declarations.gms:9 (declaration)']

@@ -141,3 +141,62 @@
   question: What should I do when the CES calibration fails with missing data errors?
   gold: [tutorials/12_Calibrating_CES_Parameters.md]
   answer: See 'Problems > GAMS Runtime Errors > Missing Data' in tutorials/12_Calibrating_CES_Parameters.md.
+
+# ---- added for v0.1.0 (gms/goxygen interfaces, limitations, scenarios); answers verified with
+# ---- gms 0.35.0 codeCheck(details = TRUE) and the source. Interface chunks live at modules/<NN_x>/module.gms.
+
+- id: iface-co2captureConsumers
+  type: interface
+  question: Which parts of the model outside the carbon removal module use vm_co2capture_cdr?
+  gold: [modules/33_carbonRemoval/module.gms, core/equations.gms]
+  must_contain: vm_co2capture_cdr
+  answer: 'Only the core (codeCheck: provided by carbonRemoval, consumed by core), in q_balcapture, core/equations.gms:868.'
+
+- id: iface-emiCdrConsumers
+  type: interface
+  question: Which modules consume vm_emiCdrTeDetail?
+  gold: [modules/33_carbonRemoval/module.gms, modules/47_regipol/regiCarbonPrice/postsolve.gms, modules/47_regipol/regiCarbonPrice/equations.gms, core/equations.gms]
+  must_contain: vm_emiCdrTeDetail
+  answer: Provided by 33_carbonRemoval; consumed by core and 47_regipol.
+
+- id: iface-33inputs
+  type: interface
+  question: What does the carbon removal module need as inputs from other parts of the model?
+  gold: [modules/33_carbonRemoval/module.gms]
+  must_contain: vm_cesIO
+  answer: 'Inputs (codeCheck, excluding switches): vm_cap, vm_capFac, vm_cesIO, vm_demFeSector_afterTax, vm_demSeOth, vm_emiAllco2neg, vm_emiCdr, vm_prodFe, vm_prodSe, pm_emifac, pm_gdp_gdx, pm_taxCO2eqSum, pm_dt, pm_ts, pm_ttot_val and unit-conversion scalars (sm_*).'
+
+- id: iface-sccConsumers
+  type: interface
+  question: Which module provides pm_taxCO2eqSCC and which modules use it?
+  gold: [modules/51_internalizeDamages/module.gms, core/presolve.gms]
+  must_contain: pm_taxCO2eqSCC
+  answer: Provided by 51_internalizeDamages; consumed by core, 02_welfare, 47_regipol, 46_carbonpriceRegi.
+
+- id: lim-negishi
+  type: limitations
+  question: What is the main drawback of the Negishi solution algorithm?
+  gold: [modules/80_optimization/negishi/realization.gms]
+  must_contain: computationally
+  answer: Computationally very expensive; unless a very specific problem requires it, Nash delivers the same result in a fraction of the time.
+
+- id: lim-buildings
+  type: limitations
+  question: What can the simple buildings realization not represent?
+  gold: [modules/36_buildings/simple/realization.gms]
+  must_contain: end-uses
+  answer: It does not distinguish end-uses and does not allow substitution between energy consumption and end-use capital.
+
+- id: sc-carbonprice
+  type: scenario
+  question: Which carbon price realization does the SSP2-PkBudg1000 scenario use and how is the budget met?
+  gold: [config/scenario_config.csv, modules/45_carbonprice/functionalForm/realization.gms]
+  must_contain: functionalForm
+  answer: 'carbonprice = functionalForm with cm_iterative_target_adj = 9 (peak budget, iterative tax adjustment), cm_budgetCO2from2020 = 1000, cm_peakBudgYr = 2080, cm_startyear 2030 (config/scenario_config.csv).'
+
+- id: sc-earlyreti
+  type: scenario
+  question: In SSP2-PkBudg1000, how fast may capacities in Europe be retired early?
+  gold: [config/scenario_config.csv]
+  must_contain: EUR_regi 0.08
+  answer: 'c_regi_earlyreti_rate = "EUR_regi 0.08, ..." i.e. up to 8 % of the capital stock per year in EUR (core/datainput.gms turns it into pm_regiEarlyRetiRate).'
