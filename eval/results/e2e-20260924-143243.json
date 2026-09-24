@@ -1,0 +1,16 @@
+[
+  {
+    "answer": "The default is **9**, set in `main.gms:535`:\n\n```\ncm_emiscen        = 9;               !! def = 9  !!  regexp = 0|1|4|6|9|10\n```",
+    "cost_usd": 0.0787582,
+    "turns": 2,
+    "duration_s": 7.6,
+    "input_tokens": 48597,
+    "output_tokens": 165,
+    "is_error": false,
+    "id": "sw-emiscen",
+    "type": "switch",
+    "arm": "baseline",
+    "question": "What is the default of cm_emiscen?",
+    "reference": "9 (allowed 0|1|4|6|9|10)."
+  }
+]

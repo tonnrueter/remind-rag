@@ -1,0 +1,143 @@
+# Retrieval / end-to-end eval set for the REMIND RAG.
+# gold: paths (relative to the REMIND root) of which at least one must appear in the top-k.
+# must_contain (optional): the hit chunk must also contain this string (case-insensitive),
+#   so "right file, wrong part of the file" does not count.
+# answer: reference answer, verified by hand against the source.
+
+- id: sym-emiCdrTeDetail
+  type: symbol
+  question: What is vm_emiCdrTeDetail and what unit does it have?
+  gold: [modules/33_carbonRemoval/portfolio/declarations.gms]
+  must_contain: vm_emiCdrTeDetail
+  answer: Negative variable, gross (negative) emissions from CDR technologies in the CDR module by technology, incl. all atmospheric CO2 entering the CCUS chain. Unit GtC/a.
+
+- id: sym-vm_cap
+  type: symbol
+  question: What does vm_cap represent and in which units?
+  gold: [core/declarations.gms]
+  must_contain: vm_cap(
+  answer: Net total capacities; TW for energy conversion technologies, GtC for the CCS chain (ccs2te).
+
+- id: sym-capEarlyReti
+  type: symbol
+  question: How is early retirement of power plants represented in the model?
+  gold: [core/declarations.gms, core/equations.gms, core/bounds.gms]
+  must_contain: vm_capEarlyReti
+  answer: Via vm_capEarlyReti(tall,all_regi,all_te), the fraction of early retired capacity of total standing capacity [share]; only increasable for technologies with early retirement switched on.
+
+- id: sym-captureRate
+  type: symbol
+  question: What CO2 capture rate is assumed for the gas used as heat in DAC and ocean liming?
+  gold: [modules/33_carbonRemoval/portfolio/declarations.gms, modules/33_carbonRemoval/portfolio/realization.gms]
+  answer: 90 % (sm_capture_rate_cdrmodule = 0.9).
+
+- id: sym-EJ2TWa
+  type: symbol
+  question: Which scalar converts exajoules to terawatt-years, and what is its value?
+  gold: [core/declarations.gms]
+  must_contain: sm_EJ_2_TWa
+  answer: sm_EJ_2_TWa = 31.71e-03.
+
+- id: sw-EWcropland
+  type: switch
+  question: What does cm_33_EW_maxShareOfCropland do and what is its default?
+  gold: [main.gms]
+  must_contain: cm_33_EW_maxShareOfCropland
+  answer: Limits the share of cropland on which rocks can be spread for enhanced weathering (per region); default "GLO 0.5".
+
+- id: sw-startyear
+  type: switch
+  question: What does cm_startyear mean and which value is used for policy runs?
+  gold: [main.gms]
+  must_contain: cm_startyear
+  answer: First optimized modelling time step. Default 2005 (baseline calibration check); 2015 standard for policy/NDC/NPi runs; later for delay runs.
+
+- id: sw-iterTargetAdj
+  type: switch
+  question: Which switch enables the iterative adjustment of the CO2 tax to hit a carbon budget, and what are its allowed values?
+  gold: [main.gms]
+  must_contain: cm_iterative_target_adj
+  answer: cm_iterative_target_adj, default 0, allowed 0|2|3|5|7|9.
+
+- id: sw-emiscen
+  type: switch
+  question: What is the default of cm_emiscen?
+  gold: [main.gms]
+  must_contain: cm_emiscen
+  answer: 9 (allowed 0|1|4|6|9|10).
+
+- id: real-carbonprice
+  type: realization
+  question: Which realizations of the carbon price module exist?
+  gold: [modules/45_carbonprice/module.gms, main.gms]
+  answer: exogenous, exogenousExpo, expoLinear, functionalForm, functionalFormRegi, NDC, none, NPi, NPi2025, NPi2025expo, temperatureNotToExceed (default NPi2025).
+
+- id: real-functionalForm
+  type: realization
+  question: How does the functionalForm carbon price realization construct regional carbon price paths?
+  gold: [main.gms, modules/45_carbonprice/functionalForm/realization.gms]
+  answer: Global anchor trajectory (linear or exponential via cm_taxCO2_functionalForm, start value cm_taxCO2_startyear), optional post-peak adjustment, regional differentiation relative to the anchor via cm_taxCO2_regiDiff (default initialSpread10), with convergence.
+
+- id: real-optimization
+  type: realization
+  question: Which solution algorithms can be chosen for solving the regions?
+  gold: [modules/80_optimization/module.gms, main.gms]
+  answer: nash, negishi, testOneRegi (80_optimization).
+
+- id: xref-co2captureCdr
+  type: cross-module
+  question: Where is the CO2 captured by the carbon removal module fed into the core CCUS balance?
+  gold: [core/equations.gms]
+  must_contain: vm_co2capture_cdr
+  answer: core/equations.gms (~line 868) adds sum(teCCS2rlf, vm_co2capture_cdr(t,regi,"cco2","ico2",te,rlf)) to the captured-CO2 balance.
+
+- id: xref-taxrev
+  type: cross-module
+  question: Where are tax revenues computed and how are they split?
+  gold: [modules/21_tax/on/equations.gms]
+  must_contain: q21_taxrev
+  answer: 'q21_taxrev in 21_tax/on: vm_taxrev = v21_taxrevReal (real monetary transactions, e.g. FE and carbon taxes) + further components; see tutorial 16 for the iterative mechanism.'
+
+- id: xref-scc
+  type: cross-module
+  question: How does the social cost of carbon get into the carbon tax?
+  gold: [modules/51_internalizeDamages/module.gms]
+  answer: 51_internalizeDamages computes the SCC between iterations from 50_damages damages and a MAGICC temperature impulse response, stores it in pm_taxCO2eqSCC, which is added to the carbon tax.
+
+- id: con-dacEnergy
+  type: conceptual
+  question: How much electricity and heat does direct air capture need per tonne of CO2?
+  gold: [modules/33_carbonRemoval/portfolio/realization.gms, modules/33_carbonRemoval/portfolio/datainput.gms]
+  answer: ~400 kWh/tCO2 electricity (5.28 EJ/GtC) and ~1600 kWh/tCO2 low-temperature heat (21.12 EJ/GtC); heat via district heat, electricity, gas or H2.
+
+- id: con-EWdecay
+  type: conceptual
+  question: Why are negative emissions from rock weathering not equal to the amount of rock spread in a year?
+  gold: [modules/33_carbonRemoval/portfolio/equations.gms, modules/33_carbonRemoval/portfolio/realization.gms]
+  answer: Weathering follows exponential decay; emissions also come from rock spread in previous timesteps, so capacity (rock spread in t) != removal in t.
+
+- id: con-H2bio
+  type: conceptual
+  question: Is hydrogen from biomass allowed to be used for direct air capture?
+  gold: [modules/33_carbonRemoval/portfolio/equations.gms]
+  must_contain: q33_H2bio_lim
+  answer: No; q33_H2bio_lim limits H2 from bioenergy to FE H2 demand excluding CDR demand (sustainability bound).
+
+- id: doc-restart
+  type: docs
+  question: How do I restart an existing run without creating a new results folder?
+  gold: [tutorials/02_RunningREMIND.md]
+  must_contain: restart
+  answer: Rscript start.R --restart (or -r); restarts from the last fulldata.gdx in the existing folder, overwriting outputs.
+
+- id: doc-regions
+  type: docs
+  question: Which regions are in the H12 regional mapping?
+  gold: [tutorials/17_Regions.md, config/regionmappingH12.csv]
+  answer: The 12 H12 regions listed in tutorials/17_Regions.md (CAZ, CHA, EUR, IND, JPN, LAM, MEA, NEU, OAS, REF, SSA, USA).
+
+- id: doc-cesCalibration
+  type: docs
+  question: What should I do when the CES calibration fails with missing data errors?
+  gold: [tutorials/12_Calibrating_CES_Parameters.md]
+  answer: See 'Problems > GAMS Runtime Errors > Missing Data' in tutorials/12_Calibrating_CES_Parameters.md.

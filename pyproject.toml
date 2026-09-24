@@ -1,0 +1,21 @@
+[project]
+name = "remind-rag"
+version = "0.1.0"
+description = "Local RAG over the REMIND model source, exposed as an MCP server"
+readme = "README.md"
+authors = [
+    { name = "Tonn Rueter", email = "tonn.rueter@pik-potsdam.de" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastembed>=0.8.1",
+    "mcp[cli]>=2.2.0",
+    "numpy>=2.2.6",
+    "pyyaml>=6.0.3",
+    "sqlite-vec>=0.1.9",
+    "truststore>=0.10.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
