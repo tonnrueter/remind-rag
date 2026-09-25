@@ -14,7 +14,8 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, gmsdata, scenarios, store
-from .chunkers import chunk_file, path_meta
+from .chunkers import ENDIF_RE, IFTHEN_RE, _code_part, _line_conditions, chunk_file, path_meta
+from .usage import if_guards, role
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 
@@ -26,38 +27,79 @@ def embed_text(header: str, text: str) -> str:
     return header + "\n" + re.sub(r"[ \t]+", " ", text)
 
 
+def check_parse(files: list[tuple[str, str]], parsed: dict) -> list[str]:
+    """Structural self-checks of the GAMS parse; a warning names what the chunker missed or cut."""
+    warnings = []
+    eq_chunks = {c.name.lower() for pf in parsed.values() for c in pf.chunks if c.kind == "equation" and c.name}
+    declared = {(s.name.lower(), s.path, s.line) for pf in parsed.values() for s in pf.symbols
+                if s.kind == "equation"}
+    for name, path, line in sorted(declared):
+        if name not in eq_chunks:
+            warnings.append(f"equation {name} declared at {path}:{line} has no definition chunk")
+    # a continuation piece of a split equation has no `..` of its own (several alternative definitions of
+    # one equation in $ifthen branches are fine)
+    warnings += [f"equation {c.name} is split at {c.path}:{c.line_start} (longer than the size cap)"
+                 for pf in parsed.values() for c in pf.chunks if c.kind == "equation" and ".." not in c.text]
+    for rel, text in files:
+        if not rel.endswith(".gms"):
+            continue
+        lines = text.splitlines()
+        opened = sum(1 for line in lines if IFTHEN_RE.match(line))
+        closed = sum(1 for line in lines if ENDIF_RE.match(line))
+        if opened != closed:
+            warnings.append(f"{rel}: {opened} $ifthen vs {closed} $endif")
+    modules = {c.module for pf in parsed.values() for c in pf.chunks if c.module and c.module != "core"}
+    documented = {c.module for pf in parsed.values() for c in pf.chunks if c.kind == "module_doc"}
+    warnings += [f"module {m} has no module.gms description" for m in sorted(modules - documented)]
+    return warnings
+
+
 def build_uses(db, files: list[tuple[str, str]]) -> int:
-    """Where-used: every non-comment GAMS/R line mentioning a known (non-set) symbol or switch,
-    tagged with the equation it sits in (if any)."""
+    """Where-used: every non-comment GAMS/R line mentioning a known (non-set) symbol or switch, tagged with
+    the equation it sits in (if any), its role (declared / assigned / equation / read), the $ifthen conditions
+    it is compiled under and the run-time if(...) conditions guarding it."""
     usable = {r[0] for r in db.execute(
         f"SELECT name FROM symbols WHERE kind IN ({','.join('?' * len(USE_KINDS))})", sorted(USE_KINDS))}
     usable |= {r[0] for r in db.execute("SELECT name FROM switches")}
     eq_ranges: dict[str, list[tuple[int, int, str]]] = {}
-    for path, s, e, name in db.execute(
-            "SELECT path, line_start, line_end, name FROM chunks WHERE kind = 'equation'"):
-        eq_ranges.setdefault(path, []).append((s, e, name))
+    decl_ranges: dict[str, list[tuple[int, int]]] = {}
+    for path, s, e, name, kind in db.execute(
+            "SELECT path, line_start, line_end, name, kind FROM chunks WHERE kind IN ('equation', 'declaration')"):
+        if kind == "equation":
+            eq_ranges.setdefault(path, []).append((s, e, name))
+        else:
+            decl_ranges.setdefault(path, []).append((s, e))
     db.execute("DROP TABLE IF EXISTS symbol_uses")
     db.execute("CREATE TABLE symbol_uses (name TEXT, path TEXT, line INTEGER, module TEXT, realization TEXT, "
-               "phase TEXT, context TEXT, snippet TEXT)")
+               "phase TEXT, context TEXT, snippet TEXT, role TEXT, conditions TEXT, guards TEXT)")
     db.execute("CREATE INDEX IF NOT EXISTS symbol_uses_name ON symbol_uses(name COLLATE NOCASE)")
     uses = []
     for rel, text in files:
+        is_gms = rel.endswith(".gms")
         if not rel.lower().endswith((".gms", ".r")):
             continue
         meta = path_meta(rel)
-        comment = "*" if rel.endswith(".gms") else "#"
-        ranges = eq_ranges.get(rel, [])
-        for n, line in enumerate(text.splitlines(), 1):
+        comment = "*" if is_gms else "#"
+        ranges, decls = eq_ranges.get(rel, []), decl_ranges.get(rel, [])
+        lines = text.splitlines()
+        conds = _line_conditions(lines) if is_gms else [()] * len(lines)
+        guards = if_guards(lines) if is_gms else [()] * len(lines)
+        for n, line in enumerate(lines, 1):
             if line.lstrip().startswith(comment):
                 continue
             idents = set(IDENT_RE.findall(line)) & usable
             if not idents:
                 continue
             ctx = next((name for s, e, name in ranges if s <= n <= e), None)
+            in_decl = any(s <= n <= e for s, e in decls)
+            if in_decl:  # in declarations, a name inside another symbol's description is not a use
+                idents &= set(IDENT_RE.findall(_code_part(line)))
             for ident in idents:
+                r = ("declared" if in_decl else "equation" if ctx else role(line, ident)) if is_gms else "read"
                 uses.append((ident, rel, n, meta["module"], meta["realization"], meta["phase"], ctx,
-                             line.strip()[:200]))
-    db.executemany("INSERT INTO symbol_uses VALUES (?,?,?,?,?,?,?,?)", uses)
+                             line.strip()[:200], r, json.dumps(list(conds[n - 1])),
+                             json.dumps(list(guards[n - 1]))))
+    db.executemany("INSERT INTO symbol_uses VALUES (?,?,?,?,?,?,?,?,?,?,?)", uses)
     db.commit()
     return len(uses)
 
@@ -81,6 +123,10 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
         print(gmsdata.parser_diff(gms_export, {s.name for s in symbols if s.kind != "set"}))
     for c in chunks:
         c.header = make_header(c, sym_desc, switches, iface)
+    warnings = check_parse(files, parsed)
+    print(f"parser checks: {len(warnings)} warning(s)")
+    for w in warnings[:40]:
+        print("  " + w)
     t_chunk = time.perf_counter() - t0
 
     dim = embeddings.MODELS[model][1]
@@ -152,6 +198,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
         "switches": len(switches),
         "scenarios": len(scens),
         "gms_export": bool(gms_export),
+        "check_warnings": json.dumps(warnings),
         "chunk_seconds": round(t_chunk, 1),
         "embed_seconds": round(t_embed, 1),
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),

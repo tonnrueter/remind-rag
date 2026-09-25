@@ -13,6 +13,7 @@ from pathlib import Path
 from mcp.server.mcpserver import MCPServer
 
 from .search import Index, _module_match
+from .usage import switch_tests
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 
@@ -50,7 +51,12 @@ server = MCPServer(
         "consume them, get_switch for cm_*/c_* switches and module selections, get_module for a module's "
         "realizations, interfaces and limitations, get_scenario for a scenario's settings, and search for "
         "conceptual questions (pass scenario=... only when the question is about a specific scenario). "
-        "Results cite path:line; read the file for more context when needed."
+        "Results cite path:line; read the file for more context when needed. "
+        "Results carry default-status lines (» ... / ⚠ ...): whether the code's realization is the default and "
+        "whether its $ifthen / if(...) / $(...) switch conditions hold in a default run. Lead with what a default "
+        "run does; describe non-default realizations or inactive branches as alternatives and name the switch "
+        "that enables them. get_symbol separates where a symbol is declared, assigned, used in equations and read; "
+        "codeCheck's interface owner is the declaring module, not necessarily where values are computed."
     ),
 )
 
@@ -67,7 +73,38 @@ def _description(name: str) -> str:
 def _fmt_chunk(r, rank: int | None = None) -> str:
     where = f"{r['path']}:{r['line_start']}-{r['line_end']}"
     head = f"[{rank}] {where}" if rank else where
-    return f"{head}  ({r['kind']})\n{r['header']}\n```\n{r['text']}\n```"
+    status = "".join(f"\n» {s}" for s in idx.default_status(r))
+    return f"{head}  ({r['kind']}){status}\n{r['header']}\n```\n{r['text']}\n```"
+
+
+def _equation_head(text: str, name: str) -> str | None:
+    """`q(t,regi)$(cond)` part of an equation definition, comments dropped, whitespace collapsed."""
+    code = "\n".join(line for line in text.splitlines() if not line.startswith("*"))
+    i = code.lower().find(name.lower())
+    j = code.find("..", i)
+    return " ".join(code[i:j].split()) if i >= 0 and j > i else None
+
+
+ROLE_LABELS = {"declared": "Declared", "assigned": "Assigned / fixed / loaded",
+               "equation": "Used in equations", "read": "Read"}
+
+
+def _use_tags(u) -> list[str]:
+    """Why a use line may not run in a default configuration."""
+    tags = []
+    s = idx.realization_status(u["module"], u["realization"])
+    if s and "NOT DEFAULT" in s:
+        tags.append(f"non-default realization (default: {idx.default_realization(u['module'])})")
+    for c in json.loads(u["conditions"] or "[]"):
+        if (v := idx.condition_status(c, "$ifthen")) and "INACTIVE" in v:
+            tags.append(v.replace(": INACTIVE by default", " → inactive by default"))
+    for g in json.loads(u["guards"] or "[]"):
+        v = idx.condition_status(g, "inside if")
+        if "INACTIVE" in v:
+            tags.append(v.replace(": INACTIVE by default", " → inactive by default"))
+        elif "depends" in v and any(t for t, _ in switch_tests(g, idx.defaults)):
+            tags.append(v)
+    return tags
 
 
 @server.tool()
@@ -120,33 +157,58 @@ def get_symbol(name: str, max_uses: int = 40) -> str:
             reals = [d["realization"] for d in ds if d["realization"]]
             loc = (module or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
                                              else f"/{reals[0]}" if reals else "")
+            default = idx.default_realization(module)
+            note = (f"  — only in non-default realizations (default: {default})"
+                    if reals and default and default.lower() not in {x.lower() for x in reals} else "")
             out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
-                       + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else ""))
+                       + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "") + note)
     if _has_table("module_interfaces"):
         rows = idx.db.execute("SELECT module, direction FROM module_interfaces WHERE name = ? COLLATE NOCASE",
                               (name,)).fetchall()
         if rows:
             prov = sorted({r["module"] for r in rows if r["direction"] == "out"})
             cons = sorted({r["module"] for r in rows if r["direction"] == "in"})
-            out.append(f"## Module interface (gms::codeCheck)\n- provided by: {', '.join(prov) or '?'}\n"
-                       f"- consumed by: {', '.join(cons) or 'none'}")
+            # codeCheck's "output" module is the one that declares the object; where values are actually
+            # assigned is listed under Uses below
+            out.append(f"## Module interface (gms::codeCheck)\n- declared in (interface owner): "
+                       f"{', '.join(prov) or '?'}\n- used by: {', '.join(cons) or 'none'}")
         skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
         if skipped:
             out.append("## Deliberately not used in (not_used.txt)")
             out += [f"- {r['module']}/{r['realization']}: {r['reason']}" for r in skipped[:20]]
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
-        out.append("## Equation definition\n" + _fmt_chunk(r))
+        head = _equation_head(r["text"], r["name"])
+        out.append("## Equation definition\n"
+                   + (f"Generated for (domain and $-condition): {head}\n" if head else "") + _fmt_chunk(r))
     uses = idx.db.execute(
         "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE ORDER BY path, line", (name,)
     ).fetchall()
     if uses:
-        out.append(f"## Uses ({len(uses)} lines, showing {min(len(uses), max_uses)})")
-        for u in uses[:max_uses]:
-            ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
-            if "context" in u.keys() and u["context"]:
-                ctx += f", in {u['context']}"
-            out.append(f"- {u['path']}:{u['line']} [{ctx}]  {u['snippet']}")
+        has_roles = "role" in uses[0].keys()
+        groups: dict[str, list] = {}
+        for u in uses:
+            groups.setdefault(u["role"] if has_roles else "read", []).append(u)
+        out.append(f"## Uses ({len(uses)} lines)")
+        budget = max_uses
+        for role in ("declared", "assigned", "equation", "read"):
+            us = groups.get(role, [])
+            if not us:
+                continue
+            mods = sorted({u["module"] or u["path"] for u in us})
+            out.append(f"### {ROLE_LABELS[role]} ({len(us)} lines; {', '.join(mods)})")
+            # assignments matter most for 'where is it computed', so they get more room
+            n = len(us) if role == "assigned" else max(3, min(len(us), budget))
+            for u in us[:n]:
+                ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
+                if u["context"]:
+                    ctx += f", in {u['context']}"
+                tags = _use_tags(u) if has_roles else []
+                out.append(f"- {u['path']}:{u['line']} [{ctx}]  {u['snippet']}"
+                           + "".join(f"\n    ⚠ {t}" for t in tags))
+            if n < len(us):
+                out.append(f"- ... {len(us) - n} more")
+            budget = max(0, budget - n)
     if not out:
         similar = idx.db.execute(
             "SELECT DISTINCT name FROM symbols WHERE name LIKE ? LIMIT 15", (f"%{name}%",)
@@ -201,8 +263,11 @@ def get_module(module: str) -> str:
         sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
         out.append(f"# {mod}" + (f"  (default realization in main.gms: {sel['value']})" if sel else ""))
     for r in rows:
+        default = idx.default_realization(mod)
+        marker = ("" if not r["realization"] or not default else
+                  "  [DEFAULT]" if r["realization"].lower() == default.lower() else "  [not default]")
         label = {"module_doc": "module", "limitations": f"limitations ({r['realization'] or 'module'})"}.get(
-            r["kind"], f"realization {r['realization']}")
+            r["kind"], f"realization {r['realization']}") + marker
         out.append(f"## {label}  {r['path']}:{r['line_start']}\n{r['text'][:1500]}")
     if _has_table("module_interfaces"):
         ifs = idx.db.execute("SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name",

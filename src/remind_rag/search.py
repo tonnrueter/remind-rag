@@ -11,6 +11,7 @@ import numpy as np
 
 from . import embeddings, store
 from .scenarios import eval_condition
+from .usage import eval_expr, switch_tests
 
 RRF_K = 60
 STOPWORDS = set(
@@ -27,6 +28,7 @@ class Index:
         self.model = self.meta["model"]
         self.root = Path(self.meta["root"])
         self._scenario_names: list[str] | None = None
+        self._defaults: dict[str, str] | None = None
 
     # ---------------------------------------------------------------- rankers
 
@@ -175,6 +177,51 @@ class Index:
             out.append(r)
             if len(out) >= k:
                 break
+        return out
+
+    # ---------------------------------------------------------------- default configuration
+
+    @property
+    def defaults(self) -> dict[str, str]:
+        """Switch values of a default run (as assigned in main.gms)."""
+        if self._defaults is None:
+            self._defaults = {r["name"]: (r["value"] or "").strip().strip("\"'")
+                              for r in self.db.execute("SELECT name, value FROM switches")}
+        return self._defaults
+
+    def default_realization(self, module: str | None) -> str | None:
+        if not module or module == "core":
+            return None
+        return self.defaults.get(module.partition("_")[2])
+
+    def realization_status(self, module: str | None, realization: str | None) -> str | None:
+        default = self.default_realization(module)
+        if not realization or not default:
+            return None
+        if default.lower() == realization.lower():
+            return f"realization {realization}: DEFAULT"
+        return (f"realization {realization}: NOT DEFAULT (default: {default}; selected by "
+                f"${module.partition('_')[2]})")
+
+    def condition_status(self, cond: str, what: str) -> str:
+        v = eval_expr(cond, self.defaults)
+        label = {True: "active by default", False: "INACTIVE by default"}.get(v, "depends on non-default settings")
+        return f"{what} {' '.join(cond.split())}: {label}"
+
+    def default_status(self, r: sqlite3.Row, max_tests: int = 4) -> list[str]:
+        """Lines saying whether the chunk's code runs in a default configuration: realization, $ifthen
+        conditions, and switch tests inside the code (if(...) blocks, $(...) equation domains)."""
+        out = []
+        if s := self.realization_status(r["module"], r["realization"]):
+            out.append(s)
+        for c in json.loads(r["conditions"] or "[]"):
+            out.append(self.condition_status(c, "compiled only if"))
+        if r["kind"] in ("equation", "gams_block", "declaration"):
+            tests = switch_tests(r["text"], self.defaults)
+            if tests:
+                shown = [f"{t} → {'true' if v else 'false' if v is False else '?'}" for t, v in tests[:max_tests]]
+                more = f" (+{len(tests) - max_tests} more)" if len(tests) > max_tests else ""
+                out.append("switch tests in this code (with default values): " + "; ".join(shown) + more)
         return out
 
     def _rows(self, ids: list[int]) -> dict[int, sqlite3.Row]:

@@ -13,6 +13,7 @@ from pathlib import PurePosixPath
 
 TARGET_CHARS = 1200  # pack small segments up to roughly this size
 MAX_CHARS = 2500  # hard cap per chunk (~700 tokens)
+EQ_MAX_CHARS = 12000  # equation definitions
 
 
 @dataclass
@@ -216,6 +217,33 @@ def _stmt_end(lines: list[str], i: int) -> int:
     return len(lines)
 
 
+EQSTART_RE = re.compile(r"^\s*([A-Za-z]\w*)\s*[($.]")
+
+
+def _equation_head(lines: list[str], i: int, max_lines: int = 30) -> str | None:
+    """Name of the equation defined by the statement starting at line i, if its `..` comes after a
+    domain / $-condition spanning several lines (the one-line case is EQDEF_RE). `..` only counts outside
+    parentheses and before the statement's `;`."""
+    m = EQSTART_RE.match(lines[i])
+    if not m:
+        return None
+    depth = 0
+    for j in range(i, min(len(lines), i + max_lines)):
+        if _is_comment(lines[j]):
+            continue
+        code = _code_part(lines[j])
+        for k, ch in enumerate(code):
+            if ch in "([":
+                depth += 1
+            elif ch in ")]":
+                depth -= 1
+            elif ch == ";" and depth <= 0:
+                return None
+            elif ch == "." and depth == 0 and code[k:k + 2] == ".." and code[k:k + 3] != "...":
+                return m.group(1)
+    return None
+
+
 def _decl_kind(word: str) -> str:
     word = " ".join(word.lower().split())
     return re.sub(r"(variable|scalar|parameter|equation|set|table)s$", r"\1", word)
@@ -329,14 +357,17 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
         if covered[i] or _is_comment(line):
             continue
         m = EQDEF_RE.match(line)
-        if not m:
+        name = m.group(1) if m else _equation_head(lines, i)
+        if not name:
             continue
         e = _stmt_end(lines, i)
         s = i
         while s > 0 and not covered[s - 1] and _is_comment(lines[s - 1]):
             s -= 1
-        for s2, e2 in _split_large(lines, s, e):
-            c = _make_chunk(path, lines, s2, e2, "equation", meta, name=m.group(1))
+        # an equation stays whole unless it is huge: only its start is embedded anyway, and a split
+        # equation is easy to misread
+        for s2, e2 in _split_large(lines, s, e, max_chars=EQ_MAX_CHARS):
+            c = _make_chunk(path, lines, s2, e2, "equation", meta, name=name)
             if c:
                 special.append(c)
         for j in range(s, e):
