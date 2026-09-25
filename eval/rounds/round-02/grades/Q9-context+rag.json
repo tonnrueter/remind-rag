@@ -1,0 +1,84 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "core/equations.gms has no equation that directly constrains temperature; temperature dynamics are outside the optimization",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:829-850 (only GHG budget equations); main.gms:265-269",
+        "note": "Corrects the false premise. It doesn't comment on the 'macro core' (01_macro) wording, but the substance is right."
+      },
+      {
+        "claim": "Temperature comes from 15_climate, realization magicc7_ar6, which calls the MAGICC7 emulator",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "main.gms:267-269 ($setGlobal climate off !! def = off)",
+        "note": "The answer names magicc7_ar6 as if it were the active realization. The default is climate=off, so no temperature is computed at all in a default run. The answer never says this."
+      },
+      {
+        "claim": "qm_co2eqCum (equations.gms:833-841) sums pm_ts-weighted vm_co2eq over the budget period up to sm_endBudgetCO2eq",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/equations.gms:833-845",
+        "note": "The mechanism is right, but the quoted formula is simplified. The code uses half weights (pm_ts/2) at s_t_start and sm_endBudgetCO2eq, and the equation runs to line 845."
+      },
+      {
+        "claim": "q_budgetCO2eqGlob (847-850) caps global cumulative emissions at sum(pm_budgetCO2eq), active only when cm_emiscen=6; this is the core's 'hard' proxy for a temperature limit",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "core/equations.gms:847-850; main.gms:535 (cm_emiscen = 9 !! def = 9); core/datainput.gms:1392,1403 (sm_budgetCO2eqGlob=20000 by default)",
+        "note": "It correctly states the $(cm_emiscen=6) condition, but never says the default is cm_emiscen=9, so the constraint is inactive by default. The closing line, 'hard cumulative-emissions constraint in core', reads as if it were active. Calling it 'REMIND's proxy for a temperature limit' overstates it: default and standard budget runs use carbon-price adjustment in 45_carbonprice."
+      },
+      {
+        "claim": "pm_budgetCO2eq(regi) is set in core/preloop.gms:61 as an equal per-region split of sm_budgetCO2eqGlob",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/preloop.gms:61; modules/80_optimization/nash/preloop.gms:97; main.gms:470 (optimization nash default); modules/45_carbonprice/functionalForm/postsolve.gms:27",
+        "note": "The line is real, but under the default nash realization it is overwritten with pm_shPerm-based shares. 45 functionalForm also rescales it."
+      },
+      {
+        "claim": "cm_budgetCO2from2020 (main.gms:567, default 0) is the user-facing global CO2 budget from 2020 in GtCO2",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:565-567; modules/45_carbonprice/functionalForm/postsolve.gms:26-27",
+        "note": "The switch and its default are correct. The core equations don't read it directly; 45 functionalForm uses it to iteratively rescale the tax and pm_budgetCO2eq. The AR6 budget numbers (~500/~1150 Gt) can't be checked in the code."
+      },
+      {
+        "claim": "sm_endBudgetCO2eq is the end year of the budget period; pm_ts is the timestep weight; v_co2eqCum is the cumulative variable",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/datainput.gms:1386,1389; core/equations.gms:833-838",
+        "note": ""
+      },
+      {
+        "claim": "The translation from a temperature goal to a carbon budget number happens in 45_carbonprice temperatureNotToExceed",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/postsolve.gms:11-27; realization.gms:9-10",
+        "note": "The code does not compute a budget number. It computes an optimal tax directly from a first-order condition (Schultes et al. 2018), using pm_temperatureImpulseResponseCO2 and a logistic term in the temperature. Only the doc header mentions a peak budget."
+      },
+      {
+        "claim": "temperatureNotToExceed iteratively adjusts pm_taxCO2eq using pm_globalMeanTemperature vs cm_carbonprice_temperatureLimit (default 1.8), postsolve.gms:23",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/postsolve.gms:23,40-42; main.gms:1171",
+        "note": "It doesn't say this realization is non-default (the default is carbonprice=NPi2025, main.gms:411), or that it requires climate=magicc and cm_emiscen=9 (datainput.gms:10-13)."
+      }
+    ],
+    "critical": 0,
+    "major": 2,
+    "minor": 4,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "corrected",
+    "went_well": "The answer states up front that no core equation constrains temperature. It finds the real budget equations (qm_co2eqCum, q_budgetCO2eqGlob) and their cm_emiscen=6 condition. All identifiers exist, and it correctly separates the iterative temperature feedback in 45_carbonprice/temperatureNotToExceed from the optimization. Citations are accurate to within a few lines.",
+    "answer_key_issues": "The key says there are no temperature-limiting equations in core. That is true, but it doesn't mention the existing cumulative-budget equations (core/equations.gms:833-850, active only with cm_emiscen=6), so it is fair for an answer to discuss them. The key cites cm_iterative_target_adj in connection with temperatureNotToExceed, but that realization's code never reads the switch. The quoted 'peak budget' description comes from the realization header (realization.gms:9-10); the postsolve code computes the tax directly from a temperature first-order condition, not from a budget.",
+    "summary": "The answer corrects the trap premise and points to the real cumulative-emissions budget equations and the temperatureNotToExceed carbon-price realization, with no invented names. It does not lead with the default configuration: climate=off, cm_emiscen=9 (so q_budgetCO2eqGlob is inactive) and carbonprice=NPi2025. As a result, the 'hard constraint in core' and 'magicc7_ar6' framing reads as active by default. Smaller slips: pm_budgetCO2eq is overwritten by nash's preloop, and temperatureNotToExceed computes a first-order-condition tax, not a budget."
+  },
+  "grader_cost_usd": 0.3140906,
+  "grader_turns": 14,
+  "grader_duration_s": 76.7,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q9",
+  "arm": "context+rag"
+}

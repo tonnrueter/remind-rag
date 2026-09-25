@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "v_changeProdStartyearSlack in q_relChangeProdStartYear (core/equations.gms:940-948) always allows some change in start-year production",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/equations.gms:947; core/declarations.gms:369; core/bounds.gms:587-588; main.gms:1354",
+        "note": "The equation reference is right. But the slack has both upper and lower bounds (±c_SlackMultiplier*…), so it is not a 'positive' variable. It is also a cost-free band relative to the reference run, not something with a 'tiny cost penalty' as the answer's general framing says. The answer never says where it is bounded (bounds.gms)."
+      },
+      {
+        "claim": "q_shSeFeSector leaves out build/indst solids, with a comment about preventing zero-demand infeasibility",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/equations.gms:1104-1107",
+        "note": "The quote is accurate. But this is a $-condition exclusion, not a penalty or slack variable, so it doesn't belong in the list of 'genuine' instances."
+      },
+      {
+        "claim": "v36_expSlack is in q36_costAddH2PhaseIn (weight 1e-8) and in q36_auxCostAddTeInv, and keeps the logistic exponent solvable",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/36_buildings/simple/equations.gms:43,63; modules/36_buildings/simple/declarations.gms:26; main.gms:343 (simple is default)",
+        "note": ""
+      },
+      {
+        "claim": "v21_emiAllco2neg_slack and v21_emiAllco2neg_acrossIterations_slack are positive slacks that guarantee feasibility of the net-negative CO2 identity",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/21_tax/on/equations.gms:351-365; modules/21_tax/on/declarations.gms:148",
+        "note": "The equations and comments are cited correctly. But the declaration calls it a 'dummy variable to extract net-negative CO2 emissions', which works as a max(0,·) construction. Calling it an infeasibility guard stretches its purpose."
+      },
+      {
+        "claim": "v31_fuSlack in 31_fossil timeDepGrades/MOFEX is physical slack capacity from early-retired oil wells, not an artificial device",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/31_fossil/timeDepGrades/declarations.gms:95; modules/31_fossil/timeDepGrades/equations.gms:142-168; main.gms:327 (default fossil = grades2poly)",
+        "note": "The interpretation matches the declaration ('oil not extracted but put aside'). But the answer doesn't say that neither realization is the default (the default is grades2poly), so this variable is inactive in default runs."
+      },
+      {
+        "claim": "cm_INCONV_PENALTY terms in 02_welfare are inconvenience costs, not infeasibility guards",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/02_welfare/utilitarian/equations.gms:46-124; main.gms:2104",
+        "note": ""
+      },
+      {
+        "claim": "v30_multcost in 30_biomass/magpie is a coupling-convergence penalty",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/declarations.gms:73",
+        "note": "The declaration describes it as a cost markup for deviations from the previous coupling iteration's demand."
+      },
+      {
+        "claim": "All equations.gms files were searched repo-wide (implied completeness)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "Grep for [sS]lack in **/equations.gms returns only the variables the answer found",
+        "note": "The answer found every declared slack variable. The key's v_fuelslack only appears in declaration description text."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 5,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "corrected",
+    "went_well": "The answer found every real slack variable in equations.gms files (v_changeProdStartyearSlack, v36_expSlack, both v21 slacks, v31_fuSlack) with accurate line citations. It correctly treated v31_fuSlack as physical rather than artificial. It also separated out look-alikes that are not infeasibility guards (INCONV penalty, v30_multcost, q31 dummy equations).",
+    "answer_key_issues": "`v_fuelslack` is not a declared variable anywhere. It only appears in the description text of q31_smoothoilphaseout (modules/31_fossil/{MOFEX,timeDepGrades}/declarations.gms), where it is a stale name for v31_fuSlack. The key should not list it as a real variable. Also, v_changeProdStartyearSlack is not penalized: it is a bounded, cost-free band (core/bounds.gms:587-588). The key asks where each slack 'is penalized', which doesn't apply to this variable or to the v21 slacks.",
+    "summary": "The answer found all the real slack variables in equations.gms, cited them accurately, and correctly separated out look-alikes such as the INCONV penalty and v30_multcost. Its errors are minor: it includes a $-condition exclusion (q_shSeFeSector) as an instance, calls the v21 max(0,·) dummies and the bounded changeProdStartyear band 'infeasibility guards' with a 'tiny penalty', and doesn't say that the 31_fossil realizations using v31_fuSlack are not the default (the default is grades2poly). It also opens with a stray sentence left over from an earlier draft."
+  },
+  "grader_cost_usd": 0.18494359999999999,
+  "grader_turns": 8,
+  "grader_duration_s": 45.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q1",
+  "arm": "context"
+}

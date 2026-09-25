@@ -1,0 +1,70 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "No postsolve.gms (core or modules) touches spv/teVRE; premise is false",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "grep 'spv|teVRE' over **/postsolve.gms: no matches",
+        "note": ""
+      },
+      {
+        "claim": "Searched core plus 48 module-realization postsolve.gms files",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "Glob **/postsolve.gms returns core + 50 module files",
+        "note": "The count is slightly wrong (there are 50 module postsolve files). The conclusion still holds."
+      },
+      {
+        "claim": "core/bounds.gms:76 caps teVRE capacity (incl. spv) at 1.05*pm_histCap for 2015–2025 where data exist",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/bounds.gms:73-76",
+        "note": ""
+      },
+      {
+        "claim": "modules/47_regipol/none/bounds.gms:19 caps 2025 spv vm_deltaCap at 2× the 2011–2020 maximum historical addition",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "modules/47_regipol/none/bounds.gms:17-19; main.gms:425 (regipol def = regiCarbonPrice)",
+        "note": "The formula is quoted correctly, but the answer leaves out two things. The bound applies only to DEU (loop regi$sameAs(regi,\"DEU\")). And `none` is not the default realization; the default is regiCarbonPrice, whose bounds.gms has no spv bound. So by default this bound is not active."
+      },
+      {
+        "claim": "40_techpol realizations set only lower bounds (vm_cap.lo from p40_TechBound) for spv",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/NPi2025/bounds.gms:23; NPi2018:11; NDC:11; NDCplus:10",
+        "note": "The answer doesn't say that NPi2025 is the default (main.gms:364). This is a minor omission."
+      },
+      {
+        "claim": "The listed bounds are the solar upper bounds in bounds.gms",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/bounds.gms:89-94",
+        "note": "The answer misses the default-active 2025 spv generation upper bound for EUR regions (vm_prodSe.up based on historical growth rates). This is the bound the answer key highlights."
+      },
+      {
+        "claim": "postsolve.gms files only compute reporting parameters and don't write .up/.lo/.fx on capacity variables",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/33_carbonRemoval/portfolio/postsolve.gms:10,14",
+        "note": "True for capacity variables. But 'only reporting parameters' overgeneralizes: some postsolve files set bounds on other variables and update prices and taxes."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 3,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "corrected",
+    "went_well": "The answer corrected the false premise clearly: no postsolve.gms touches spv. It backed this with a real search, and the core/bounds.gms:76 citation is accurate. It also correctly said the techpol bounds are lower bounds rather than caps.",
+    "answer_key_issues": "The key cites only core/bounds.gms:94. That line is a vm_prodSe (generation) upper bound for EUR regions, not a capacity bound. The capacity upper bound in core is vm_cap.up at core/bounds.gms:76, which the key leaves out.",
+    "summary": "The answer correctly rejects the premise: no postsolve.gms touches spv bounds. It also correctly cites the default vm_cap.up at core/bounds.gms:76. However, it presents the 2025 spv deltaCap cap from 47_regipol/none as a general bound, without saying it is DEU-only and belongs to a non-default realization (the default is regiCarbonPrice). It also misses the EUR vm_prodSe.up for spv at core/bounds.gms:94."
+  },
+  "grader_cost_usd": 0.1671736,
+  "grader_turns": 11,
+  "grader_duration_s": 34.5,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q8",
+  "arm": "context"
+}

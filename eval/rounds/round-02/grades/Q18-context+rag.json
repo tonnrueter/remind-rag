@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "With cm_33DAC=0, dac is excluded from te_used33 and its related sets (sets.gms:79-86), and therefore from global te, teNoTransform, teAdj, teLearn; it remains in static superset te_all33",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms:10-16, 79-86, 109-113",
+        "note": ""
+      },
+      {
+        "claim": "The global sets affected include te_ccs",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms:85, 109-113",
+        "note": "te_ccs33 is module-local and isn't copied into any global te_ccs set. Only te, teNoTransform, teNoTransform2rlf, teAdj and teLearn are propagated."
+      },
+      {
+        "claim": "Equations like q33_capconst are indexed over te_used33, so no equation instance is generated for dac at all",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:53, 105",
+        "note": "Correct for q33_capconst and q33_cco2_cdr_fromFE. But q33_DAC_FEdemand's domain depends on fe2cdr(...,'dac'), not on the switch, so it is still generated. Because vm_emiCdrTeDetail('dac') is fixed to 0, it forces DAC's FE demand to 0. The claim 'no instance for dac at all' can be shown to be incomplete."
+      },
+      {
+        "claim": "vm_emiCdrTeDetail(dac) and v33_FEdemand(...,dac) are fixed to 0 via the 'not te_used33' fix",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/bounds.gms:23-24",
+        "note": ""
+      },
+      {
+        "claim": "vm_co2emi_cdrFE_beforeCapture(dac) is fixed to 0 because dac drops out of te_ccs33",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/bounds.gms:26",
+        "note": ""
+      },
+      {
+        "claim": "vm_co2capture_cdr is fixed to 0 because dac is no longer in te_ccs33",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/33_carbonRemoval/portfolio/bounds.gms:18-20; main.gms:1033",
+        "note": "This fix only applies when card(te_ccs33)=0, i.e. when OAE is also off. That is true by default (cm_33OAE=0), but the answer doesn't state the condition. The variable isn't indexed by dac either."
+      },
+      {
+        "claim": "The DAC minimum-capacity bound block if(te_used33('dac'),...) is skipped",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/bounds.gms:41-45",
+        "note": ""
+      },
+      {
+        "claim": "Net effect: DAC capacity, capture and FE demand are all fixed to zero and DAC acts as if it didn't exist",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms:109; bounds.gms:23-26",
+        "note": "The net effect is right. However, vm_cap for dac is not explicitly fixed; dac just drops out of the te domain."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 3,
+    "failure_class": "incomplete",
+    "fix_layer": "reasoning",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer correctly explains the set/fixing mechanism rather than saying \"the equations are deleted\". It cites the exact switch block in sets.gms, and the bounds.gms fixes on lines 23-26. It also identifies the skipped DAC bound block. Its framing (\"aren't turned off, they just never mention it\") matches what the key wants.",
+    "answer_key_issues": "None substantive. The key cites dac in all_te (core/sets.gms). The answer instead cites te_all33 (portfolio/sets.gms:10-16). dac is in both, so both are valid.",
+    "summary": "The answer gets the core mechanism right: dac drops out of te_used33 and the global sets, the bounds.gms:23-26 fixes apply, and the DAC bound block is skipped. Its main flaw is claiming that no dac equation instance is generated. q33_DAC_FEdemand is still generated because its domain depends on fe2cdr, not the switch, and it pins DAC's FE demand to 0. There are also minor slips: te_ccs33 is not propagated to any global set, the vm_co2capture_cdr fix depends on OAE also being off, and the answer never mentions that the default is 1."
+  },
+  "grader_cost_usd": 0.1719184,
+  "grader_turns": 7,
+  "grader_duration_s": 40.8,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q18",
+  "arm": "context+rag"
+}

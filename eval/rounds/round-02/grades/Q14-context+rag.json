@@ -1,0 +1,91 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "Default is climate = off (main.gms:269)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:267-269",
+        "note": ""
+      },
+      {
+        "claim": "The off realization hardcodes pm_gmt_conv, pm_globalMeanTemperature, pm_globalMeanTemperatureZeroed1900 and pm_temperatureImpulseResponseCO2 to 0 (off/datainput.gms:53-56)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/15_climate/off/datainput.gms:53-56",
+        "note": ""
+      },
+      {
+        "claim": "The off realization reads exogenous RCP forcing based on cm_rcp_scen (lines 17-23) and sets pm_emicapglob from RCP/multigas tables (lines 29-51)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/15_climate/off/datainput.gms:16-51",
+        "note": ""
+      },
+      {
+        "claim": "Damage and carbon-price modules that read temperature see zero warming by default, unless a damages realization supplies temperature some other way",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:411,438; modules/45_carbonprice/temperatureNotToExceed/postsolve.gms:21-23",
+        "note": "By default damages = off and carbonprice = NPi2025, and neither reads temperature, so in a default run no module reads temperature at all. The idea of a damages realization with its own exogenous forcing is speculation."
+      },
+      {
+        "claim": "magicc7_ar6 runs MAGICC between iterations and loads pm_globalMeanTemperature from p15_climate, truncated at 2100 (postsolve.gms:32-43)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/15_climate/magicc7_ar6/postsolve.gms:20-37",
+        "note": "Runs only when iteration > 1, via climateAssessmentInterimRun.R."
+      },
+      {
+        "claim": "Optional HADCRUT4 calibration in 2000, then an offset so the series is zero in 1900 (postsolve.gms:60-71)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/15_climate/magicc7_ar6/postsolve.gms:40-64; main.gms:2142",
+        "note": "The code is at lines 40-64, not 60-71. The 1900 offset (+0.092) is applied unconditionally, not only after calibration. Calibration is off by default (cm_magicc_calibrateTemperature2000 = uncalibrated)."
+      },
+      {
+        "claim": "The TIRF is derived from MAGICC pulse runs only if cm_magicc_temperatureImpulseResponse = on; otherwise it stays zero",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/15_climate/magicc7_ar6/postsolve.gms:71-80; main.gms:2144",
+        "note": "The switch defaults to off."
+      },
+      {
+        "claim": "magicc7_ar6 enables forcing-based tax adjustment (via cm_emiscen)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/15_climate/magicc7_ar6/postsolve.gms:87-117; main.gms:969",
+        "note": "The main gate is cm_iterative_target_adj = 2 (default 0). cm_emiscen = 9 is an additional condition. The answer does not mention cm_iterative_target_adj."
+      },
+      {
+        "claim": "carbonprice = temperatureNotToExceed aborts if climate != magicc7_ar6 (temperatureNotToExceed/datainput.gms:10)",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/datainput.gms:10-11; Glob modules/15_climate/*/realization.gms",
+        "note": "The code checks climate == 'magicc', which is not an existing realization. As written, the check aborts even with magicc7_ar6, so the realization cannot run with either climate realization. The answer paraphrased the check as if it worked, and missed that TIRF = on is also required."
+      },
+      {
+        "claim": "The MAGICC temperature feeds damages, carbon pricing and downscaling",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/16_downscaleTemperature/CMIP5/postsolve.gms:10-12; main.gms:273",
+        "note": "The CMIP5 postsolve does read pm_globalMeanTemperature, but main.gms documents CMIP5 as 'Requires climate = off'. The answer did not mention this conflict."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 4,
+    "failure_class": "citation drift",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer leads with the default (climate = off) and shows the actual zeroing code with correct lines. It correctly notes that the off realization still reads exogenous RCP forcing and emission caps. It describes the MAGICC loadpoint, the 2100 truncation and the TIRF gating accurately.",
+    "answer_key_issues": "The key does not mention that the off realization still reads exogenous RCP forcing and pm_emicapglob. The key cites no evidence that downscaleTemperature works with MAGICC, and main.gms:273 says CMIP5 'Requires climate = off' even though its postsolve reads pm_globalMeanTemperature, which is zero under off. That doc line looks stale or inconsistent. Similarly, temperatureNotToExceed/datainput.gms:10 checks climate == 'magicc', a realization that no longer exists. Both are upstream remind_docs issues.",
+    "summary": "The answer gets the default right: with climate = off, all temperature parameters are set to zero and only exogenous RCP forcing and emission caps are read. The MAGICC coupling is also described mostly accurately. The main error is a paraphrased guard: the answer says temperatureNotToExceed requires climate = magicc7_ar6, but the code checks the stale name 'magicc', so that realization aborts under every current climate realization. The minor issues are a citation that points about 20 lines too late for the HADCRUT4 calibration, and the tax adjustment attributed to cm_emiscen rather than cm_iterative_target_adj = 2."
+  },
+  "grader_cost_usd": 0.23617520000000003,
+  "grader_turns": 12,
+  "grader_duration_s": 58.4,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q14",
+  "arm": "context+rag"
+}

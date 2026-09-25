@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "Macro capital stock q01_kapMo is a perpetual-inventory recursion: K(t+1)=K(t)(1-δ)^Δt + investment terms, lives in 01_macro",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/01_macro/singleSectorGr/equations.gms:114-130; main.gms:247",
+        "note": "The formula is right, but the path is given as 'core/01_macro' when it is modules/01_macro/singleSectorGr. The answer also does not say that singleSectorGr is the default realization."
+      },
+      {
+        "claim": "Investment in periods t and t+1 is weighted by p01_cumDeprecFactor_old/new, described as closed-form integrals of (1-δ)^s over a piecewise-linear investment trajectory, giving an 'exact' discrete recursion",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "modules/01_macro/singleSectorGr/preloop.gms:10-43",
+        "note": "The factors are real. But the code computes discrete geometric sums ((1-δ)^a-(1-δ)^b)/δ under a half-and-half step split: investment of t covers the first half of the step and investment of t+1 the second half, with a 1/2 correction for odd step lengths. There is no piecewise-linear interpolation and no integral, so the formula described is not what the code implements. The 'exact' and 'PDE-like' wording is invented detail."
+      },
+      {
+        "claim": "The Investment_Inefficiencies realization multiplies investment by p01_investeffectv(regi) without changing depreciation",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/01_macro/Investment_Inefficiencies/equations.gms:128-129",
+        "note": "Correct, though the answer does not say that this realization is not the default."
+      },
+      {
+        "claim": "q_cap: vm_cap = (1-vm_capEarlyReti) * Σ pm_ts * pm_omeg(age+1) * vm_deltaCap over vintages, in core/equations.gms",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:307-317",
+        "note": ""
+      },
+      {
+        "claim": "pm_omeg gives low depreciation early in a plant's life and fast depreciation near the average lifetime, unlike the constant-rate macro depreciation",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:298-299; core/datainput.gms:827",
+        "note": "This matches the code comment and the quartic survival form."
+      },
+      {
+        "claim": "pm_omeg is an 'empirically shaped' curve, calibrated via pm_teAnnuity/discounted-lifetime calculations so that cumulative depreciation integrates to the expected lifetime",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "core/datainput.gms:826-827, 870-871",
+        "note": "pm_omeg is an analytic formula: max(0, 1-((age-0.5)/(1.25·lifetime))^4). The dependency runs the other way: p_discountedLifetime and pm_teAnnuity are derived from pm_omeg, not used to calibrate it."
+      },
+      {
+        "claim": "vm_capEarlyReti adds policy-driven early retirement on top of vintage depreciation",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:301-303, 310",
+        "note": ""
+      },
+      {
+        "claim": "pm_ts weights each vintage by half the surrounding time-step length",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/datainput.gms:33",
+        "note": "pm_ts = (t+1 - t-1)/2"
+      }
+    ],
+    "critical": 0,
+    "major": 2,
+    "minor": 1,
+    "failure_class": "reasoning embellishment",
+    "fix_layer": "reasoning",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer separates macro capital depreciation from vintage capacity depreciation, as the key asks. It reproduces both equations correctly, correctly handles the early-retirement factor and pm_ts, and correctly contrasts constant-rate decay with an age-dependent survival curve.",
+    "answer_key_issues": "None. The key's line references match the code: modules/01_macro/singleSectorGr/equations.gms:115-116 and core/equations.gms:298-303.",
+    "summary": "The answer has the right structure and correct core equations for q01_kapMo and q_cap. However, it embellishes the detail. It describes p01_cumDeprecFactor_* as integrals over a piecewise-linear investment path, when the code uses a half-and-half split with geometric sums. It also says pm_omeg is empirically calibrated via pm_teAnnuity, when pm_omeg is the analytic quartic 1-((a-0.5)/(1.25L))^4 and pm_teAnnuity is derived from it. The path 'core/01_macro' is also wrong."
+  },
+  "grader_cost_usd": 0.18311840000000001,
+  "grader_turns": 11,
+  "grader_duration_s": 36.9,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q3",
+  "arm": "context+rag"
+}

@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claims", "critical", "major", "minor", "failure_class", "fix_layer", "premise_handled",
+               "went_well", "answer_key_issues", "summary"],
+  "properties": {
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "verdict", "severity", "evidence", "note"],
+        "properties": {
+          "claim": {"type": "string", "description": "the claim, paraphrased in one line"},
+          "verdict": {"type": "string", "enum": ["correct", "partly", "wrong", "unverifiable"]},
+          "severity": {"type": "string", "enum": ["none", "minor", "major", "critical"]},
+          "evidence": {"type": "string", "description": "path:line(s) in REMIND that support the verdict"},
+          "note": {"type": "string", "description": "what is wrong or missing; empty if correct"}
+        }
+      }
+    },
+    "critical": {"type": "integer"},
+    "major": {"type": "integer"},
+    "minor": {"type": "integer"},
+    "failure_class": {"type": "string"},
+    "fix_layer": {"type": "string", "enum": ["procedure", "retrieval", "remind_docs", "reasoning", "none"]},
+    "premise_handled": {"type": "string", "enum": ["corrected", "accepted", "not_applicable"]},
+    "went_well": {"type": "string"},
+    "answer_key_issues": {"type": "string", "description": "where the code contradicts or goes beyond the answer key; empty if none"},
+    "summary": {"type": "string", "description": "2-3 sentences for a REMIND developer"}
+  }
+}

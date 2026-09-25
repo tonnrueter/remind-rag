@@ -1,0 +1,87 @@
+{
+  "tool_calls": [
+    {
+      "name": "Glob",
+      "input": "{\"pattern\": \"modules/30_fossil/**\"}"
+    },
+    {
+      "name": "Glob",
+      "input": "{\"pattern\": \"modules/*fossil*\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"grades2poly|timeDepGrades\", \"output_mode\": \"files_with_matches\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\31_fossil\\\\module.gms\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\31_fossil\\\\grades2poly\\\\realization.gms\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\31_fossil\\\\timeDepGrades\\\\realization.gms\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"^cfg\\\\$gms\\\\$fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\default.cfg\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\default.cfg\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\", \"-n\": true, \"-i\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"31_fossil|c31_fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\default.cfg\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"cm_fossil|c31_fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\scenario_config.csv\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"cfg\\\\$gms\\\\$fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\", \"-n\": true, \"-r\": \"false\"}"
+    },
+    {
+      "name": "Glob",
+      "input": "{\"pattern\": \"config/default.cfg\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"gms\\\\$fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\default.cfg\", \"-n\": true, \"-i\": true, \"output_mode\": \"content\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"fossil\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\main.gms\", \"-n\": true, \"output_mode\": \"content\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [],
+  "answer": "Found it — line 327: `$setglobal fossil grades2poly !! def = grades2poly`. Default is `grades2poly`.\n\n**Structural difference:**\n\n- **`timeDepGrades`** — the \"physical\" representation: fossil resources (oil, gas, coal) are split into discrete cost grades per region, each with a min/max price and a volume, sourced from IIASA GEA/BGR data. Grades deplete in Hotelling order (cheapest first), with grade boundaries shifting over time based on exogenous technological-change rates. It has extra phases (`bounds.gms`, `output.gms`) and its own optimization/extraction-share logic (`p31_grades`, `p31_prod_share`, etc., per its own `@limitations` note).\n- **`grades2poly`** — an approximation: it fits the extraction cost curves from `timeDepGrades` runs (under various fossil-availability assumptions) into 3rd-order polynomials per fuel and region, and uses those polynomials directly instead of the discrete grade structure. This drastically reduces model runtime but has no `output.gms` phase since it's a pre-fitted, simplified representation.\n\nIn short, `timeDepGrades` is the underlying discrete-grade cost-curve model; `grades2poly` is a polynomial-curve-fit reduction of it for speed. `grades2poly` is the default (main.gms:327).",
+  "cost_usd": 0.1658654,
+  "turns": 17,
+  "duration_s": 81.1,
+  "is_error": false,
+  "input_tokens": 303367,
+  "output_tokens": 2571,
+  "tool_counts": {
+    "Glob": 3,
+    "Grep": 10,
+    "Read": 3
+  },
+  "id": "Q12",
+  "kind": "rewrite",
+  "arm": "context",
+  "question": "What is the structural difference between the `grades2poly` and `timeDepGrades` realizations of the fossil resource module, and which one is used by default?",
+  "wall_s": 96.7
+}

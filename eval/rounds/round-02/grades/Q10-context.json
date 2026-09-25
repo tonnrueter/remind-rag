@@ -1,0 +1,91 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "pm_taxCO2eqSum(ttot,all_regi) is declared in 46_carbonpriceRegi, in both the none and netZero realizations; units T$/GtC, ×272 gives $/tCO2",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/46_carbonpriceRegi/none/declarations.gms:11; modules/46_carbonpriceRegi/netZero/declarations.gms:23",
+        "note": ""
+      },
+      {
+        "claim": "The main calculation is core/presolve.gms:10 as pm_taxCO2eq + pm_taxCO2eqRegi + pm_taxCO2eqSCC, with a 2030 cap applied just below it",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/presolve.gms:10,12-20; main.gms:1482",
+        "note": "The sum is correct. The 2030 cap sits inside $ifThen cm_CO2PriceLimit, and that switch defaults to off, so the cap does nothing in the default configuration. The answer doesn't say this."
+      },
+      {
+        "claim": "The parameter is initialised to 0 in core/datainput.gms:13 and reset to 0 in core/preloop.gms:44",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/datainput.gms:13; core/preloop.gms:44",
+        "note": "The answer says 'each preloop iteration', but preloop runs once, before the iteration loop. The line reference itself is correct."
+      },
+      {
+        "claim": "core/postsolve.gms:51-56 overwrites it from the dual value q_co2eq.m (a Nash-mode derivation), with a special case for years before 2025",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "core/postsolve.gms:49-57; main.gms:535",
+        "note": "Both assignments are guarded by cm_emiscen. The dual-value derivation runs only when cm_emiscen eq 6 (it has both a negishi and a nash branch, so calling it 'Nash-mode' is wrong). The pre-2025 case runs only when cm_emiscen eq 1. The default is cm_emiscen = 9, so neither overwrite runs by default. The answer presents them as unconditional and later says the core computation 'lives in core/presolve.gms and core/postsolve.gms'."
+      },
+      {
+        "claim": "47_regipol/regiCarbonPrice conditionally zeroes or overrides it in presolve.gms:24 and postsolve.gms lines 151, 962, 976, 986, 1001",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/presolve.gms:20-24; modules/47_regipol/regiCarbonPrice/postsolve.gms:151,962,976,986,1001",
+        "note": "regiCarbonPrice is the default realization. The writes are conditional (e.g. on cm_emiMktTarget), and the answer does say 'conditionally'."
+      },
+      {
+        "claim": "The parameter is also 'touched' in 46_carbonpriceRegi/netZero/postsolve.gms:68, which back-calculates markup components (listed under where it is computed)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/46_carbonpriceRegi/netZero/postsolve.gms:67-70",
+        "note": "Line 68 only reads pm_taxCO2eqSum, to compute p46_taxCO2eqRegiPeak. It does not write it. It belongs with the readers, and netZero is not the default realization (main.gms:418 sets none)."
+      },
+      {
+        "claim": "21_tax (on) reads it in presolve, postsolve and equations to compute tax revenues for GHG, sector CO2, LUC, CDR and import markups",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/equations.gms:79,89,98,269,273,347; modules/21_tax/on/presolve.gms:17,30-32,42,68-69; modules/21_tax/on/postsolve.gms:21-23,33,58-59",
+        "note": ""
+      },
+      {
+        "claim": "33_carbonRemoval (portfolio) reads it at equations.gms:316 to price net-negative CO2",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:316",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol both reads it and writes it; it is aggregated into p47_taxCO2eq_AggEmi, p47_taxCO2eq_AggFE and p47_taxCO2eq_SectorAggFE",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/postsolve.gms:448,458,468",
+        "note": ""
+      },
+      {
+        "claim": "core reads it back at core/presolve.gms:256 to compute p_priceCO2",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/presolve.gms:256",
+        "note": "The answer calls the result '$/tCO2', but the code multiplies by 1000, not 272. The 1000 factor gives $/tC. This unit detail is minor and isn't counted separately."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 2,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer gets the declaring module right, names both realizations and gives correct line numbers. It locates the main computation at core/presolve.gms:10 with the correct formula. The reader list (core, 21_tax, 33_carbonRemoval, 47_regipol) is complete and every file:line citation is accurate. It keeps declared, populated and read separate, which is what the key asks for.",
+    "answer_key_issues": "The key lists only core/presolve.gms:10 as the place the value is computed. The code has other writes: core/postsolve.gms:51-56 (only when cm_emiscen is 6 or 1, and the default is 9) and the 47_regipol/regiCarbonPrice overrides (presolve.gms:24; postsolve.gms:151, 962, 976, 986, 1001). The key's reader list also leaves out 46_carbonpriceRegi/netZero/postsolve.gms:68, which reads the parameter in a non-default realization.",
+    "summary": "The answer gets the declaration, the main computation (core/presolve.gms:10) and all consumer modules right, with accurate citations. Its main flaw is presenting the core/postsolve.gms overwrite from q_co2eq.m as an active computation site. That overwrite is guarded by cm_emiscen eq 6 (the pre-2025 case by eq 1), the default is cm_emiscen = 9, and it is mislabelled as 'Nash-mode'. Two smaller slips: it doesn't mention that the 2030 cap depends on cm_CO2PriceLimit (off by default), and it lists a read in 46/netZero as a write."
+  },
+  "grader_cost_usd": 0.2068844,
+  "grader_turns": 11,
+  "grader_duration_s": 45.1,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q10",
+  "arm": "context"
+}

@@ -1,0 +1,63 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "testOneRegi is one of three 80_optimization realizations (nash, negishi, testOneRegi), selected via %optimization%",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/80_optimization/module.gms:17-19",
+        "note": ""
+      },
+      {
+        "claim": "Reduces REMIND to a single region; equivalent to Nash with one region",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/80_optimization/testOneRegi/realization.gms:9-10",
+        "note": ""
+      },
+      {
+        "claim": "Prices of resources/goods are exogenously fixed from the gdx rather than solved via market clearing",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/80_optimization/testOneRegi/realization.gms:10",
+        "note": ""
+      },
+      {
+        "claim": "Runtime is a few minutes, since one region is optimized instead of ~12",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/80_optimization/testOneRegi/realization.gms:12",
+        "note": "The '~12 regions' figure is the answer's own addition (it matches the default H12 setup). It isn't in the doc comment, but it's harmless."
+      },
+      {
+        "claim": "The debugging tutorial documents `start.R --debug --interactive --testOneRegi`, which restarts from the last good fulldata.gdx",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "tutorials/10_DebuggingREMIND.md:179-187",
+        "note": ""
+      },
+      {
+        "claim": "@limitations: only useful for testing or for regions with no influence on global prices of traded goods; not a substitute for nash/negishi in production",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/80_optimization/testOneRegi/realization.gms:14",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 0,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer quotes the realization's doc comment accurately and cites the right lines. It also found the debugging tutorial workflow (start.R --testOneRegi, c_testOneRegi_region context) and cited it correctly. The limitation is quoted word for word, and the answer explains why fixed prices make the realization unsuitable for real scenarios.",
+    "answer_key_issues": "",
+    "summary": "This answer is fully consistent with modules/80_optimization/testOneRegi/realization.gms:9-14 and module.gms. It adds a correct pointer to the debugging tutorial (tutorials/10_DebuggingREMIND.md:179-187). I found no substantive errors; the only unsourced detail is the '~12 regions' remark, which is harmless."
+  },
+  "grader_cost_usd": 0.08656240000000001,
+  "grader_turns": 7,
+  "grader_duration_s": 22.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q17",
+  "arm": "context"
+}

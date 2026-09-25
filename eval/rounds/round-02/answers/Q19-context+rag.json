@@ -1,0 +1,32 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"pm_taxCO2eq\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"carbon price unit conversion GtC to tCO2 $/tCO2\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "- **CO2 emissions**: internally tracked in **GtC** (gigatonnes of carbon), the model's native emission unit (e.g. `vm_emiAll`, `pm_budgetCO2eq`). Some interfaces/reporting use GtCO2 or MtCO2 instead — conversion factor `sm_c_2_co2 = 44/12` (C→CO2 mass ratio).\n- **Carbon price**: internally stored in **T$/GtC** (trillion $ per gigatonne carbon), e.g. `pm_taxCO2eq`.\n\n**Conversion to $/tCO2:**\nMultiply the T$/GtC value by `1/sm_DptCO2_2_TDpGtC = 272` — i.e.\n\n```\nprice [$/tCO2] = pm_taxCO2eq [T$/GtC] * 272\n```\n\nwhere `sm_DptCO2_2_TDpGtC` (core) is defined as `44/12/1000` (the reverse conversion: $/tCO2 → T$/GtC), so its inverse, ≈272, converts T$/GtC to $/tCO2.",
+  "cost_usd": 0.05672959999999999,
+  "turns": 3,
+  "duration_s": 9.6,
+  "is_error": false,
+  "input_tokens": 52440,
+  "output_tokens": 543,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 1,
+    "mcp__remind-rag__search": 1
+  },
+  "id": "Q19",
+  "kind": "replacement",
+  "arm": "context+rag",
+  "question": "In which units does REMIND handle CO2 emissions and carbon prices internally, and how do I convert a carbon price to $/tCO2?",
+  "wall_s": 22.5
+}

@@ -1,0 +1,40 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"MAgPIE coupling agricultural production costs bioenergy supply curve\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"bioenergy supply curve pm_bioenergy pm_land\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"30_biomass\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"land use change emissions costs agricultural production costs from MAgPIE macro-economic\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "## Two separate interfaces to MAgPIE\n\n**1. Agricultural production costs — module `26_agCosts` (realization `costs`)**\n- Total land-use costs (crop/livestock production, land conversion, agricultural MAC costs) enter REMIND as one aggregate number `pm_totLUcosts_excl_costFuBio`, added to the economy's cost balance — REMIND does **not** model crop/livestock production structurally itself.\n- **Standalone runs**: read from a pre-computed lookup table (`p26_totLUcostLookup`), indexed by SSP/RCP scenario (`cm_LU_emi_scen`, `cm_rcp_scen`), derived from prior MAgPIE runs.\n- **Coupled runs**: `Execute_Loadpoint` pulls `p26_totLUcost_coupling` straight from `magpieData.gdx` each time MAgPIE has actually run in that Nash/coupling iteration (`sm_updateMagpieData`), i.e. genuine MAgPIE output.\n- Land-use MAC costs are handled carefully to avoid double-counting: in standalone mode REMIND computes its own MAC costs and subtracts the (already-included) exogenous MAC cost component; in coupled mode MAgPIE's own MAC costs are used directly and REMIND's internal MAC term is zeroed.\n- Bioenergy costs are explicitly subtracted out of this total (`pm_totLUcosts_excl_costFuBio`) since they're accounted separately in module 30 — see below.\n- `pm_NXagr` (net agricultural trade balance) is available in the `costs_trade` realization variant.\n\n**2. Bioenergy supply — module `30_biomass` (realization `magpie`)**\n- Purpose-grown lignocellulosic bioenergy costs are represented as an **emulated linear price-supply curve** (intercept/slope parameters `i30_bioen_price_a`/`b`), fit to MAgPIE's actual regional supply curves rather than solving MAgPIE inline during REMIND's optimization.\n- `q30_costFuBio` integrates this curve to get total fuel costs (`vm_costFuBio`), combining: fixed-price biomass (residues), the continuous MAgPIE-curve-based lignocellulosic cost (`v30_pebiolc_costs`), and PE trade costs.\n- **Coupling convergence**: a cost markup factor `v30_multcost` penalizes deviations of extraction (`vm_fuExtr`) from the previous coupling iteration's MAgPIE demand (`pm_pebiolc_demandmag`), damping oscillations between REMIND and MAgPIE iterations; it converges to 1 as the coupling converges.\n- A price-shift calibration step (`q30_priceshift`) least-squares-fits the emulator curve against actual MAgPIE price output each iteration.\n- Supply-curve parameters can be scaled regionally (e.g. `cm_BioSupply_Adjust_EU` for EU subregions) and bounded via `cm_maxProdBiolc`.\n\n**In short:** REMIND treats MAgPIE as a black box supplying (a) one lump-sum land-use cost aggregate per region/year and (b) a calibrated bioenergy price-supply-curve emulator, both refreshed from `magpieData.gdx`/`magpie.gdx` on each coupling iteration, with damping mechanisms to stabilize the iterative REMIND↔MAgPIE solve.",
+  "cost_usd": 0.0825276,
+  "turns": 5,
+  "duration_s": 20.9,
+  "is_error": false,
+  "input_tokens": 82839,
+  "output_tokens": 1710,
+  "tool_counts": {
+    "mcp__remind-rag__search": 3,
+    "mcp__remind-rag__get_module": 1
+  },
+  "id": "Q20",
+  "kind": "replacement",
+  "arm": "context+rag",
+  "question": "How does REMIND represent agricultural production costs and bioenergy supply, which come from the land-use model MAgPIE?",
+  "wall_s": 35.1
+}

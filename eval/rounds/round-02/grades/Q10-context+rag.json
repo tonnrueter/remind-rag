@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "pm_taxCO2eqSum is declared by module 46_carbonpriceRegi, in both netZero and none realizations",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/46_carbonpriceRegi/none/declarations.gms:11; modules/46_carbonpriceRegi/netZero/declarations.gms:23",
+        "note": ""
+      },
+      {
+        "claim": "Computed in core/presolve.gms:10 as pm_taxCO2eq + pm_taxCO2eqRegi + pm_taxCO2eqSCC",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/presolve.gms:9-10",
+        "note": ""
+      },
+      {
+        "claim": "A special-case 2030 clamp follows at presolve.gms:15-16",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/presolve.gms:12-20",
+        "note": "The clamp only applies when cm_CO2PriceLimit is not 'off' ($ifThen guard). The answer doesn't mention this condition."
+      },
+      {
+        "claim": "Zeroed in core/preloop.gms:44 and core/datainput.gms:13",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/preloop.gms:44; core/datainput.gms:13",
+        "note": ""
+      },
+      {
+        "claim": "core/postsolve.gms:51-56 re-derives it from q_co2eq.m for reporting and pre-2025 periods",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/postsolve.gms:49-57",
+        "note": "These lines are conditional on cm_emiscen (6 = marginal-based, 1 = pre-2025 fill). The answer leaves out the cm_emiscen conditions. Calling them diagnostic/reporting is a loose characterization."
+      },
+      {
+        "claim": "21_tax/on and 46_carbonpriceRegi/netZero overwrite or adjust pm_taxCO2eqSum in their presolve/postsolve",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "modules/21_tax/on/presolve.gms:17,30-42; modules/21_tax/on/postsolve.gms:21-33; modules/46_carbonpriceRegi/netZero/postsolve.gms:67-70",
+        "note": "Neither module assigns pm_taxCO2eqSum. 21_tax only reads it. 46 netZero reads it at postsolve:68 to rescale pm_taxCO2eqRegi (via p46_taxCO2eqRegiPeak). Only 47_regipol/regiCarbonPrice actually overwrites it. The answer blurs the READ vs WRITE split that the question asks for."
+      },
+      {
+        "claim": "47_regipol/regiCarbonPrice overwrites or zeroes it for some regions",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/presolve.gms:24; postsolve.gms:151,962,976,986,1001",
+        "note": ""
+      },
+      {
+        "claim": "Read by 21_tax, 33_carbonRemoval, 47_regipol and core",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/equations.gms:79; modules/33_carbonRemoval/portfolio/equations.gms:316; modules/47_regipol/regiCarbonPrice/postsolve.gms:448; core/presolve.gms:256",
+        "note": "46_carbonpriceRegi/netZero also reads it (postsolve.gms:68). The answer and the key both omit this."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 2,
+    "failure_class": "attribution",
+    "fix_layer": "reasoning",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer names the declaring module and both realizations correctly. It quotes the presolve computation exactly with the right line, and lists the core init/reset sites and the reading modules accurately. It also keeps declaration, computation and reading visibly separate.",
+    "answer_key_issues": "The key's reader list (core, 21_tax, 33_carbonRemoval, 47_regipol) leaves out 46_carbonpriceRegi/netZero, which reads pm_taxCO2eqSum at postsolve.gms:68 to rescale the regional markup. The key also doesn't mention that 47_regipol/regiCarbonPrice writes it (presolve.gms:24, postsolve.gms:962-1001), or the conditional overwrite in core/postsolve.gms:49-57.",
+    "summary": "The declaration (46_carbonpriceRegi), the computation (core/presolve.gms:10) and the reader list are correct and well cited. The main error is the claim that 21_tax/on and 46_carbonpriceRegi/netZero overwrite pm_taxCO2eqSum. Both only read it; 47_regipol is the only module that writes it. The 2030 clamp and the core/postsolve overrides are also presented without their switch conditions (cm_CO2PriceLimit, cm_emiscen)."
+  },
+  "grader_cost_usd": 0.1423356,
+  "grader_turns": 6,
+  "grader_duration_s": 25.8,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q10",
+  "arm": "context+rag"
+}

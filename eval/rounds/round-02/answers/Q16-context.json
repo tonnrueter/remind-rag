@@ -1,0 +1,34 @@
+{
+  "tool_calls": [
+    {
+      "name": "Glob",
+      "input": "{\"pattern\": \"modules/**/tax*/**/postsolve.gms\"}"
+    },
+    {
+      "name": "Glob",
+      "input": "{\"pattern\": \"modules/*tax*/**\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\21_tax\\\\on\\\\postsolve.gms\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [],
+  "answer": "`modules/21_tax/on/postsolve.gms` runs after each GAMS solve, before the next iteration's presolve, and does two things:\n\n**1. Convergence tracking**\n`p21_deltarev(iteration+1,regi)` computes the RMS of `vm_taxrev.l` (weighted by timestep `pm_ts`) over the model horizon — a scalar metric of how much total tax revenue moved this iteration. This feeds REMIND's revenue-iteration convergence check (relevant when tax recycling / revenue-neutral policy requires the model to converge across fixed-point iterations, since GAMS solves once per iteration and taxes/revenues depend on quantities that themselves depend on taxes).\n\n**2. Snapshotting `.l` (solution) values into `0`-suffixed parameters and `_iter`-indexed histories**\nFor every tax revenue component (GHG, CO2 by sector, CCS, net-negative emissions, CDR, final energy, resource extraction, PE, CES, PE2SE, SO2, biomass sustainability/emission-factor, flex tax, import tax, structural-change cost, SE tax, energy-intensity tax...), it copies the current solution level (`v21_taxrevXxx.l`) into:\n- `pm_taxrevXxx0` / `p21_taxrevXxx0` — reference/\"as realized this iteration\" parameters used as inputs (e.g. for revenue recycling calculations) in the *next* iteration's presolve, since these are values only known after solving.\n- `p21_taxrevXxx_iter(iteration+1, ...)` — a time series across iterations, used to inspect/debug convergence behavior (e.g. via `p21_taxrevFE_iter` display at the end) and potentially for damped/averaged updates across iterations.\n\nThe comment at line 18-20 flags that the `pm_taxrevGHG0` / `pm_taxrevCO2Sector0` / `pm_taxrevCO2LUC0` block is duplicated in `presolve.gms` and must be kept in sync — worth checking that file if you're editing this block.\n\n**Why:** REMIND is not solved in one shot when certain tax/revenue-dependent mechanisms (e.g. revenue-neutral recycling, iteratively-calibrated taxes) are active — it iterates the full GAMS solve multiple times, and each iteration needs the *previous* iteration's realized tax revenues as fixed inputs to compute this iteration's taxes/subsidies. `postsolve.gms` is where those \"last iteration's outcome\" values get frozen for reuse.",
+  "cost_usd": 0.050578,
+  "turns": 4,
+  "duration_s": 20.6,
+  "is_error": false,
+  "input_tokens": 84660,
+  "output_tokens": 1090,
+  "tool_counts": {
+    "Glob": 2,
+    "Read": 1
+  },
+  "id": "Q16",
+  "kind": "replacement",
+  "arm": "context",
+  "question": "What does the tax module update in its `postsolve.gms` between iterations, and why?",
+  "wall_s": 32.7
+}

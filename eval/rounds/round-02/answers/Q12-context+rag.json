@@ -1,0 +1,27 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"fossil\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "**Structural difference:**\n- **`timeDepGrades`** models fossil resources with the original, more granular structure: each fuel (oil, gas, coal) per region is divided into cost grades with time-dependent min/max price brackets (driven by exogenous technological change). Extraction follows a Hotelling depletion pattern, exhausting cheaper grades before moving to costlier ones. This is computationally heavier.\n- **`grades2poly`** replaces that grade-based structure with 3rd-order polynomial approximations of the extraction cost curves for each fuel/region, fitted from `timeDepGrades` runs under various resource-availability assumptions. It's a reduced-form approximation that greatly cuts runtime while reproducing similar cost behavior.\n\n**Default:** `grades2poly` is the default realization for module `31_fossil` in `main.gms`.",
+  "cost_usd": 0.1087044,
+  "turns": 2,
+  "duration_s": 5.4,
+  "is_error": false,
+  "input_tokens": 46646,
+  "output_tokens": 357,
+  "tool_counts": {
+    "mcp__remind-rag__get_module": 1
+  },
+  "id": "Q12",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "What is the structural difference between the `grades2poly` and `timeDepGrades` realizations of the fossil resource module, and which one is used by default?",
+  "wall_s": 32.3
+}

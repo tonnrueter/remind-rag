@@ -1,0 +1,70 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "Default is grades2poly (main.gms:327)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:327",
+        "note": ""
+      },
+      {
+        "claim": "timeDepGrades: discrete cost grades per region for oil, gas, coal, each with min/max price and volume, from IIASA GEA/BGR data",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/timeDepGrades/realization.gms:9-13",
+        "note": "Matches the realization's @description. main.gms:323 says 'oil & gas only', but the code handles pecoal too (bounds.gms:48,53). The answer doesn't point out this discrepancy."
+      },
+      {
+        "claim": "Hotelling-order depletion; grade boundaries shift over time with exogenous technological-change rates",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/timeDepGrades/realization.gms:10-14",
+        "note": ""
+      },
+      {
+        "claim": "timeDepGrades has extra phases (bounds.gms, output.gms) compared with grades2poly",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/31_fossil/grades2poly/realization.gms:19; modules/31_fossil/timeDepGrades/realization.gms:26-27",
+        "note": "grades2poly also has a bounds phase. Only output.gms is extra."
+      },
+      {
+        "claim": "The timeDepGrades @limitations note mentions p31_grades and p31_prod_share",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/timeDepGrades/realization.gms:16-17",
+        "note": ""
+      },
+      {
+        "claim": "grades2poly fits 3rd-order polynomials per fuel and region to timeDepGrades runs under various availability assumptions, and greatly reduces runtime",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/grades2poly/realization.gms:9-11",
+        "note": ""
+      },
+      {
+        "claim": "grades2poly has no output.gms phase because it is a pre-fitted, simplified representation",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/31_fossil/grades2poly/realization.gms:13-20",
+        "note": "It's true that there is no output phase. The stated reason is the answer's own guess and isn't documented."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 2,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer led with the verified default and cited main.gms:327. It described both realizations accurately from their @description blocks and correctly framed grades2poly as a polynomial approximation fitted to timeDepGrades output.",
+    "answer_key_issues": "The key says timeDepGrades covers oil and gas only, citing main.gms:323. The realization's @description (timeDepGrades/realization.gms:11) and the code (bounds.gms:48,53 set pecoal parameters) both include coal, so the main.gms comment looks stale or imprecise. The key also lists the exogenous and MOFEX realizations, which the question doesn't strictly need. The answer's omission of them is not an error.",
+    "summary": "The answer gets the default right (grades2poly, main.gms:327) and describes the structural difference between the discrete time-dependent cost grades and the 3rd-order polynomial fits correctly, matching both realization.gms docs. There are two minor slips: it lists bounds.gms as a phase only timeDepGrades has, when grades2poly has one too, and it gives an undocumented reason for grades2poly having no output phase. The main.gms comment saying timeDepGrades is 'oil & gas only' conflicts with the realization's code, which also handles coal."
+  },
+  "grader_cost_usd": 0.13040040000000003,
+  "grader_turns": 7,
+  "grader_duration_s": 29.6,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q12",
+  "arm": "context"
+}

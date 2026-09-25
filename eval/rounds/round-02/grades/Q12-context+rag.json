@@ -1,0 +1,63 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "timeDepGrades splits each fuel (oil, gas, coal) per region into cost grades with min/max price brackets that change over time with exogenous technological change",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/timeDepGrades/realization.gms:9-14; equations.gms:108",
+        "note": "Matches the realization description. main.gms:323 says 'oil & gas only', but the code covers coal too; equations.gms:108 notes that coal cost curves stay constant over time. The answer could have mentioned that coal detail."
+      },
+      {
+        "claim": "timeDepGrades extracts in Hotelling fashion, depleting cheaper grades before costlier ones",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/timeDepGrades/realization.gms:13-14",
+        "note": ""
+      },
+      {
+        "claim": "timeDepGrades is computationally heavier",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/grades2poly/realization.gms:11",
+        "note": "Implied by the grades2poly description ('greatly reduces model runtime')."
+      },
+      {
+        "claim": "grades2poly uses 3rd-order polynomial extraction cost curves per fuel and region, fitted to timeDepGrades runs under various availability assumptions, and greatly cuts runtime",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/grades2poly/realization.gms:9-11",
+        "note": ""
+      },
+      {
+        "claim": "grades2poly is the default for 31_fossil in main.gms",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:327",
+        "note": "No line number given, but the claim is correct."
+      },
+      {
+        "claim": "The answer omits the other realizations (exogenous, MOFEX)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:323-326",
+        "note": "The question only asked about the two realizations, so this is a small omission."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "It named the correct default and described both realizations accurately, closely following the realization.gms @description blocks. It also correctly included coal in timeDepGrades.",
+    "answer_key_issues": "The key says timeDepGrades is 'oil & gas only', following the main.gms:323 comment. The code contradicts this: timeDepGrades/realization.gms:11, the declarations and the equations all cover coal (pecoal bounds at bounds.gms:48,53). equations.gms:108 notes that coal supply cost curves stay constant over time. So the main.gms comment is stale or misleading (remind_docs), and the answer's 'oil, gas, coal' is right.",
+    "summary": "The answer is accurate. The default grades2poly (main.gms:327) uses 3rd-order polynomial cost curves fitted to timeDepGrades runs, and timeDepGrades uses time-dependent min/max-price grades with Hotelling-style extraction. It covers oil, gas and coal, which the code confirms despite the 'oil & gas only' comment at main.gms:323. The only gap is a minor one: it doesn't mention the exogenous and MOFEX realizations."
+  },
+  "grader_cost_usd": 0.1739444,
+  "grader_turns": 7,
+  "grader_duration_s": 24.6,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q12",
+  "arm": "context+rag"
+}

@@ -1,0 +1,37 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"testOneRegi\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"testOneRegi realization single region test\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_switch",
+      "input": "{\"name\": \"testOneRegi\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "`testOneRegi` is a realization of module `80_optimization` (`modules/80_optimization/testOneRegi/`) that reduces REMIND to a single region, selected via `c_testOneRegi_region` (default `EUR`). It's equivalent to the Nash realization but with only one region, and prices of traded resources/goods are exogenously fixed from the input GDX rather than solved globally. Its main purpose is fast test runs (a few minutes runtime).\n\n**When not to use it:** don't use it for actual scenario/policy analysis of regions that have meaningful influence on global prices of traded goods (e.g. large emitters/energy exporters like USA, CHA, EUR in full multi-region setups) — since prices are exogenously fixed rather than derived from global market clearing, results for such regions won't reflect real cross-regional feedback. It's intended purely for quick technical testing or for small regions with negligible influence on global trade prices.",
+  "cost_usd": 0.0301768,
+  "turns": 4,
+  "duration_s": 15.4,
+  "is_error": false,
+  "input_tokens": 66350,
+  "output_tokens": 523,
+  "tool_counts": {
+    "mcp__remind-rag__get_module": 1,
+    "mcp__remind-rag__search": 1,
+    "mcp__remind-rag__get_switch": 1
+  },
+  "id": "Q17",
+  "kind": "replacement",
+  "arm": "context+rag",
+  "question": "What is the `testOneRegi` realization for, and when should I not use it?",
+  "wall_s": 34.4
+}

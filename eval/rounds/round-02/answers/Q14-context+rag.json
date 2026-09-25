@@ -1,0 +1,46 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"climate\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_switch",
+      "input": "{\"name\": \"cm_temp_scen\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\15_climate\\\\off\\\\datainput.gms\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_switch",
+      "input": "{\"name\": \"climate\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"pm_globalMeanTemperature exogenous default source when climate module off\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "In a default REMIND run, `climate = off` (main.gms:269). In that realization the module doesn't compute temperature at all — it just hardcodes zeros:\n\n```gams\npm_gmt_conv = 0;\npm_globalMeanTemperature(tall) = 0;\npm_globalMeanTemperatureZeroed1900(tall) = 0;\npm_temperatureImpulseResponseCO2(tall,tall) = 0;\n```\n(`modules/15_climate/off/datainput.gms:53-56`)\n\nSo there's no real \"temperature\" in a default run — `pm_globalMeanTemperature` stays `0` for the whole horizon. Damage/carbonprice modules that depend on this parameter (`50_damages`, `45_carbonprice`) therefore see zero warming unless they get temperature from elsewhere (e.g., a separately-selected damages realization with its own exogenous forcing). What the \"off\" realization *does* still do is read exogenous **radiative forcing** trajectories from RCP scenario files based on `cm_rcp_scen` (lines 17–23) and derive an exogenous global emissions cap `pm_emicapglob` from RCP/multigas lookup tables (lines 29–51) — so emissions constraints can still follow an RCP pathway even with no climate model running.\n\nWhen `climate = magicc7_ar6` is selected instead:\n- The module actually couples to the MAGICC7 climate emulator between iterations (`modules/15_climate/magicc7_ar6/`).\n- After each MAGICC run, results are loaded from a GDX point and used to set `pm_globalMeanTemperature` for real (`modules/15_climate/magicc7_ar6/postsolve.gms:32-43`), truncated at 2100 (MAGICC/climate-assessment doesn't report beyond that).\n- Optionally calibrated to HADCRUT4 in 2000 and offset to be zero in 1900 for `pm_globalMeanTemperatureZeroed1900` (`postsolve.gms:60-71`).\n- If `cm_magicc_temperatureImpulseResponse = on`, a temperature impulse-response function (TIRF) is derived from MAGICC pulse runs and fed to damages/carbon-price modules — otherwise this stays zero as in \"off\".\n- This also enables carbon-budget/tax adjustment based on the simulated forcing/temperature (via `cm_emiscen`), and is a prerequisite for `carbonprice = temperatureNotToExceed`, which explicitly aborts if `climate != magicc7_ar6` (`modules/45_carbonprice/temperatureNotToExceed/datainput.gms:10`).\n\nSo: by default there is no simulated temperature — everything downstream sees `0 K` anomaly and only an exogenous RCP forcing/emissions-cap constraint is active. Turning on `magicc7_ar6` replaces that placeholder with an actual iteratively-computed MAGICC temperature trajectory that feeds into damages, carbon pricing, and downscaling.",
+  "cost_usd": 0.07715759999999999,
+  "turns": 6,
+  "duration_s": 30.6,
+  "is_error": false,
+  "input_tokens": 101061,
+  "output_tokens": 1648,
+  "tool_counts": {
+    "mcp__remind-rag__get_module": 1,
+    "mcp__remind-rag__get_switch": 2,
+    "Read": 1,
+    "mcp__remind-rag__search": 1
+  },
+  "id": "Q14",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "The climate module is off by default. Where does a default run get its temperature information from, and what changes when `magicc7_ar6` is selected?",
+  "wall_s": 42.8
+}

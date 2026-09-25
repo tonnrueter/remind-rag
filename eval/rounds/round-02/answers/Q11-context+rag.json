@@ -1,0 +1,27 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"vm_capEarlyReti\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "`vm_capEarlyReti` is declared and equations-defined entirely in `core` (declarations.gms:386, bounds.gms, equations.gms — `q_limitCapEarlyReti`, `q_smoothphaseoutCapEarlyReti`, and the cap-turnover equations around lines 180/310). Changing its core definition affects the consuming realizations:\n\n- **40_techpol/NDCplus** — sets `.lo` bounds on it for pc/coalchp/igcc (`bounds.gms:30-34`)\n- **47_regipol/none** — sets `.up('2025',regi,'pc') = 0.65` (`bounds.gms:34`)\n- **47_regipol/regiCarbonPrice** — sets `.up` bounds for pc (DEU) and tnrs (FRA/ENC/NEN/ECS/ESW/ECE) (`bounds.gms:47,190-195`)\n- **70_water/heat** — reads `.l` in output reporting only (`output.gms:16`), no equation dependency\n\nOther `40_techpol` realizations (CombLowCandCoalPO, NDC, NPi2018, NPi2025, coalPhaseout, coalPhaseoutRegional, lowCarbonPush, none) are marked as deliberately not using it — safe to ignore.\n\nIf you change the equation structure (not just bounds), the core `bounds.gms` and `equations.gms` logic itself is the main thing to review; the module-level touches are all just `.up`/`.lo` overrides, so they'd only break if you change the variable's domain, units, or remove early-retirement support for `te`/`regi` combinations they rely on (e.g. `pc`, `coalchp`, `igcc`, `tnrs`).",
+  "cost_usd": 0.1113096,
+  "turns": 2,
+  "duration_s": 8.0,
+  "is_error": false,
+  "input_tokens": 46434,
+  "output_tokens": 697,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 1
+  },
+  "id": "Q11",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "If I change how `vm_capEarlyReti` is defined in the core, which module realizations are affected?",
+  "wall_s": 34.4
+}

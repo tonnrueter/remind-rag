@@ -1,0 +1,63 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "bounds.gms is included whenever the damages switch = KotzWenz, unconditionally in the bounds phase (realization.gms:17)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/50_damages/KotzWenz/realization.gms:17; main.gms:438",
+        "note": "Doesn't say explicitly that the default is damages = off (main.gms:438). The wording implies it, though."
+      },
+      {
+        "claim": "Fixes vm_damageProdFactor to 1 and vm_damageFactor to pm_damage for ttot >= cm_startyear",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/50_damages/KotzWenz/bounds.gms:9-10",
+        "note": "The answer places the cm_startyear condition correctly: it applies only to vm_damageFactor, while the ProdFactor fix covers all ttot."
+      },
+      {
+        "claim": "The internalization switch is cfg$gms$damages_internalize",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "main.gms:453 ($setGlobal internalizeDamages off); config/scenario_config_RIKEN.csv:1 header column 'internalizeDamages'",
+        "note": "The real switch is named internalizeDamages. The answer gets the module (51_internalizeDamages) right in parentheses, but a user who sets cfg$gms$damages_internalize would have no effect. This is a real switch under the wrong name, not a made-up mechanism."
+      },
+      {
+        "claim": "Per the realization doc, the fixed variable is only the actual damage channel unless internalizeDamages = KotzWenzItr, in which case damages feed into the optimization",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/50_damages/KotzWenz/realization.gms:11; modules/51_internalizeDamages/KotzWenzItr/postsolve.gms:14-30",
+        "note": "The doc comment is quoted accurately. The fix still applies under KotzWenzItr. That realization adds an SCC-based tax (pm_taxCO2eqSCC) on top instead of replacing the fix. The answer's hedge ('no code unfixes vm_damageFactor') is accurate and to its credit."
+      },
+      {
+        "claim": "Scenarios using it: M-SSP2-NPi-KLW (internalize off), VLLO-SSP2-KLW and VLLO-SSP1-KLW (KotzWenzItr), all in scenario_config_RIKEN.csv",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "config/scenario_config_RIKEN.csv:5-7",
+        "note": ""
+      },
+      {
+        "claim": "Only one config file references KotzWenz at all; no other scenario_config*.csv sets damages = KotzWenz",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "config/default.cfg:148",
+        "note": "default.cfg also references KotzWenz (scripts/input/run_KotzWenz_damages.R), though not as a damages setting. The narrower claim about scenario_config files is correct."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 2,
+    "failure_class": "invented identifier",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer finds the right include line and describes both fixes accurately, including the cm_startyear condition. It lists the three RIKEN scenarios with their internalization settings and quotes the realization's limitation comment. It also flags honestly that it found no code in 51 that unfixes the variable.",
+    "answer_key_issues": "None substantive. The key calls the column 'internalize'. The actual switch/column name is internalizeDamages (main.gms:453, RIKEN csv header).",
+    "summary": "The core answer is correct: the switch condition, what bounds.gms fixes, and the three RIKEN scenarios are right. The main error is naming the internalization switch 'cfg$gms$damages_internalize' when the real name is internalizeDamages. It also implies the fix is bypassed under KotzWenzItr, when that realization actually adds an SCC tax on top. Separately, it says only one config file mentions KotzWenz, but default.cfg:148 also references it."
+  },
+  "grader_cost_usd": 0.17787780000000003,
+  "grader_turns": 12,
+  "grader_duration_s": 52.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q13",
+  "arm": "context"
+}

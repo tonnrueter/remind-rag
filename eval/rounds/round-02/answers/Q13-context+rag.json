@@ -1,0 +1,53 @@
+{
+  "tool_calls": [
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\50_damages\\\\KotzWenz\\\\bounds.gms\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"50_damages\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\scenario_config_RIKEN.csv\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\default.cfg\", \"-n\": true}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\scenario_config_RIKEN.csv\", \"output_mode\": \"content\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\default.cfg\", \"output_mode\": \"content\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "`bounds.gms` is included whenever `phase == \"bounds\"` and the `damages` module switch is set to `KotzWenz` (`cm_damage_KWSE` not relevant here — this is the plain `KotzWenz` realization, not `KotzWenzItr`).\n\n**Switch:** `damages=KotzWenz` (in `modules/50_damages/module.gms`). Note the *other* realization `KotzWenzItr` lives in module `51_internalizeDamages`, not here — that one is used when damages are internalized in the optimization; the plain `KotzWenz` bounds.gms just fixes `vm_damageFactor`/`vm_damageProdFactor` post-hoc.\n\n**Scenarios using it** (`config/scenario_config_RIKEN.csv`):\n- `M-SSP2-NPi-KLW` — damages calculated but **not** internalized in optimization (`internalizeDamages=off`)\n- `VLLO-SSP2-KLW` and `VLLO-SSP1-KLW` — damages=KotzWenz but internalizeDamages=`KotzWenzItr` (the *other* realization applies here in the internalize-damages module, so these two runs actually don't hit `bounds.gms` since damage fixing is instead handled via the iterative internalization equations)\n\nSo strictly, `modules/50_damages/KotzWenz/bounds.gms` (the fixed, non-internalized variant) is exercised by **`M-SSP2-NPi-KLW`**, since the other two rows pair `damages=KotzWenz` with `internalizeDamages=KotzWenzItr`, which handles damages differently in module `51_internalizeDamages` rather than via this bounds file.",
+  "cost_usd": 0.083132,
+  "turns": 8,
+  "duration_s": 34.1,
+  "is_error": false,
+  "input_tokens": 141055,
+  "output_tokens": 1411,
+  "tool_counts": {
+    "Read": 1,
+    "mcp__remind-rag__get_module": 1,
+    "Grep": 5
+  },
+  "id": "Q13",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "Under which switch settings is `modules/50_damages/KotzWenz/bounds.gms` active, and which scenarios in the config files use it?",
+  "wall_s": 49.5
+}

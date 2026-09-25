@@ -1,0 +1,70 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "CO2 emissions are handled natively in GtC/a (carbon, not CO2)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:130, core/declarations.gms:668",
+        "note": ""
+      },
+      {
+        "claim": "pm_taxCO2eq is in T$/GtC",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:38",
+        "note": ""
+      },
+      {
+        "claim": "sm_c_2_co2 = 3.66667 (44/12), sm_DptCO2_2_TDpGtC = 0.00366667 ($/tCO2→T$/GtC), sm_MtCO2_2_GtC = 2.727e-04, at declarations.gms:663-668",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:663-668",
+        "note": ""
+      },
+      {
+        "claim": "$/tCO2 = pm_taxCO2eq * 1000 / sm_c_2_co2 (i.e. ×≈272.7)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:38,663-664",
+        "note": ""
+      },
+      {
+        "claim": "Equivalently divide by sm_DptCO2_2_TDpGtC (≈272)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/declarations.gms:664",
+        "note": "Dividing by sm_DptCO2_2_TDpGtC (0.00367) is right, but the parenthetical '≈272' attaches to the constant, whose value is actually 0.00367; its inverse is 272. A hasty reader could take it as 'divide by 272', which is exactly the known error this question tests. The declaration comment quoted right after ('multiply with 272') clears it up."
+      },
+      {
+        "claim": "Declaration comment at declarations.gms:38 says 'multiply with 272 = 1 / sm_DptCO2_2_TDpGtC'",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:38",
+        "note": ""
+      },
+      {
+        "claim": "core/presolve.gms:256 sets p_priceCO2 = pm_taxCO2eqSum*1000, giving $/tC, so you still need to divide by 44/12 for $/tCO2",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/presolve.gms:256; core/declarations.gms:97 (p_priceCO2 \"carbon price [$/tC]\")",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer gets the units right (GtC, T$/GtC) and cites the conversion constants exactly. It gives the correct direction: multiply by about 272.7, or equivalently use ×1000 and then ÷44/12. It quotes the declaration comment accurately and correctly points out that p_priceCO2 is in $/tC, not $/tCO2.",
+    "answer_key_issues": "",
+    "summary": "The answer is correct. Units and constants match core/declarations.gms:38,130,663-668, and the conversion goes the right way (×1000/3.667 ≈ ×272). The one flaw is minor wording: '(≈272)' is placed next to sm_DptCO2_2_TDpGtC, whose value is actually 0.00367, and a hasty reader could take that as 'divide by 272'."
+  },
+  "grader_cost_usd": 0.09531160000000001,
+  "grader_turns": 6,
+  "grader_duration_s": 30.4,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q19",
+  "arm": "context"
+}

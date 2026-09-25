@@ -1,0 +1,49 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"vm_capFac\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"capital stock depreciation equation q_capital investment\"}"
+    },
+    {
+      "name": "mcp__remind-rag__search",
+      "input": "{\"query\": \"capacity stock equation vm_cap lifetime decommissioning vintage q_cap\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"p01_cumDeprecFactor_old\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\core\\\\equations.gms\", \"offset\": 305, \"limit\": 45}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\01_macro\\\\singleSectorGr\\\\preloop.gms\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "REMIND uses two distinct depreciation formulations, depending on which capital stock is being tracked.\n\n**1. Macroeconomic capital stock (`q01_kapMo`, `core/01_macro`)**\n\nThe CES capital input `vm_cesIO(t,\"kap\")` follows a discrete-time perpetual-inventory law with geometric (exponential) depreciation:\n\nK(t+1) = K(t)·(1−δ)^Δt + [depreciation-adjusted investment terms]\n\n- `(1 − pm_delta_kap)^Δt` discounts the existing stock by a constant annual depreciation rate δ over the (variable-length) time step Δt = t(t+1) − t(t).\n- Because REMIND's time steps are coarse, investment flowing in *during* the step is itself partially depreciated before the step ends. This is handled by splitting the investment of the current and next period into two terms, each weighted by a **cumulative depreciation factor** (`p01_cumDeprecFactor_old`, `p01_cumDeprecFactor_new`), which are closed-form integrals of (1−δ)^s over the step, effectively approximating ∫(1−δ)^(Δt−s) · i(s) ds for a piecewise-linear investment trajectory. This converts the continuous-time PDE-like accumulation into an exact discrete recursion consistent with annualized depreciation and investment flows.\n- In the `Investment_Inefficiencies` realization, an extra multiplicative factor `p01_investeffectv(regi)` scales the effective productivity of new investment (an investment \"inefficiency\" wedge), but does not change the depreciation mechanics itself.\n\n**2. Energy conversion technology capacity stock (`q_cap`, `core/equations.gms`)**\n\nPhysical capacities `vm_cap(t,regi,te,rlf)` do not decay geometrically; instead they follow a **vintage-based survival/depreciation scheme**:\n\nCap(t) = (1 − EarlyRetirement(t)) · Σ_over vintages [ pm_ts · pm_omeg(regi, age+1, te) · vm_deltaCap(t−age, regi, te, rlf) ]\n\n- Each past investment vintage `vm_deltaCap` (capacity additions at time t−age) is weighted by `pm_omeg(regi, age, te)`, a technology- and age-specific survival/decommissioning curve — not a constant exponential rate. This produces low depreciation early in a plant's life and accelerated depreciation near its average technical lifetime (an S-shaped retirement profile), rather than the smooth exponential decline used for macro capital.\n- An additional multiplicative factor `(1 − vm_capEarlyReti)` allows policy-driven early retirement (e.g. stranding fossil capacity under climate policy) on top of the technical vintage depreciation.\n- `pm_ts` weights each vintage's contribution by half the surrounding time-step length, and `pm_omeg` is calibrated (via `pm_teAnnuity`/discounted-lifetime calculations) so cumulative depreciation integrates to a technology's expected operational lifetime.\n\n**Key contrast:** macro capital depreciates via a simple geometric/exponential rate constant δ (age-independent), while technology capacities depreciate via an empirically shaped, age-dependent vintage survival function `pm_omeg`, with policy-driven early retirement layered on top.",
+  "cost_usd": 0.10894220000000002,
+  "turns": 7,
+  "duration_s": 21.0,
+  "is_error": false,
+  "input_tokens": 123029,
+  "output_tokens": 1881,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 2,
+    "mcp__remind-rag__search": 2,
+    "Read": 2
+  },
+  "id": "Q3",
+  "kind": "keep",
+  "arm": "context+rag",
+  "question": "Provide a high-level mathematical summary of how investment depreciation over time is formulated within the capital-stock equations.",
+  "wall_s": 27.9
+}

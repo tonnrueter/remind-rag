@@ -1,0 +1,27 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"pm_taxCO2eqSum\"}"
+    }
+  ],
+  "model": "claude-sonnet-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "**Declaration:** module `46_carbonpriceRegi`, in both its `netZero` and `none` realizations (`modules/46_carbonpriceRegi/{netZero,none}/declarations.gms`).\n\n**Where it's actually computed:** in `core/presolve.gms:10`:\n```\npm_taxCO2eqSum(ttot,regi) = pm_taxCO2eq(ttot,regi) + pm_taxCO2eqRegi(ttot,regi) + pm_taxCO2eqSCC(ttot,regi);\n```\n— i.e. general CO2 price trajectory + regional markup + social cost of carbon, with a special-case clamp for `\"2030\"` right after (`core/presolve.gms:15-16`). It's zeroed in `core/preloop.gms:44` and `core/datainput.gms:13`, and in `core/postsolve.gms:51-56` there are diagnostic re-derivations from the CO2eq marginal (`q_co2eq.m`) for reporting/pre-2025 periods — but the presolve line is the operative computation feeding the solve. Modules `21_tax/on`, `46_carbonpriceRegi/netZero`, and `47_regipol/regiCarbonPrice` further overwrite/adjust it in their own presolve/postsolve blocks (e.g. rescaling, zeroing for excluded regions).\n\n**Read by (module interface, per codeCheck):** `21_tax`, `33_carbonRemoval`, `47_regipol`, and `core` itself.",
+  "cost_usd": 0.0396978,
+  "turns": 2,
+  "duration_s": 6.4,
+  "is_error": false,
+  "input_tokens": 48046,
+  "output_tokens": 594,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 1
+  },
+  "id": "Q10",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "Which module declares `pm_taxCO2eqSum`, where is its value actually computed, and which modules read it?",
+  "wall_s": 12.7
+}

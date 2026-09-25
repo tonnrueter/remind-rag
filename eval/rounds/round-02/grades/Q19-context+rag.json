@@ -1,0 +1,56 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "CO2 emissions are tracked internally in GtC (e.g. vm_emiAll, pm_budgetCO2eq)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:132, core/declarations.gms:582",
+        "note": "vm_emiAll uses mixed units per species (GtC for CO2, Mt for CH4, N2O and others), but it is GtC for CO2, which is what the question asks about."
+      },
+      {
+        "claim": "sm_c_2_co2 = 44/12 is the C-to-CO2 mass conversion factor",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:663",
+        "note": ""
+      },
+      {
+        "claim": "The carbon price pm_taxCO2eq is stored in T$/GtC",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:38",
+        "note": ""
+      },
+      {
+        "claim": "To get $/tCO2, multiply pm_taxCO2eq by 272 = 1/sm_DptCO2_2_TDpGtC",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:38",
+        "note": "The direction (multiply) matches the declaration comment."
+      },
+      {
+        "claim": "sm_DptCO2_2_TDpGtC is declared in core as 44/12/1000 and converts $/tCO2 to T$/GtC",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:664",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 0,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer gets the conversion direction right: multiply by 272, not divide. It names the correct scalars and their values. It also explains that 272 is the inverse of sm_DptCO2_2_TDpGtC, which matches the pm_taxCO2eq declaration comment exactly.",
+    "answer_key_issues": "None. The key cites vm_co2eq; the answer uses vm_emiAll and pm_budgetCO2eq instead, and both are also declared in GtC.",
+    "summary": "Every claim matches core/declarations.gms: emissions in GtC, pm_taxCO2eq in T$/GtC, and multiply by 272 (= 1/sm_DptCO2_2_TDpGtC) to get $/tCO2. The answer avoids the '÷272' error this question targets. There are no substantive errors."
+  },
+  "grader_cost_usd": 0.0632824,
+  "grader_turns": 4,
+  "grader_duration_s": 17.5,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q19",
+  "arm": "context+rag"
+}

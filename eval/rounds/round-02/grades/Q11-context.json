@@ -1,0 +1,84 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "vm_capEarlyReti is declared in core/declarations.gms:386; modules only use it (bounds, reporting)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:386; modules/47_regipol/*/bounds.gms; modules/40_techpol/NDCplus/bounds.gms; modules/70_water/heat/output.gms:16",
+        "note": ""
+      },
+      {
+        "claim": "Core uses it in capacity equations and q_limitCapEarlyReti/q_smoothphaseoutCapEarlyReti at equations.gms 180, 310, 972–979",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:180,310,971-982",
+        "note": "q_limitCapEarlyReti is only named indirectly, but the line range 972–974 covers it."
+      },
+      {
+        "claim": "core/bounds.gms bounds it: teEarlyReti on/off, region-group overrides, time bounds",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/bounds.gms:436-459",
+        "note": ""
+      },
+      {
+        "claim": "modules/05_initialCap/on/preloop.gms loads vm_capEarlyReti.l from the reference GDX to seed q_smoothphaseoutCapEarlyReti/q_limitCapEarlyReti",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "core/preloop.gms:98-100; modules/05_initialCap/on/preloop.gms:234",
+        "note": "The GDX Execute_Loadpoint is in core/preloop.gms, not in 05_initialCap. The only 05_initialCap/on reference is a commented-out line ('*RP* assume no ER'), so this realization has no live dependency. The answer lists 05_initialCap/on as affected, which is a false dependency."
+      },
+      {
+        "claim": "47_regipol none and regiCarbonPrice bounds.gms set upper bounds on vm_capEarlyReti",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/none/bounds.gms:34; modules/47_regipol/regiCarbonPrice/bounds.gms:47,190-195",
+        "note": "Doesn't mention that regiCarbonPrice is the default (main.gms:425)."
+      },
+      {
+        "claim": "40_techpol/NDCplus/bounds.gms sets bounds on it directly; the other techpol realizations only list it in not_used.txt and are not functionally affected",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/NDCplus/bounds.gms:30-34; modules/40_techpol/*/not_used.txt",
+        "note": "NDCplus sets lower bounds (.lo). Does not note that the default NPi2025 (main.gms:364) is not affected."
+      },
+      {
+        "claim": "not_used.txt documents unused switches; check these files when changing domain/units",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/40_techpol/none/not_used.txt:17",
+        "note": "not_used.txt lists interface variables that a realization does not use, not 'switch behavior'. The advice to check them for semantics is unfounded, but harmless."
+      },
+      {
+        "claim": "70_water/heat output.gms reads vm_capEarlyReti.l for reporting",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/70_water/heat/output.gms:16",
+        "note": "heat is the default (main.gms:463). The bottom-line summary leaves 70_water/heat out, which contradicts the body."
+      },
+      {
+        "claim": "Bottom line: the dependency surface is core eq/bounds/preloop, 05_initialCap/on, 47_regipol/{none,regiCarbonPrice}, 40_techpol/NDCplus",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "see above",
+        "note": "Wrongly includes 05_initialCap/on and omits 70_water/heat, which is used by default."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 2,
+    "failure_class": "attribution",
+    "fix_layer": "reasoning",
+    "premise_handled": "not_applicable",
+    "went_well": "It correctly names the core declaration and its equation and bound uses. It lists the affected consumers at the level of realizations (47_regipol none/regiCarbonPrice, 40_techpol/NDCplus, 70_water/heat). It also correctly separates the techpol not_used.txt entries from live code.",
+    "answer_key_issues": "The key lists 40_techpol as a consumer, but only the non-default NDCplus realization uses it. The default NPi2025 lists it in not_used.txt. The key also omits core/preloop.gms:100 (the GDX loadpoint) and does not say that 47_regipol/none also bounds the variable.",
+    "summary": "The answer maps the consumers well at the realization level. One false dependency: it says 05_initialCap/on loads vm_capEarlyReti from the reference GDX, but that load is in core/preloop.gms:100, and the 05_initialCap line is a comment. The bottom line also leaves out 70_water/heat, which the default configuration uses, and no default realizations are flagged anywhere."
+  },
+  "grader_cost_usd": 0.145455,
+  "grader_turns": 7,
+  "grader_duration_s": 31.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q11",
+  "arm": "context"
+}

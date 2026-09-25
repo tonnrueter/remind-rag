@@ -1,0 +1,56 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "No postsolve.gms file (core or modules) contains solar/spv capacity bound logic",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "grep '\"spv\"' in **/postsolve.gms: no matches; bound assignments in postsolve exist only in 33_carbonRemoval/portfolio/postsolve.gms:10,14 (not spv)",
+        "note": ""
+      },
+      {
+        "claim": "core/bounds.gms sets vm_cap.up = 1.05 × pm_histCap for teVRE (incl. spv) in 2015–2025, cited as line 78",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/bounds.gms:73-76",
+        "note": "The mechanism is right, but the line is 76, not 78; line 78 is the hydro/geohdr loop. The answer also misses the spv-specific 2025 vm_prodSe.up bound based on historical growth at core/bounds.gms:94."
+      },
+      {
+        "claim": "modules/47_regipol/none/bounds.gms sets vm_deltaCap.up for spv in Germany, based on near-term trends",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/47_regipol/none/bounds.gms:15-19; main.gms:425 (default regipol = regiCarbonPrice)",
+        "note": "The bound exists, but it is in the non-default 'none' realization, and the answer doesn't say so. The default regiCarbonPrice/bounds.gms has no spv bound. It is only given as an 'e.g.' example, so the harm is limited."
+      },
+      {
+        "claim": "Postsolve files are used for reporting and saving iteration values (e.g. p24_Xport_iter, pm_FEPrice_iter) and for convergence checks, not for capacity bounds",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/24_trade/capacity/postsolve.gms; modules/80_optimization/nash/postsolve.gms",
+        "note": "Slight overgeneralization: 33_carbonRemoval/portfolio/postsolve.gms does set .up bounds, but not on capacity."
+      },
+      {
+        "claim": "If bounds seem to change between iterations, presolve.gms is the likely place to look",
+        "verdict": "unverifiable",
+        "severity": "none",
+        "evidence": "",
+        "note": "This is a hedged suggestion, not a factual claim."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 2,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "corrected",
+    "went_well": "The answer rejected the false premise up front, backed by an explicit search showing no spv bounds in any postsolve.gms. It correctly placed solar bounds in bounds.gms and correctly described what postsolve files are for.",
+    "answer_key_issues": "None contradicting the key. The key cites core/bounds.gms:94 (vm_prodSe.up for spv in 2025). The capacity bound itself, vm_cap.up = 1.05×histCap for teVRE, is at core/bounds.gms:76, and the key could mention it too.",
+    "summary": "The answer correctly rejects the trap: no postsolve.gms touches spv bounds, and the solar limits are set in bounds.gms. Two small issues: the core/bounds.gms citation is off by two lines (78 instead of 76), and the Germany spv deltaCap example comes from 47_regipol/none without saying the default is regiCarbonPrice. It also misses the spv vm_prodSe.up bound at core/bounds.gms:94."
+  },
+  "grader_cost_usd": 0.1334832,
+  "grader_turns": 11,
+  "grader_duration_s": 32.0,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q8",
+  "arm": "context+rag"
+}

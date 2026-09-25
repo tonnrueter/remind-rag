@@ -1,0 +1,91 @@
+{
+  "runs": [
+    {
+      "started": "2026-09-25 16:49:25",
+      "arms": "context+rag,context",
+      "ids": "Q1,Q5",
+      "answer_model": "sonnet",
+      "grader_model": "opus",
+      "rag_git": "a956924-dirty",
+      "remind_git": "e50744c05-dirty",
+      "remind_context_git": "c3cdee4",
+      "db": "C:\\Users\\tonnru\\lab\\piam-rag\\rag\\data\\remind-bge.db",
+      "db_meta": {
+        "version_gms": "0.35.0",
+        "version_goxygen": "1.5.1",
+        "version_R": "4.3.2",
+        "root": "C:\\Users\\tonnru\\lab\\piam-rag\\remind",
+        "model": "bge",
+        "files": "674",
+        "corpus_mb": "3.16",
+        "chunks": "4706",
+        "symbols": "3019",
+        "symbol_uses": "20546",
+        "switches": "337",
+        "scenarios": "577",
+        "gms_export": "True",
+        "chunk_seconds": "1.1",
+        "embed_seconds": "670.0",
+        "built_at": "2026-09-24 16:36:16"
+      }
+    },
+    {
+      "started": "2026-09-25 16:52:25",
+      "arms": "context+rag,context",
+      "ids": "Q2,Q3,Q4,Q6,Q7,Q8,Q9,Q10,Q11,Q12,Q13,Q14,Q15,Q16,Q17,Q18,Q19,Q20",
+      "answer_model": "sonnet",
+      "grader_model": "opus",
+      "rag_git": "a956924-dirty",
+      "remind_git": "e50744c05-dirty",
+      "remind_context_git": "c3cdee4",
+      "db": "C:\\Users\\tonnru\\lab\\piam-rag\\rag\\data\\remind-bge.db",
+      "db_meta": {
+        "version_gms": "0.35.0",
+        "version_goxygen": "1.5.1",
+        "version_R": "4.3.2",
+        "root": "C:\\Users\\tonnru\\lab\\piam-rag\\remind",
+        "model": "bge",
+        "files": "674",
+        "corpus_mb": "3.16",
+        "chunks": "4706",
+        "symbols": "3019",
+        "symbol_uses": "20546",
+        "switches": "337",
+        "scenarios": "577",
+        "gms_export": "True",
+        "chunk_seconds": "1.1",
+        "embed_seconds": "670.0",
+        "built_at": "2026-09-24 16:36:16"
+      }
+    },
+    {
+      "started": "2026-09-25 18:33:19",
+      "arms": "context+rag,context",
+      "ids": "Q11,Q12,Q13,Q14,Q15,Q16,Q17,Q18,Q19,Q20",
+      "answer_model": "sonnet",
+      "grader_model": "opus",
+      "rag_git": "a956924-dirty",
+      "remind_git": "e50744c05-dirty",
+      "remind_context_git": "c3cdee4",
+      "db": "C:\\Users\\tonnru\\lab\\piam-rag\\rag\\data\\remind-bge.db",
+      "db_meta": {
+        "version_gms": "0.35.0",
+        "version_goxygen": "1.5.1",
+        "version_R": "4.3.2",
+        "root": "C:\\Users\\tonnru\\lab\\piam-rag\\remind",
+        "model": "bge",
+        "files": "674",
+        "corpus_mb": "3.16",
+        "chunks": "4706",
+        "symbols": "3019",
+        "symbol_uses": "20546",
+        "switches": "337",
+        "scenarios": "577",
+        "gms_export": "True",
+        "chunk_seconds": "1.1",
+        "embed_seconds": "670.0",
+        "built_at": "2026-09-24 16:36:16"
+      }
+    }
+  ]
+}

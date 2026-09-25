@@ -1,0 +1,70 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "sets.gms:79-86 adds dac to te_used33, teNoTransform33, teNoTransform2rlf33, teAdj33, teLearn33, te_ccs33 only if cm_33DAC eq 1",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms:79-86",
+        "note": ""
+      },
+      {
+        "claim": "te(te_used33)=YES at sets.gms:109 means dac never enters global te (and related global sets)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms:109",
+        "note": ""
+      },
+      {
+        "claim": "Variables still declared over the static superset; bounds.gms:23-26 fixes vm_emiCdrTeDetail, v33_FEdemand and vm_co2emi_cdrFE_beforeCapture of unused technologies to 0",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/bounds.gms:23-26",
+        "note": "The quoted code matches exactly."
+      },
+      {
+        "claim": "The DAC bounds block if(te_used33(\"dac\"),...) at bounds.gms:41-45 is skipped",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/bounds.gms:41-45",
+        "note": ""
+      },
+      {
+        "claim": "No equation instances are generated for DAC at all; DAC is excluded 'at the set level, not merely bounded to zero'; the .fx fixings are only a belt-and-suspenders safeguard",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:105-109",
+        "note": "Wrong as a blanket statement. q33_DAC_FEdemand has the domain condition $sum(entyFe, fe2cdr(entyFe,entyFe2,\"dac\")), which does not depend on cm_33DAC, so the equation is still generated. It only forces DAC's FE demand to 0 because vm_emiCdrTeDetail(\"dac\") is fixed to 0. So the fixing is load-bearing, not a redundant safeguard."
+      },
+      {
+        "claim": "vm_cap for dac is excluded from the capacity/investment equations in core because dac is not in te/teNoTransform2rlf",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms:109; modules/33_carbonRemoval/portfolio/bounds.gms:37",
+        "note": "Plausible for equations whose domain is te. The answer did not check the core equations one by one, so 'all capacity-balance equations globally' overstates what it verified."
+      },
+      {
+        "claim": "The remaining CDR portfolio is governed by the other switches (cm_33EW, cm_33OAE, biochar)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/sets.gms",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 1,
+    "failure_class": "overreach from a name",
+    "fix_layer": "reasoning",
+    "premise_handled": "not_applicable",
+    "went_well": "It explains the set mechanism correctly with exact citations: the gating at sets.gms:79-86, propagation into global te at line 109, the .fx fixings at bounds.gms:23-26, and the skipped DAC bounds block at 41-45. The quoted code is accurate.",
+    "answer_key_issues": "None. The key's citation of bounds.gms:41-46 is one line wider than the block (41-45), which is trivial. The key also does not mention the default being 1; the answer does not mention it either, which is a small omission.",
+    "summary": "The answer gets the set-membership mechanism right: dac never enters te_used33 or the global te, unused-tech variables are fixed to 0, and the DAC bounds block is skipped. Its central framing overreaches, though. It says DAC is removed from equations 'at the set level, not merely bounded to zero' and calls the .fx fixings belt-and-suspenders. In fact q33_DAC_FEdemand is still generated, because its domain depends on fe2cdr, not on the switch, and fixing vm_emiCdrTeDetail(\"dac\") to 0 is what actually forces DAC's FE demand to zero."
+  },
+  "grader_cost_usd": 0.11703360000000002,
+  "grader_turns": 5,
+  "grader_duration_s": 21.4,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q18",
+  "arm": "interactive"
+}

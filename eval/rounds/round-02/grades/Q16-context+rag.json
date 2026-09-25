@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "The file is modules/21_tax/on/postsolve.gms and does three things: a convergence metric, reference revenues and per-iteration history",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/postsolve.gms:9-93",
+        "note": ""
+      },
+      {
+        "claim": "p21_deltarev (line 13) is a time-weighted RMS of vm_taxrev.l over periods, indexed by iteration+1",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/postsolve.gms:12-13",
+        "note": "The code computes sqrt(mean over periods of (vm_taxrev.l*pm_ts)^2) from 2010/cm_startyear on. The comment calls it a 'mean square deviation from previous tax revenue'. The answer's description of it as an RMS of the revenue level itself is actually closer to the formula."
+      },
+      {
+        "claim": "p21_deltarev is fed into the outer loop, which uses it to detect when tax revenues have converged and to stop",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "modules/21_tax/on/postsolve.gms:15; modules/80_optimization/nash/postsolve.gms:342",
+        "note": "p21_deltarev is only displayed. Nothing else reads it. The declaration calls it a 'convergence criteria' (declarations.gms:51), but the Nash tax-revenue convergence check actually uses p80_convNashTaxrev_iter and p80_taxrev0 in 80_optimization. There is also no separate 'revenue-recycling outer loop': it is the ordinary Nash iteration."
+      },
+      {
+        "claim": "Lines 19-70 recompute a list of pm_taxrev*0/p21_taxrev*0 reference revenues from the solved .l levels",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/postsolve.gms:21-70",
+        "note": "The list of categories matches the code."
+      },
+      {
+        "claim": "The reference values are used for revenue recycling in the next iteration",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/postsolve.gms:18; modules/21_tax/on/equations.gms:78-81",
+        "note": ""
+      },
+      {
+        "claim": "A comment warns that the same block exists in presolve.gms and must be kept in sync",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/postsolve.gms:19-20; modules/21_tax/on/presolve.gms:30",
+        "note": ""
+      },
+      {
+        "claim": "Lines 74-93 store v21_taxrev*.l into _iter parameters indexed by iteration+1, plus gross emissions per iteration",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/postsolve.gms:73-93",
+        "note": "Two small omissions: p21_emiAllco2neg0 is also saved (line 77), and p21_grossEmissions is indexed by iteration, not iteration+1. The declarations describe the _iter parameters as tracking only; nothing reads them for damping. The answer hedges this with 'possibly', so it does no harm."
+      },
+      {
+        "claim": "Why: the reference levels break the circularity of revenue recycling, and the revenue that is redistributed is based on last iteration's quantities",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/21_tax/on/equations.gms:78-81,88-91",
+        "note": "The answer misses the actual mechanism. Each q21_taxrev* equation subtracts the previous iteration's reference revenue, so net vm_taxrev goes to about 0 at convergence. The tax then acts only at the margin, and the revenue is effectively recycled lump-sum."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 1,
+    "failure_class": "overreach from a name",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer describes the file's structure and line ranges accurately and lists the reference-revenue parameters correctly. It notes the comment about the duplicate block in presolve.gms and correctly identifies the _iter history storage.",
+    "answer_key_issues": "The key calls p21_deltarev a 'mean-square deviation' convergence metric, which follows the code comment. The formula actually computes a root-mean-square of the pm_ts-weighted revenue level, not a deviation from the previous iteration. p21_deltarev is also only displayed and is never used in a convergence check. The key does not mention the _iter history block (lines 73-93) or p21_grossEmissions.",
+    "summary": "The answer's description of what postsolve.gms updates is accurate. However, it claims that p21_deltarev drives an outer-loop convergence stop. In the code it is only displayed, and the Nash tax-revenue convergence uses p80_* parameters in 80_optimization. Its 'why' also misses the core mechanism: the q21_taxrev* equations subtract the previous iteration's reference revenue, so taxes act at the margin while net revenue goes to zero."
+  },
+  "grader_cost_usd": 0.20395099999999997,
+  "grader_turns": 7,
+  "grader_duration_s": 44.4,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q16",
+  "arm": "context+rag"
+}

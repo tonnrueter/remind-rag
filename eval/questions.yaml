@@ -200,3 +200,22 @@
   gold: [config/scenario_config.csv]
   must_contain: EUR_regi 0.08
   answer: 'c_regi_earlyreti_rate = "EUR_regi 0.08, ..." i.e. up to 8 % of the capital stock per year in EUR (core/datainput.gms turns it into pm_regiEarlyRetiRate).'
+
+# ---- real-use case (2026-09-24): answered wrongly in practice (Critical: default mechanism inverted);
+# ---- full log and judgment in eval/cases/2026-09-24-carbon-penalty-macro-core.md
+
+- id: case-carbonPenalty
+  type: mechanism
+  question: How do we penalize carbon emissions in the macro-economic core?
+  gold: [modules/21_tax/on/equations.gms]
+  must_contain: q21_taxrevGHG
+  answer: 'Default (cm_emiscen = 9 "tax scenario", tax = on, carbonprice = NPi2025): explicit carbon tax. pm_taxCO2eq (45_carbonprice) -> pm_taxCO2eqSum (core/presolve.gms:10) -> q21_taxrevGHG taxes emissions minus previous-iteration revenue (21_tax/on/equations.gms:78-80) -> vm_taxrev -> qm_budget (01_macro/singleSectorGr/equations.gms:47). Quantity caps with shadow prices (q_emiCap with binding vm_perm from 41_emicapregi, q_budgetCO2eqGlob with cm_emiscen = 6) are non-default alternatives; by default vm_perm is fixed at 1000 (41_emicapregi/none/bounds.gms:11).'
+  case: eval/cases/2026-09-24-carbon-penalty-macro-core.md
+
+- id: case-damagesStandalone
+  type: mechanism
+  question: Why is there another damage model on its own and in which scenarios is that relevant?
+  gold: [modules/50_damages/KotzWenz/realization.gms, config/scenario_config_RIKEN.csv, main.gms]
+  must_contain: internalizeDamages
+  answer: '50_damages applies a temperature-based damage factor to GDP in qm_budget (01_macro/singleSectorGr/equations.gms:20-21), fixed per iteration (KotzWenz/bounds.gms:10), so abatement does not respond to it (KotzWenz/realization.gms:11 @limitations). 51_internalizeDamages adds the SCC as a component of the carbon price (pm_taxCO2eqSum, core/presolve.gms:10); it requires cm_emiscen = 9 because 9 is the tax scenario (main.gms:535-540), not an "optimal policy" mode. Standalone use (damages on, internalize off): only M-SSP2-NPi-KLW in scenario_config_RIKEN.csv:5 (KotzWenz/off); VLLO-SSP*-KLW (rows 6-7) internalize on top of a PkBudg650 path. Defaults: damages off, internalizeDamages off (main.gms:438, 453).'
+  case: eval/cases/2026-09-24-damages-standalone.md

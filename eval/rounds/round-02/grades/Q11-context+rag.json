@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "vm_capEarlyReti is declared in core/declarations.gms:386 and used in core bounds.gms and equations.gms (q_limitCapEarlyReti, q_smoothphaseoutCapEarlyReti)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:386; core/bounds.gms:436-459; core/equations.gms:971-979",
+        "note": ""
+      },
+      {
+        "claim": "Core cap-turnover equations use it around lines 180 and 310",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/equations.gms:174-180 (q_transPe2se), core/equations.gms:307-310 (q_cap)",
+        "note": "Line 180 is q_transPe2se, the PE-to-SE conversion for teEtaIncr technologies, not a capacity-turnover equation. Only line 310 (q_cap) is a capacity equation. The answer also leaves out core/preloop.gms:100, which loads the level from input_ref."
+      },
+      {
+        "claim": "40_techpol/NDCplus sets .lo bounds for pc/coalchp/igcc at bounds.gms:30-34",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/NDCplus/bounds.gms:30-34",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/none sets .up('2025',regi,'pc') = 0.65 at bounds.gms:34",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/none/bounds.gms:34",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/regiCarbonPrice sets .up bounds for pc (DEU) and tnrs (FRA/ENC/NEN/ECS/ESW/ECE) at bounds.gms:47,190-195",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/bounds.gms:47,190-195",
+        "note": "The answer doesn't say that regiCarbonPrice is the default regipol realization (main.gms:425). That would help show which change affects default runs."
+      },
+      {
+        "claim": "70_water/heat reads .l only in output reporting (output.gms:16), with no equation dependency",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/70_water/heat/output.gms:14-16",
+        "note": "heat is the default water realization (main.gms:463). The answer doesn't say so."
+      },
+      {
+        "claim": "The other 40_techpol realizations (CombLowCandCoalPO, NDC, NPi2018, NPi2025, coalPhaseout, coalPhaseoutRegional, lowCarbonPush, none) list it in not_used.txt",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/*/not_used.txt; 9 realizations exist in total, and NDCplus is the only one that uses it",
+        "note": "The answer doesn't mention that NPi2025, the default techpol (main.gms:364), is one of the realizations that don't use it."
+      },
+      {
+        "claim": "Module-level uses are only .up/.lo overrides (plus the .l read in 70_water); they break mainly on changes to the domain, units, or te/regi support",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "grep over modules/: only bounds.gms and output.gms hits; 05_initialCap/on/preloop.gms:234 is commented out",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer names affected realizations, not just modules, with accurate file:line citations. It lists all 9 techpol realizations (NDCplus as the only user; the other eight list the variable in not_used.txt). It finds the regipol/none bound, which the answer key doesn't mention. It separates the 70_water use, which is reporting only, from bound overrides.",
+    "answer_key_issues": "The key says only 'consumers: 70_water, 47_regipol, 40_techpol'. In the code, the consuming realizations are 40_techpol/NDCplus, 47_regipol/none, 47_regipol/regiCarbonPrice and 70_water/heat. Within core, the variable is also used in q_transPe2se (equations.gms:180) and loaded in preloop.gms:100. Neither is mentioned in the key.",
+    "summary": "The answer is accurate and complete at the realization level. It correctly identifies NDCplus, regipol/none, regiCarbonPrice and water/heat as the consumers, with correct line citations. The only flaw is minor: equations.gms:180 is called a capacity-turnover equation, but it is q_transPe2se. The answer could also have said which of these realizations are defaults: regiCarbonPrice and heat are, and NPi2025, the default techpol, doesn't use the variable."
+  },
+  "grader_cost_usd": 0.2949676,
+  "grader_turns": 10,
+  "grader_duration_s": 35.9,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q11",
+  "arm": "context+rag"
+}

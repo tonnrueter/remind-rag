@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "The macro capital recursion is q01_kapMo at modules/01_macro/singleSectorGr/equations.gms:120, K(t+1)=K(t)(1-δ)^Δt + φ_old·I(t) + φ_new·I(t+1)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/01_macro/singleSectorGr/equations.gms:120-130",
+        "note": ""
+      },
+      {
+        "claim": "K is vm_cesIO(...,'kap'), δ is pm_delta_kap (annual rate), Δt is the time-step length, I is vm_invMacro",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/01_macro/singleSectorGr/equations.gms:115-129",
+        "note": "The equation runs over ppfKap(in). That can be more than one capital type, not only 'kap', but the answer's wording still works."
+      },
+      {
+        "claim": "φ_old/φ_new are p01_cumDeprecFactor_old/new, computed in preloop.gms as [(1−δ)^(Δt/2) − (1−δ)^Δt]/δ and [1 − (1−δ)^(Δt/2)]/δ for even step lengths",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/01_macro/singleSectorGr/preloop.gms:10-25; declarations.gms:13-14",
+        "note": ""
+      },
+      {
+        "claim": "These factors are the closed form of the continuous integral ∫(1−δ)^s ds, so the discretization is 'continuous-time-consistent'",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/01_macro/singleSectorGr/preloop.gms:13-22",
+        "note": "Dividing by δ gives a discrete geometric-series sum over annual vintages. The continuous integral would divide by −ln(1−δ), not by δ. The general reading (investment is spread over half-steps, and each year of it depreciates) still holds."
+      },
+      {
+        "claim": "Odd step lengths get an adjusted formula with a 1/2 correction term",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/01_macro/singleSectorGr/preloop.gms:26-41",
+        "note": "Calling it a 'counter' resolution is a little vague: counter only encodes pm_dt = 2·counter or 2·counter−1."
+      },
+      {
+        "claim": "singleSectorGr is the default realization of 01_macro",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:247",
+        "note": ""
+      },
+      {
+        "claim": "Investment_Inefficiencies uses the same depreciation logic plus an inefficiency wedge",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/01_macro/Investment_Inefficiencies/equations.gms:128-129 (multiplied by p01_investeffectv)",
+        "note": ""
+      },
+      {
+        "claim": "(Implicit completeness) The macro capital law of motion is the depreciation formulation in REMIND's capital-stock equations",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "core/equations.gms:297-317",
+        "note": "The answer leaves out the second mechanism: vintage depreciation of energy-technology capacities in q_cap. There, vm_cap is the sum of past vm_deltaCap weighted by pm_omeg (low depreciation early in the lifetime, fast around the average lifetime) and multiplied by (1 − vm_capEarlyReti) for early retirement. The question asks about capital-stock equations in general, so this is a key gap."
+      }
+    ],
+    "critical": 0,
+    "major": 1,
+    "minor": 1,
+    "failure_class": "incomplete",
+    "fix_layer": "retrieval",
+    "premise_handled": "not_applicable",
+    "went_well": "The macro-capital description is accurate and cites the right places. The equation and line (equations.gms:120) are correct, as are the preloop depreciation-factor formulas, the even/odd step handling and the default realization (main.gms:247). The note on the Investment_Inefficiencies variant is also correct.",
+    "answer_key_issues": "",
+    "summary": "The answer explains the 01_macro/singleSectorGr capital recursion (q01_kapMo) and the p01_cumDeprecFactor construction correctly. However, it says the factors are a continuous integral, but dividing by δ makes them a discrete geometric sum. Its main flaw is that it leaves out the vintage depreciation of energy capacities in core q_cap (pm_omeg, early retirement), which the question calls for."
+  },
+  "grader_cost_usd": 0.155239,
+  "grader_turns": 8,
+  "grader_duration_s": 30.7,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q3",
+  "arm": "context"
+}

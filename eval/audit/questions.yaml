@@ -1,0 +1,214 @@
+# Audit questions (round 02 onwards). Converted 2026-09-25 from ../../../geminis_questions_reviewed.md
+# (Part 1 = question, asked verbatim; Part 2 = answer_key). This file is now the source.
+# kind: keep / trap (false premise on purpose) / rewrite (real REMIND names) / replacement.
+- id: Q1
+  question: Find all instances in `equations.gms` across the entire codebase where we use an artificial penalty variable
+    to prevent infeasibility in our optimization loop.
+  topic: penalty/slack variables
+  kind: keep
+  origin: 11
+  answer_key: |
+    Real variables: `v31_fuSlack`, `v21_emiAllco2neg_slack`, `v21_emiAllco2neg_acrossIterations_slack`,
+    `v_changeProdStartyearSlack`, `v36_expSlack`, `v_fuelslack`. REMIND names them "slack"; a good answer says what each
+    relaxes and where it is penalized, and doesn't claim completeness unless it grepped. *Tests: search + grep, honesty
+    about completeness.*
+- id: Q2
+  question: Where are the initial historical baseline datasets loaded within `datainput.gms` before the iterative scenario
+    optimization takes over?
+  topic: historical baseline data
+  kind: keep
+  origin: 17
+  answer_key: |
+    Mainly `core/datainput.gms` (historical parameters such as `p_histProdSe`, used e.g. for 2025 bounds in
+    `core/bounds.gms:94`), plus data from input gdx files. Many modules also read their own `input/` files in
+    `datainput.gms`. *Checked: partial; grade on plausibility + citations.*
+- id: Q3
+  question: Provide a high-level mathematical summary of how investment depreciation over time is formulated within the
+    capital-stock equations.
+  topic: depreciation
+  kind: keep
+  origin: 18
+  answer_key: |
+    Two different mechanisms: (a) macro capital stock in `modules/01_macro/singleSectorGr/equations.gms` (~line 116:
+    "devaluated by an annual depreciation factor and enlarged by investments"); (b) vintage depreciation of energy
+    capacities in `core/equations.gms` (~298–301: low depreciation early in the lifetime, fast around the average
+    lifetime). A good answer separates the two.
+- id: Q4
+  question: Trace the lifecycle of tax rate adjustments from their declaration step in `declarations.gms` all the way
+    to their final evaluation inside `postsolve.gms`.
+  topic: tax lifecycle
+  kind: keep
+  origin: 20
+  answer_key: |
+    `modules/21_tax/on/`: declarations → equations (`q21_taxrev` = `v21_taxrevReal` + `v21_taxrevPseudo`, lines 25–30;
+    `q21_taxrevGHG`, 78–80) → `postsolve.gms`: `p21_deltarev` (convergence metric, ~line 13) and reference revenues
+    `pm_taxrevGHG0` etc. (~21–23) for revenue recycling; the same block also sits in `presolve.gms`. `vm_taxrev` enters
+    `qm_budget`, and "net tax revenues … converge to zero in the optimal solution" (`01_macro/singleSectorGr/equations.gms`).
+    Related case: `rag/eval/cases/2026-09-24-carbon-penalty-macro-core.md`.
+- id: Q5
+  question: Which module realizations read from the cross-boundary parameter `pm_co2_price`, and which realization is
+    responsible for calculating and writing it?
+  topic: '`pm_co2_price`'
+  kind: trap
+  origin: 1
+  answer_key: |
+    `pm_co2_price` does not exist (0 files). Correct: say so, then offer the real carbon-price parameters
+    `pm_taxCO2eq` (45_carbonprice) / `pm_taxCO2eqSum` (see Q10). **Fail:** describing readers/writers of
+    `pm_co2_price` (Critical: invented variable).
+- id: Q6
+  question: Under which exact configuration of system switches is the `bounds.gms` file for the high-biomass realization
+    active?
+  topic: high-biomass realization
+  kind: trap
+  origin: 7
+  answer_key: |
+    No such realization: `30_biomass` has only `magpie` (default, `main.gms:320`). Correct: say so. **Fail:** switch
+    settings for an invented realization.
+- id: Q7
+  question: Are there any active switches that cause variables from the `15_climate` model to bypass `equations.gms`
+    and get overwritten directly in `realization.gms`?
+  topic: 15_climate bypassing equations
+  kind: trap
+  origin: 8
+  answer_key: |
+    15_climate has no `equations.gms`; `realization.gms` only includes phase files. In `magicc7_ar6`, temperature etc.
+    are computed by MAGICC in `postsolve.gms` between iterations (`execute … Rscript climateAssessmentInterimRun.R`,
+    `modules/15_climate/magicc7_ar6/postsolve.gms:27`), i.e. outside the optimization. And the module is **off by
+    default** (`main.gms:269`). Side note: the `magicc7_ar6` description still says "MAGICC version 6.4 is used as
+    default" (outdated doc).
+- id: Q8
+  question: How does the model handle the upper bound of solar capacity expansion during the `postsolve.gms` phase versus
+    what was declared in `bounds.gms`?
+  topic: solar upper bound in postsolve
+  kind: trap
+  origin: 12
+  answer_key: |
+    The solar (`spv`) bounds are set in `core/bounds.gms` (e.g. line 94, 2025 upper bound from historical production
+    growth), not in `postsolve.gms` (no `"spv"` in any postsolve). Correct: correct the premise.
+- id: Q9
+  question: 'I''m a new researcher looking at the macro-economic core: explain the physical meaning of the equations
+    in `equations.gms` that limit global temperature rise, and list their associated parameters.'
+  topic: temperature equations in the macro core
+  kind: trap
+  origin: 16
+  answer_key: |
+    There are no equations limiting temperature in `core/equations.gms` or `01_macro`. Temperature is not part of the
+    optimization; 15_climate is off by default. Temperature targets are pursued via carbon prices, e.g. the
+    45_carbonprice realization `temperatureNotToExceed` ("carbon price trajectory consistent with a (non-overshoot)
+    temperature target by staying within a peak budget of cumulative CO2 emissions") with iterative adjustment
+    (`cm_iterative_target_adj`). Same "macro core" wording trap as the carbon-penalty case.
+- id: Q10
+  question: Which module declares `pm_taxCO2eqSum`, where is its value actually computed, and which modules read it?
+  topic: '`pm_taxCO2eqSum`'
+  kind: rewrite
+  origin: 1
+  answer_key: |
+    codeCheck: declared by `46_carbonpriceRegi` ("provided by" = declaring module); **computed** in
+    `core/presolve.gms:10` as `pm_taxCO2eq + pm_taxCO2eqRegi + pm_taxCO2eqSCC`; read by core, `21_tax`,
+    `33_carbonRemoval`, `47_regipol`. A good answer keeps DECLARED vs POPULATED vs READ apart.
+- id: Q11
+  question: If I change how `vm_capEarlyReti` is defined in the core, which module realizations are affected?
+  topic: '`vm_capEarlyReti` impact'
+  kind: rewrite
+  origin: 2
+  answer_key: |
+    Declared/provided by core (`core/declarations.gms:386`); consumers per codeCheck: `70_water`, `47_regipol`,
+    `40_techpol`. Within core it appears in the capacity equations (`q_cap`), `q_limitCapEarlyReti`,
+    `q_smoothphaseoutCapEarlyReti` and bounds. A good answer names affected realizations, not just modules.
+- id: Q12
+  question: What is the structural difference between the `grades2poly` and `timeDepGrades` realizations of the fossil
+    resource module, and which one is used by default?
+  topic: fossil realizations
+  kind: rewrite
+  origin: 6
+  answer_key: |
+    Default `grades2poly` (`main.gms:327`): extraction cost curves as 3rd-order polynomials per fuel and region, fitted
+    to `timeDepGrades` runs, "greatly reduces model runtime". `timeDepGrades`: time-dependent cost-grade structure
+    (grades with min/max price, brackets shifting with technological change); per `main.gms` oil & gas only. Other
+    realizations: `exogenous` (fixed extraction/costs from a baseline), `MOFEX` (standalone, not run inside REMIND).
+- id: Q13
+  question: Under which switch settings is `modules/50_damages/KotzWenz/bounds.gms` active, and which scenarios in the
+    config files use it?
+  topic: KotzWenz bounds
+  kind: rewrite
+  origin: 7
+  answer_key: |
+    Active when `damages = KotzWenz` (default `off`, `main.gms:438`); it fixes `vm_damageFactor = pm_damage` and
+    `vm_damageProdFactor = 1` (`bounds.gms:9-10`). Used only in `config/scenario_config_RIKEN.csv`: `M-SSP2-NPi-KLW`
+    (internalize off) and `VLLO-SSP2-KLW`, `VLLO-SSP1-KLW` (internalize `KotzWenzItr`). Related case:
+    `rag/eval/cases/2026-09-24-damages-standalone.md`.
+- id: Q14
+  question: The climate module is off by default. Where does a default run get its temperature information from, and
+    what changes when `magicc7_ar6` is selected?
+  topic: temperature with climate off
+  kind: rewrite
+  origin: 10
+  answer_key: |
+    Default `climate = off` = "no climate coupling" (`main.gms:267-269`): no temperature is computed during the run.
+    With `magicc7_ar6`: "iterative coupling of MAGICC7"; MAGICC is called between iterations from `postsolve.gms`
+    (Q7). Emissions/forcing targets can then drive tax adjustment (`cm_iterative_target_adj = 2`). Temperature
+    downscaling (`16_downscaleTemperature`, CMIP5) is a separate module. *Partially checked; grade citations carefully.*
+- id: Q15
+  question: Where does the carbon removal module use the carbon price, and what does it limit with it?
+  topic: carbon price in CDR
+  kind: replacement
+  origin: null
+  answer_key: |
+    `q33_carbonRemovalspending` (`modules/33_carbonRemoval/portfolio/equations.gms:313-317`):
+    `v33_NetNegEmi_expenses = (1 - cm_frac_NetNegEmi) * pm_taxCO2eqSum * vm_emiAllco2neg`, from 2035 or the start
+    year; together with `cm_33_GDP_netNegCDR_maxShare` it limits spending on net-negative emissions to a share of GDP.
+- id: Q16
+  question: What does the tax module update in its `postsolve.gms` between iterations, and why?
+  topic: 21_tax postsolve
+  kind: replacement
+  origin: null
+  answer_key: |
+    `p21_deltarev`: mean-square deviation of tax revenue (`vm_taxrev`) as a convergence metric; reference revenues
+    `pm_taxrevGHG0`, `pm_taxrevCO2Sector0`, `pm_taxrevCO2LUC0`, `p21_taxrevCCS0`, … saved "for revenue recycling"
+    (the same block exists in `presolve.gms`, per the code comment). Why: the tax equations subtract last iteration's
+    revenue, so taxes act at the margin while revenue is recycled.
+- id: Q17
+  question: What is the `testOneRegi` realization for, and when should I not use it?
+  topic: testOneRegi
+  kind: replacement
+  origin: null
+  answer_key: |
+    "A reduced model version, only containing one region … equivalent to the Nash realization with just one region.
+    Prices … exogenously fixed to the values taken from the gdx." Runtime minutes. Limitation: "only useful for
+    testing purposes or for regions with no influence on the global prices of traded goods"
+    (`modules/80_optimization/testOneRegi/realization.gms`).
+- id: Q18
+  question: What happens to the direct air capture equations and variables when `cm_33DAC` is set to 0?
+  topic: cm_33DAC = 0
+  kind: replacement
+  origin: null
+  answer_key: |
+    Default is 1 (`main.gms:1019`). With 0, `dac` is not added to `te_used33` and related sets
+    (`modules/33_carbonRemoval/portfolio/sets.gms:79-86`), and therefore not to the global `te` either
+    (`te(te_used33) = YES`, `sets.gms:109`; `dac` is only in the static superset `all_te`, `core/sets.gms:135/248`);
+    the DAC bounds block `if(te_used33("dac"), …)` (`bounds.gms:41-46`) is skipped; `bounds.gms:23-26` fixes `vm_emiCdrTeDetail` and
+    `v33_FEdemand` of unused technologies to 0. Equations summing over `te_used33` simply no longer include DAC;
+    `q33_DAC_FEdemand` is still generated (its domain depends on `fe2cdr`, not on the switch) but, with
+    `vm_emiCdrTeDetail("dac")` fixed to 0, forces DAC's FE demand to 0. A good answer explains the set/fixing
+    mechanism, not "the equations are deleted".
+- id: Q19
+  question: In which units does REMIND handle CO2 emissions and carbon prices internally, and how do I convert a carbon
+    price to $/tCO2?
+  topic: units
+  kind: replacement
+  origin: null
+  answer_key: |
+    Emissions in GtC (e.g. `vm_co2eq` "[GtCeq]", `core/declarations.gms:130`); carbon price `pm_taxCO2eq` in T$/GtC,
+    "To get $/tCO2, **multiply** with 272" (`core/declarations.gms:38`); `sm_c_2_co2 = 44/12`,
+    `sm_DptCO2_2_TDpGtC = 0.00366667` (`:663-664`). Directly tests the error from the carbon-penalty case ("÷272").
+- id: Q20
+  question: How does REMIND represent agricultural production costs and bioenergy supply, which come from the land-use
+    model MAgPIE?
+  topic: agriculture from MAgPIE
+  kind: replacement
+  origin: null
+  answer_key: |
+    `26_agCosts` (default `costs`, `main.gms:311`): agricultural production costs are exogenous to REMIND; components
+    include production costs (land conversion, cultivation, irrigation, technological change, …), bioenergy costs and
+    abatement costs. `30_biomass` (default and only realization `magpie`, `main.gms:320`) represents bioenergy supply
+    based on MAgPIE. MAgPIE-coupled runs use `scenario_config_magpie*.csv`. *Partially checked; grade citations carefully.*

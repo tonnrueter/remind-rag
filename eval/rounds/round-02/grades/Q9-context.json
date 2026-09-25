@@ -1,0 +1,84 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "core/equations.gms has no temperature-limiting equations; the macro core does not see temperature directly",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms (0 matches for 'temperat')",
+        "note": ""
+      },
+      {
+        "claim": "The mechanism is in modules/45_carbonprice/temperatureNotToExceed and is an outer-loop postsolve update, not a GAMS equation in the optimization",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/realization.gms:13-15; postsolve.gms:9-47",
+        "note": ""
+      },
+      {
+        "claim": "p45_taxTempLimit is the first-order-condition optimal price, derived in Schultes et al. 2018 SM 2.2; it sums discounted GDP × temperature impulse response × logistic term, discounted with pm_prtp and the pm_consPC ratio",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/postsolve.gms:11-27",
+        "note": "Leaves out the 44/12 C-to-CO2 conversion factor and the 2130 horizon; trivial."
+      },
+      {
+        "claim": "The logistic term 1/(1+exp(-(T-limit)/eta)) acts as a smoothed soft penalty, not a hard cap",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/postsolve.gms:22-24; declarations.gms:14",
+        "note": ""
+      },
+      {
+        "claim": "The tax is fed into pm_taxCO2eq with damping by exponent s45_itrAdjExp, bounded to [1/3, 3]× the previous value",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/postsolve.gms:40-42",
+        "note": "The code uses 0.33 rather than exactly 1/3. The answer also leaves out the iteration-3 starting value and the constant price after 2100."
+      },
+      {
+        "claim": "Parameter table: cm_carbonprice_temperatureLimit, pm_globalMeanTemperature, pm_temperatureImpulseResponseCO2, pm_prtp, pm_consPC, pm_GDPGross, s45_eta, s45_itrAdjExp, p45_taxTempLimit/LastItr, s45_taxTempLimitConvMaxDeviation",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:1169-1171; modules/15_climate/magicc7_ar6/declarations.gms:36-38; modules/45_carbonprice/temperatureNotToExceed/declarations.gms:10-15; postsolve.gms:60-66",
+        "note": "All of these identifiers exist and the descriptions match their declarations."
+      },
+      {
+        "claim": "The temperature and impulse response are computed by MAGICC (15_climate/magicc7_ar6)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:269 ($setGlobal climate off, def=off); modules/15_climate/magicc7_ar6/postsolve.gms:37-64",
+        "note": "Correct, but the answer doesn't say that climate is off by default, or that the default carbonprice realization is NPi2025 (main.gms:411). It only implies this through the 'requires' note."
+      },
+      {
+        "claim": "The realization requires climate=magicc, cm_magicc_temperatureImpulseResponse=on and cm_emiscen=9, enforced by abort checks in datainput.gms",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/datainput.gms:10-14; main.gms:2144",
+        "note": ""
+      },
+      {
+        "claim": "s45_eta: raise if no convergence; s45_itrAdjExp: lower if no convergence",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/45_carbonprice/temperatureNotToExceed/datainput.gms:17-18",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "corrected",
+    "went_well": "The answer corrected the false premise in its first sentence. It found the right realization and described the postsolve formula term by term, accurately. Every identifier it named exists, and each description matches its declaration. It also listed the dependency abort checks, which tells the reader the realization is not the default.",
+    "answer_key_issues": "The key cites cm_iterative_target_adj for iterative adjustment. The temperatureNotToExceed realization doesn't use it: its adjustment is self-contained in postsolve.gms through s45_itrAdjExp. So the answer is right not to mention it. The key's description of the realization quotes realization.gms:9-10 ('peak budget of cumulative CO2 emissions'). The code itself works through a logistic temperature penalty with MAGICC impulse responses, not a CO2 budget, so that upstream description looks stale. Side note: datainput.gms:10 aborts unless climate=='magicc', but the only MAGICC realization is magicc7_ar6, so the check may be stale upstream.",
+    "summary": "The answer correctly rejects the premise: there are no temperature equations in core/equations.gms. It then explains the 45_carbonprice/temperatureNotToExceed postsolve update accurately, with a correct parameter list. The only gap is that it never states outright that climate=off and carbonprice=NPi2025 are the defaults. It implies this only through the listed abort-check requirements."
+  },
+  "grader_cost_usd": 0.1723964,
+  "grader_turns": 11,
+  "grader_duration_s": 38.9,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q9",
+  "arm": "context"
+}

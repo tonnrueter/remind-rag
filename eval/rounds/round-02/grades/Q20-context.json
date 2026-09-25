@@ -1,0 +1,112 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "26_agCosts realization `costs` handles agricultural production costs from MAgPIE",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:311; modules/26_agCosts/{costs,costs_trade,off}",
+        "note": "Correct, and `costs` is the default. But the answer never says it is the default, and it doesn't mention the alternative realizations `costs_trade` and `off`."
+      },
+      {
+        "claim": "Standalone runs read total LU costs (incl. bioenergy + MAC) from p26_totLUcostLookup.cs4r, indexed by LU-emission scenario and RCP",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/26_agCosts/costs/datainput.gms:13-29",
+        "note": ""
+      },
+      {
+        "claim": "Coupled runs load p26_totLUcost_coupling from magpieData.gdx when sm_updateMagpieData>0, overwriting the lookup (presolve.gms:21-24)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/26_agCosts/costs/presolve.gms:20-24",
+        "note": ""
+      },
+      {
+        "claim": "pm_totLUcosts_excl_costFuBio = total minus LU MAC minus pm_pebiolc_costs_emu_preloop, to avoid double-counting (presolve.gms:30-33)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/26_agCosts/costs/presolve.gms:30-44",
+        "note": "The answer leaves out that endogenous pm_macCost (non-CO2 MAgPIE gases) is added back. It does mention this substitution elsewhere."
+      },
+      {
+        "claim": "Standalone: endogenous pm_macCost replaces p26_macCostLuLookup; coupled: MAC zeroed on REMIND side",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/26_agCosts/costs/presolve.gms:15-18,27-29; datainput.gms:31-47",
+        "note": ""
+      },
+      {
+        "claim": "30_biomass realization `magpie` is a MAgPIE emulator with a linear price-quantity supply curve for pebiolc",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:317-320; modules/30_biomass/magpie/equations.gms:36-48",
+        "note": "The answer doesn't say this is the default and only realization."
+      },
+      {
+        "claim": "Price formula: vm_pebiolc_price = (a + b·demand)·pricemult + priceshift",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/30_biomass/magpie/equations.gms:41-48",
+        "note": "The code has (priceshift + a + b·demand)·pricemult: the shift sits inside the multiplier. The answer's formula doesn't match the code, but the difference only matters in coupled runs."
+      },
+      {
+        "claim": "v30_pebiolc_costs is the integral under the price curve (q30_pebiolc_costs)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/equations.gms:50-63",
+        "note": ""
+      },
+      {
+        "claim": "i30_bioen_price_a/_b come from f30_bioen_price.cs4r, a per-scenario fit to MAgPIE runs",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/datainput.gms:58",
+        "note": ""
+      },
+      {
+        "claim": "Residues and 1st-gen biofuels use fixed costs with maxprod caps from p30_bio1stgen.cs3r / p30_biolcResidues.cs3r",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/datainput.gms:9-35; bounds.gms:38-111",
+        "note": "Residues are pebiolc grade 2, not pebios/pebioil. The answer's parenthesis only lists the 1st-gen carriers. Minor wording."
+      },
+      {
+        "claim": "Coupled runs: priceshift/pricemult fitted by least squares against MAgPIE prices (q30_priceshift); v30_multcost penalizes demand jumps (q30_costAdj)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/equations.gms:69-98",
+        "note": ""
+      },
+      {
+        "claim": "vm_costFuBio = fixed-price carriers + emulator costs (with markup in coupled mode) + trade costs",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/equations.gms:22-30",
+        "note": ""
+      },
+      {
+        "claim": "pm_pebiolc_costs_emu_preloop is computed in preloop with MAgPIE demand and subtracted in 26_agCosts",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/preloop.gms:48; presolve.gms:115; modules/26_agCosts/costs/presolve.gms:33",
+        "note": "It is also recomputed in 30_biomass presolve (line 115). The answer doesn't mention this."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 3,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer is accurate and well grounded in the code. It explains how standalone lookups differ from coupled magpieData.gdx loads, how the MAC-cost substitution works, and how the bioenergy-cost subtraction avoids double-counting. It correctly reads the supply-curve emulator as integral-under-curve costing, and gets the coupled-run shift and multcost mechanics right. Its presolve citations are exact.",
+    "answer_key_issues": "The key is consistent with the code (main.gms:311 and main.gms:320 are correct). It could note that 26_agCosts also has the `costs_trade` and `off` realizations. The answer doesn't mention `scenario_config_magpie*.csv`, but that omission is minor.",
+    "summary": "The answer is correct and detailed on both 26_agCosts/costs and 30_biomass/magpie, with accurate citations and a correct account of how the two modules avoid double-counting bioenergy costs. Two small issues: the price-equation formula puts priceshift outside the pricemult factor, while the code has it inside, and the answer doesn't say that these realizations are the defaults or that 26_agCosts has alternatives (costs_trade, off)."
+  },
+  "grader_cost_usd": 0.2279354,
+  "grader_turns": 9,
+  "grader_duration_s": 44.8,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q20",
+  "arm": "context"
+}

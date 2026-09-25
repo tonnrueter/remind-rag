@@ -1,0 +1,42 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "30_biomass has only one realization, magpie",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/30_biomass/magpie/ (only realization dir); main.gms:320 $setglobal biomass magpie !! def = magpie",
+        "note": ""
+      },
+      {
+        "claim": "No high-biomass realization exists anywhere in the codebase",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "grep -i 'high.?biomass' finds no realization; modules/30_biomass/module.gms",
+        "note": ""
+      },
+      {
+        "claim": "A high-biomass assumption would be a config-level override, e.g. via cm_maxProdBiolc, not a separate bounds.gms",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:1544-1551 (cm_maxProdBiolc def = off); modules/30_biomass/magpie/bounds.gms:118-120",
+        "note": "Could also have noted that cm_maxProdBiolc is off by default, but the answer presents it only as an example, so this isn't misleading."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 0,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "corrected",
+    "went_well": "The answer rejected the false premise outright. It said that `magpie` is the only realization of 30_biomass and backed that up by searching for name variants and listing realization directories. It then pointed to the real mechanism, the `cm_maxProdBiolc` switch, which is read in `magpie/bounds.gms`, and asked where the user had seen the term.",
+    "answer_key_issues": "",
+    "summary": "The answer correctly says that no high-biomass realization exists. Module 30_biomass has only `magpie`, which is the default (`main.gms:320`). It also correctly points to `cm_maxProdBiolc` as the config-level way to set biomass assumptions. It made no invented claims and handled the trap well."
+  },
+  "grader_cost_usd": 0.0645488,
+  "grader_turns": 5,
+  "grader_duration_s": 14.7,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q6",
+  "arm": "context+rag"
+}

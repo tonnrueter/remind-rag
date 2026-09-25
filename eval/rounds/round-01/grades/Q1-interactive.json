@@ -1,0 +1,91 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "v_changeProdStartyearSlack relaxes the production-change constraint at cm_startyear ('always allow some change')",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:947",
+        "note": ""
+      },
+      {
+        "claim": "v_penSeFeSectorShare / q_penSeFeSectorShareDev* is an artificial feasibility penalty whose comment says it 'prevents zero-demand infeasibility'",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "core/equations.gms:1107 (comment on q_shSeFeSector's domain exclusion); core/equations.gms:1206-1284; main.gms:2116-2123",
+        "note": "The 'zero-demand infeasibility' comment belongs to the domain condition of q_shSeFeSector, which leaves build/indst solids out. It does not describe the penalty. v_penSeFeSectorShare is a quadratic deviation penalty that pushes sectors toward similar bio/syn/fossil shares. It is a behavioural incentive, not a slack that relaxes a constraint. The answer does mention the switch gating, and the default sqSectorAvrgShare does activate it."
+      },
+      {
+        "claim": "v_co2capturevalve absorbs the lifetime mismatch between capture and CCS/CCU capacities so the balance stays feasible",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/declarations.gms:159; core/equations.gms:596,888; core/bounds.gms:406",
+        "note": "The purpose matches the declaration. The answer leaves out that the valve is capped at 1 MtCO2 (bounds.gms:406) and is not penalized in the objective; its only cost is that the CO2 counts as ETS emissions. The line cited as 594 is actually 596."
+      },
+      {
+        "claim": "v21_emiAllco2neg_slack keeps vm_emiAllco2neg = -vm_emiAll + slack feasible when gross emissions go negative, with the slack absorbing the excess",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "modules/21_tax/on/equations.gms:351-356",
+        "note": "The direction is inverted. The slack is non-zero when vm_emiAll is positive, where it offsets the sum so that the positive variable vm_emiAllco2neg can be 0. When emissions are negative, the slack goes to zero. It is a positive-part decomposition used in the tax, not an escape valve that only acts when emissions are negative."
+      },
+      {
+        "claim": "v21_emiAllco2neg_acrossIterations_slack is the same pattern, comparing CDR to reference gross emissions",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/equations.gms:360-365",
+        "note": ""
+      },
+      {
+        "claim": "v31_fuSlack absorbs leftover extraction capacity under early oil retirement in MOFEX and timeDepGrades",
+        "verdict": "partly",
+        "severity": "major",
+        "evidence": "modules/31_fossil/MOFEX/equations.gms:95-115; modules/31_fossil/timeDepGrades/equations.gms:148-168; main.gms:327",
+        "note": "The mechanism is described correctly. However, the default fossil realization is grades2poly, which does not contain v31_fuSlack, so the variable is inactive by default. The answer gives no default-state caveat."
+      },
+      {
+        "claim": "v36_expSlack is a slack on the 'buildings-expansion balance', penalized at 1e-8",
+        "verdict": "wrong",
+        "severity": "major",
+        "evidence": "modules/36_buildings/simple/declarations.gms:26; modules/36_buildings/simple/equations.gms:43,63",
+        "note": "The declaration says 'slack variable to avoid overflow on too high logistic function exponent'. 'exp' means exponent, not expansion. The slack enters q36_auxCostAddTeInv, the logistic exponent for the H2 phase-in cost. Its 1e-8 weight is in q36_costAddH2PhaseIn, a cost equation, not directly in the objective."
+      },
+      {
+        "claim": "vm_costAdjNash is a Nash trade-adjustment convergence cost, not an infeasibility valve",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/80_optimization/nash/equations.gms:29-40; modules/80_optimization/nash/declarations.gms:122",
+        "note": ""
+      },
+      {
+        "claim": "q31_mc_dummy / q31_totfuex_dummy are not penalties (false positives)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/31_fossil/grades2poly/equations.gms, modules/31_fossil/timeDepGrades/equations.gms",
+        "note": ""
+      },
+      {
+        "claim": "Grepped every equations.gms and found 7 distinct mechanisms",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "grep of **/equations.gms for slack patterns",
+        "note": "All real slack variables in equations.gms were found. The count of 7 is inflated because v_penSeFeSectorShare is included, and it is not a feasibility slack."
+      }
+    ],
+    "critical": 0,
+    "major": 4,
+    "minor": 2,
+    "failure_class": "purpose guessed from a name",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer grepped systematically and found every real slack variable that appears in equations.gms: v_changeProdStartyearSlack, both v21 slacks, v31_fuSlack and v36_expSlack. It separated false positives (the q31_*_dummy equations) and related but different mechanisms (vm_costAdjNash) from true slacks. The file citations are mostly accurate.",
+    "answer_key_issues": "The answer key lists v_fuelslack as a real variable. It is not declared anywhere. It appears only in the description strings of q31_smoothoilphaseout (modules/31_fossil/{MOFEX,timeDepGrades}/declarations.gms), which is a stale reference to what is now v31_fuSlack. The answer is right not to list it. The key could also say that v31_fuSlack is inactive by default (the default fossil realization is grades2poly, main.gms:327) and that v_co2capturevalve is a plausible additional valve.",
+    "summary": "The search coverage is good. However, several of the explanations are guessed rather than read from the declarations. v36_expSlack is read as an 'expansion' slack when it is the logistic exponent overflow slack. A comment about zero-demand infeasibility is attached to the SE/FE share penalty, which is not a slack at all. The v21 slack direction is inverted. v31_fuSlack is presented without noting that the default fossil realization, grades2poly, does not use it."
+  },
+  "grader_cost_usd": 0.2694806,
+  "grader_turns": 10,
+  "grader_duration_s": 49.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q1",
+  "arm": "interactive"
+}

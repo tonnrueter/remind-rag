@@ -1,0 +1,63 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "The carbon price is used in q33_carbonRemovalspending at modules/33_carbonRemoval/portfolio/equations.gms:313-317",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:313-317",
+        "note": ""
+      },
+      {
+        "claim": "v33_NetNegEmi_expenses = (1-cm_frac_NetNegEmi) * pm_taxCO2eqSum * vm_emiAllco2neg",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:314-316",
+        "note": "The answer calls (1-cm_frac_NetNegEmi) a 'scaling factor' without saying what it means: main.gms:1185 describes cm_frac_NetNegEmi as a tax on net-negative emissions to reflect overshoot risk (default 0.5). Small omission."
+      },
+      {
+        "claim": "The spending variable's upper bound is set in postsolve.gms:10 as p33_GDP_NetNeg_share * pm_gdp_gdx",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/postsolve.gms:10",
+        "note": "Because the bound is set only in postsolve, it takes effect from the second Nash iteration on. The answer doesn't say this, but it doesn't change the picture."
+      },
+      {
+        "claim": "The GDP share comes from cm_33_GDP_netNegCDR_maxShare",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/33_carbonRemoval/portfolio/datainput.gms:148-152; main.gms:1721",
+        "note": "This is right, but the answer leaves out the default: GLO 1, meaning 100% of GDP. At that value the cap is practically non-binding by default, which weakens 'limits how much net-negative CDR a region can deploy'."
+      },
+      {
+        "claim": "The equation is active from max(2035, cm_startyear)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:313",
+        "note": ""
+      },
+      {
+        "claim": "Overall effect: caps the carbon-price-valued cost of net removals as a share of GDP, limiting net-negative CDR deployment",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:310; modules/33_carbonRemoval/portfolio/declarations.gms:39",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer names the right equation and file lines and gives the formula exactly. It finds where the bound is actually applied (postsolve.gms:10), which the answer key leaves out. It also gets the start-year condition and the link to the GDP-share switch right.",
+    "answer_key_issues": "The key says the equation limits spending together with cm_33_GDP_netNegCDR_maxShare, but it doesn't name where the bound is applied: postsolve.gms:10, via p33_GDP_NetNeg_share. It also doesn't mention that the default share is GLO 1 (100% of GDP), which makes the cap effectively non-binding by default.",
+    "summary": "The answer is accurate. The equation, formula, start-year condition and GDP-share bound all check out, and it correctly places the bound in postsolve.gms. Its only gap is not saying that the default cm_33_GDP_netNegCDR_maxShare = GLO 1 (100% of GDP) leaves the limit practically non-binding, and that the bound is applied only after the first iteration."
+  },
+  "grader_cost_usd": 0.10359399999999999,
+  "grader_turns": 6,
+  "grader_duration_s": 28.4,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q15",
+  "arm": "context+rag"
+}
