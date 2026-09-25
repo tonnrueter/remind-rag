@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, gmsdata, scenarios, store
-from .chunkers import ENDIF_RE, IFTHEN_RE, _code_part, _line_conditions, chunk_file, path_meta
-from .usage import if_guards, role
+from .chunkers import ENDIF_RE, IFTHEN_RE, _code_part, _is_comment, _line_conditions, _stmt_end, chunk_file, path_meta
+from .usage import LOAD_RE, if_guards, role
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 
@@ -54,6 +54,26 @@ def check_parse(files: list[tuple[str, str]], parsed: dict) -> list[str]:
     return warnings
 
 
+def _role(lines: list[str], i: int, name: str) -> str:
+    """role() of line i; when the statement continues on the next lines (`x(t)` here, `= ...` below), the
+    statement up to its `;` is checked as one line."""
+    r = role(lines[i], name)
+    if r == "read" and ";" not in _code_part(lines[i]) and not lines[i].lstrip().startswith("$"):
+        end = min(_stmt_end(lines, i), i + 10)
+        rest = []
+        for x in lines[i + 1:end]:
+            if x.lstrip().startswith("$"):  # a compiler directive ends the text we can join
+                break
+            if not _is_comment(x):
+                rest.append(x.split("!!", 1)[0])
+        # the following lines may only supply the `=` for the occurrence on this line: their own mentions of
+        # the name (e.g. the body of an if/loop opened here) and loads belong to other statements
+        tail = re.sub(rf"(?<![\w.%]){re.escape(name)}(?!\w)", "_", " ".join(rest), flags=re.I)
+        if not LOAD_RE.search(_code_part(tail)):
+            r = role(lines[i].split("!!", 1)[0] + " " + tail, name)
+    return r
+
+
 def build_uses(db, files: list[tuple[str, str]]) -> int:
     """Where-used: every non-comment GAMS/R line mentioning a known (non-set) symbol or switch, tagged with
     the equation it sits in (if any), its role (declared / assigned / equation / read), the $ifthen conditions
@@ -87,7 +107,8 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
         for n, line in enumerate(lines, 1):
             if line.lstrip().startswith(comment):
                 continue
-            idents = set(IDENT_RE.findall(line)) & usable
+            code = line.split("!!", 1)[0] if is_gms else line  # names in !! end-of-line comments aren't uses
+            idents = set(IDENT_RE.findall(code)) & usable
             if not idents:
                 continue
             ctx = next((name for s, e, name in ranges if s <= n <= e), None)
@@ -95,7 +116,7 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
             if in_decl:  # in declarations, a name inside another symbol's description is not a use
                 idents &= set(IDENT_RE.findall(_code_part(line)))
             for ident in idents:
-                r = ("declared" if in_decl else "equation" if ctx else role(line, ident)) if is_gms else "read"
+                r = ("declared" if in_decl else "equation" if ctx else _role(lines, n - 1, ident)) if is_gms else "read"
                 uses.append((ident, rel, n, meta["module"], meta["realization"], meta["phase"], ctx,
                              line.strip()[:200], r, json.dumps(list(conds[n - 1])),
                              json.dumps(list(guards[n - 1]))))
@@ -227,6 +248,9 @@ def main() -> None:
         db = store.connect(db_path)
         store.build_fts(db)
         n = build_uses(db, list(iter_files(args.root)))
+        db.executemany("INSERT OR REPLACE INTO meta VALUES (?, ?)",
+                       [("symbol_uses", str(n)), ("uses_rebuilt_at", time.strftime("%Y-%m-%d %H:%M:%S"))])
+        db.commit()
         print(f"rebuilt keyword index and {n} symbol uses in {db_path}")
         return
     db_path.parent.mkdir(parents=True, exist_ok=True)

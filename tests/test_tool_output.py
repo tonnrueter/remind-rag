@@ -117,3 +117,77 @@ def test_index_has_no_parser_warnings():
 def test_capEarlyReti_consumers(realization):
     out = server.get_symbol("vm_capEarlyReti", max_uses=80)
     assert f"/{realization}/" in out or f"/{realization}]" in out
+
+
+# ------------------------------------------------------------------ index v3: where-used fixes
+
+def test_bang_comments_are_not_uses():
+    # core/postsolve.gms:55 names "carbonprice" and "climate" only in a !! end-of-line comment
+    rows = server.idx.db.execute("SELECT name FROM symbol_uses WHERE path = 'core/postsolve.gms' AND line = 55"
+                                 ).fetchall()
+    assert {"carbonprice", "climate"}.isdisjoint({r["name"] for r in rows})
+
+
+def test_assignment_with_equals_on_next_line():
+    # p70_cap_vintages(...)$(...) on one line, "=" on the next
+    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'p70_cap_vintages' AND "
+                                "path = 'modules/70_water/heat/output.gms' AND line = 14").fetchone()
+    assert row and row["role"] == "assigned"
+
+
+def test_if_condition_is_not_an_assignment():
+    # "if (cm_startyear gt 2005," followed by an Execute_Loadpoint: the if line only reads cm_startyear
+    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_startyear' AND "
+                                "path = 'core/preloop.gms' AND snippet LIKE 'if (cm_startyear gt 2005,%'").fetchone()
+    assert row and row["role"] == "read"
+
+
+# ------------------------------------------------------------------ get_links
+
+def links_section(text: str, title: str) -> str:
+    """The text of one '## title' section of get_links output."""
+    m = re.search(rf"## {re.escape(title)}.*?(?=\n## |\Z)", text, re.S)
+    return m.group(0) if m else ""
+
+
+def test_links_computed_from_inputs_with_modules():
+    out = server.get_links("pm_taxCO2eqSum")
+    computed = links_section(out, "Computed from")
+    line = next(x for x in computed.splitlines() if x.startswith("- core/presolve.gms:10"))
+    assert "pm_taxCO2eq" in line and "pm_taxCO2eqRegi [46_carbonpriceRegi]" in line and "⚠" not in line
+
+
+def test_links_guard_conditions_are_not_inputs():
+    out = server.get_links("pm_taxCO2eqSum")
+    line = next(x for x in out.splitlines() if x.startswith("- core/postsolve.gms:55"))
+    assert "cm_emiscen" not in line and "from pm_taxCO2eq" in line
+
+
+def test_links_inactive_links_sorted_last():
+    computed = links_section(server.get_links("pm_taxCO2eqSum", max_links=50), "Computed from")
+    entries = computed.split("\n- ")[1:]
+    flags = ["⚠" in e for e in entries]
+    assert flags == sorted(flags) and not flags[0] and flags[-1]
+
+
+def test_links_feeds_into_other_modules():
+    feeds = links_section(server.get_links("pm_taxCO2eqSum", max_links=50), "Feeds into")
+    assert "modules/21_tax/on/postsolve.gms" in feeds and "→ pm_taxrevGHG0" in feeds
+
+
+def test_links_equations_with_variables():
+    out = server.get_links("pm_taxCO2eqSum")
+    eqs = links_section(out, "In equations")
+    assert "q21_taxrevGHG" in eqs and "vm_co2eq [core]" in eqs
+
+
+def test_links_of_an_equation_show_domain_condition():
+    out = server.get_links("q_budgetCO2eqGlob")
+    assert "generated only if (cm_emiscen=6) → inactive by default" in out
+    assert "v_co2eqCum" in out and out.count("## ") == 1  # its members, not itself again
+
+
+def test_links_multiline_assignment_feeds():
+    # Q11: vm_capEarlyReti feeds 70_water/heat through a statement whose "=" is on the next line
+    feeds = links_section(server.get_links("vm_capEarlyReti"), "Feeds into")
+    assert "modules/70_water/heat/output.gms:14" in feeds and "p70_cap_vintages" in feeds

@@ -116,6 +116,7 @@ a rebuild). Tools:
 | `get_switch(name)` | `cm_*` / `c_*` switches and module selections: docs, default, allowed values, references |
 | `get_module(module)` | description, realizations marked `[DEFAULT]` / `[not default]`, limitations, interfaces (inputs/outputs) |
 | `get_scenario(name)` | a scenario's settings and what differs from the `main.gms` defaults |
+| `get_links(name, max_links)` | one hop through the code: what a symbol is computed from, what is computed from it, which equations it shares with which variables; linked names carry their declaring module, links that don't run by default are marked and listed last. Call it again on a linked name for the next hop |
 
 **Default status.** Results say whether code runs in a default run. The defaults are the switch values in `main.gms`.
 Examples:
@@ -127,9 +128,16 @@ In `get_symbol`, use lines get the same information as ⚠ tags, e.g. `⚠ insid
 default` or `⚠ module switched off by default (none)`. For equations, `Generated for` shows the domain and
 `$`-condition that decide whether GAMS generates the equation at all. Conditions have three possible values: true, false,
 or "depends on non-default settings". Anything the evaluator can't read (function calls, set membership, comparisons
-between parameters) counts as unknown, so "depends" is common and not a warning. Roles come from the line alone:
-`assigned` means the name is the left-hand side of `=` or `.fx/.lo/.up/.l =`, or is loaded with
-`Execute_load`/`$load`; every other use is `read`.
+between parameters) counts as unknown, so "depends" is common and not a warning. Roles: `assigned` means the name is
+the left-hand side of `=` or `.fx/.lo/.up/.l =` (the `=` may be on a following line), or is loaded with
+`Execute_load`/`$load`; every other use is `read`. Names in `!!` end-of-line comments are not uses.
+
+**How `get_links` finds links.** It needs nothing beyond the index: for each line where the symbol appears, it takes
+the whole GAMS statement from the chunk text (from the previous `;` to the next), and the stored roles say which
+symbol is on the left of the `=`. The symbol's own assignments give "computed from" (the other symbols from that line
+on; conditions of an enclosing `if` are left out), statements that read it and assign something else give "feeds
+into", and equation bodies give "in equations". Statements without an assignment (display, `if` conditions, output)
+are only counted.
 
 ## Use from opencode (untested)
 

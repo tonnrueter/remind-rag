@@ -2,7 +2,7 @@
 
 Sections 1–6 describe **v0.0.1** (indexes kept as `data/remind-bge-v0.db` / `data/remind-jina-v0.db`);
 section 7 describes **v0.1.0** (gms/goxygen, switch conditions, scenarios); section 8 describes audit round 02
-and **v0.2.0** (default status, roles, parser checks). Raw eval runs are in `eval/results/`, audit rounds in
+and **v0.2.0** (default status, roles, parser checks); section 9 describes **v0.3.0** (`get_links`, index v3). Raw eval runs are in `eval/results/`, audit rounds in
 `eval/rounds/`.
 
 Minimal local RAG over REMIND code + docs (674 files, 3.2 MB → 3,500 chunks), exposed to Claude Code as an
@@ -222,4 +222,30 @@ Full report: `eval/rounds/round-02.md`.
 ### Not measured yet
 Whether answers actually get more correct. That needs round 03, which waits for a better question set.
 Known limits of the markers: the evaluator treats anything it can't read as unknown ("depends"). Roles come from
-single lines, so assignments inside loops or macros that span lines can come out as `read`.
+single lines, so assignments inside loops or macros that span lines can come out as `read` (partly fixed in v3,
+section 9).
+
+## 9. v0.3.0: `get_links` and index v3 (2026-09-25)
+
+### Smoke test in Claude Code (v0.2.x)
+Three interactive questions in a REMIND session all used the MCP tools and led with the default run. Q1
+(pm_taxCO2eqSum) was correct, including the attribution (46 declares it, core computes it). That was a Major error in
+round 02. Q2 found that NPi2025's description contradicts its code. Q3 missed that temperatureNotToExceed can't
+compile, because single-line `$ifi … abort` preconditions aren't shown (TODO #32). Side find: until then the MCP
+registration had pointed at the v0 index. It now pins `data/remind-bge.db`.
+
+### `get_links`
+One hop through the code, computed at query time from chunks + `symbol_uses` (no new tables, no re-embedding):
+*computed from* / *feeds into* / *in equations*, each link with path:line, the declaring module of linked symbols
+where it differs, and ⚠ default status (inactive links sorted last). Example: `pm_taxCO2eqSum` → computed in
+`core/presolve.gms:10` from `pm_taxCO2eq`, `pm_taxCO2eqRegi [46]`, `pm_taxCO2eqSCC [51]` (3 of 13 assignments run
+by default); feeds `p_priceCO2` and the 21_tax revenue parameters; shares equations with `vm_co2eq`,
+`vm_emiMacSector`, `vm_emiAllco2neg [21_tax]` … Not measured with an LLM yet (targets Q13/Q18-type chains).
+
+### Index v3 = v2 + fixed where-used table (`--no-embed`, seconds)
+- Names in `!!` end-of-line comments were counted as uses: 245 false uses removed (18,769 → 18,524).
+- Assignments whose `=` is on a following line (`x(t)$(…)` / `vm_x.fx(…)` on one line, `=` below) were `read`:
+  +244 assignments now recognized (4,388 → 4,632). Sampled by hand; the `if(`/`loop(` opening lines and `$ifthen`
+  lines stay `read` (the lines after them only supply the `=` for this line's own occurrence).
+- 0 uses changed from assigned to something else. Retrieval identical to v2 in every mode and category
+  (`eval/results/retrieval-v3-uses.txt`). Tests: 26 pass.

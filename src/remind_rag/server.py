@@ -51,6 +51,9 @@ server = MCPServer(
         "consume them, get_switch for cm_*/c_* switches and module selections, get_module for a module's "
         "realizations, interfaces and limitations, get_scenario for a scenario's settings, and search for "
         "conceptual questions (pass scenario=... only when the question is about a specific scenario). "
+        "For 'how does X affect Y' or 'where does this value come from', follow the chain with get_links: it "
+        "shows what a symbol is computed from, what is computed from it and which equations it shares, one hop "
+        "at a time; call it again on the linked symbol that leads toward the target. "
         "Results cite path:line; read the file for more context when needed. "
         "Results carry default-status lines (» ... / ⚠ ...): whether the code's realization is the default and "
         "whether its $ifthen / if(...) / $(...) switch conditions hold in a default run. Lead with what a default "
@@ -218,6 +221,151 @@ def get_symbol(name: str, max_uses: int = 40) -> str:
         ).fetchall()
         hint = ", ".join(r[0] for r in similar)
         return f"Symbol {name!r} not found." + (f" Similar: {hint}" if hint else " Try search().")
+    return "\n".join(out)
+
+
+_DECL_MODULES: dict[str, str] | None = None
+_KINDS: dict[str, str] | None = None
+
+
+def _decl_module(name: str) -> str:
+    """Module declaring a symbol ('core' or e.g. '45_carbonprice'; '' for switches / unknown)."""
+    global _DECL_MODULES, _KINDS
+    if _DECL_MODULES is None:
+        _DECL_MODULES, _KINDS = {}, {}
+        for r in idx.db.execute("SELECT name, kind, module FROM symbols WHERE kind != 'set'"):
+            _DECL_MODULES.setdefault(r["name"].lower(), r["module"] or "core")
+            _KINDS.setdefault(r["name"].lower(), r["kind"])
+    return _DECL_MODULES.get(name.lower(), "")
+
+
+def _kind(name: str) -> str:
+    _decl_module(name)
+    return _KINDS.get(name.lower(), "switch" if name.lower() in {k.lower() for k in idx.defaults} else "")
+
+
+def _names(names: list[str], home: str | None, limit: int = 12) -> str:
+    """Symbol list with the declaring module where it differs from the statement's module."""
+    shown = []
+    for n in names[:limit]:
+        m = _decl_module(n)
+        shown.append(f"{n} [{m}]" if m and m != (home or "core") else n)
+    return ", ".join(shown) + (f", +{len(names) - limit} more" if len(names) > limit else "")
+
+
+def _loc(u) -> str:
+    return "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
+
+
+def _equation_status(path: str, equation: str) -> list[str]:
+    """Whether the equation's domain $-condition holds in a default run."""
+    row = idx.db.execute("SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE",
+                         (path, equation)).fetchone()
+    head = _equation_head(row["text"], equation) if row else None
+    if not head or "$" not in head:
+        return []
+    cond = head[head.index("$") + 1:]
+    if not switch_tests(cond, idx.defaults):
+        return []
+    v = idx.condition_status(cond, "generated only if")
+    return [] if v.endswith(": active by default") else [v.replace(": INACTIVE by default", " → inactive by default")]
+
+
+@server.tool()
+def get_links(name: str, max_links: int = 15) -> str:
+    """Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are
+    computed from it, and which other variables/parameters share an equation with it. Each link gives
+    path:line, the declaring module of linked symbols when it differs, and whether the code runs in a
+    default configuration. Call get_links again on a linked name for the next hop; use it to trace how an
+    effect travels across modules (e.g. from a carbon price to land-use emissions).
+
+    Args:
+        name: exact GAMS symbol (vm_*, pm_*, p33_*, q_*, s_*, ...) or equation name.
+        max_links: maximum links per section (default 15).
+    """
+    from .links import equation_members, is_load, statement
+
+    decl = idx.db.execute("SELECT kind, module, description FROM symbols WHERE name = ? COLLATE NOCASE",
+                          (name,)).fetchone()
+    eq_chunks = idx.db.execute("SELECT path, name, module, realization, phase, conditions FROM chunks "
+                               "WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
+    uses = idx.db.execute("SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path LIKE '%.gms' "
+                          "AND role != 'declared' ORDER BY path, line", (name,)).fetchall()
+    if not decl and not uses and not eq_chunks:
+        return f"Symbol {name!r} not found. Try get_symbol or search."
+    name = decl and idx.db.execute("SELECT name FROM symbols WHERE name = ? COLLATE NOCASE",
+                                   (name,)).fetchone()[0] or name
+    out = [f"# Links of {name}" + (f" — {decl['kind']} \"{decl['description']}\" [declared in "
+                                   f"{decl['module'] or 'core'}]" if decl else ""),
+           "One hop through the statements and equations that mention it. ⚠ = does not run in a default "
+           "configuration. Names carry [module] when declared outside the statement's module."]
+
+    # an equation: its members
+    for r in eq_chunks:
+        tags = _use_tags({"module": r["module"], "realization": r["realization"], "conditions": r["conditions"],
+                          "guards": "[]"}) + _equation_status(r["path"], r["name"])
+        members = equation_members(idx.db, r["path"], r["name"])
+        variables = [n for n in members if "variable" in _kind(n)]
+        others = [n for n in members if n not in variables]
+        out.append(f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
+                   + "".join(f"\n    ⚠ {t}" for t in tags)
+                   + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
+                   + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}")
+
+    computed, feeds, reads, equations = [], [], [], {}
+    seen = set()
+    for u in uses:
+        if u["role"] == "equation" and u["context"]:
+            if u["context"].lower() != name.lower():  # an equation's own definition is shown above
+                equations.setdefault((u["path"], u["context"]), u)
+            continue
+        st = statement(idx.db, u["path"], u["line"])
+        if not st or (st.path, st.start) in seen:
+            continue
+        seen.add((st.path, st.start))
+        tags = _use_tags(u)
+        if u["role"] == "assigned" or name in st.assigned:
+            inputs = [n for n in st.names_from(u["line"]) if n.lower() != name.lower() and n not in st.assigned]
+            src = "loaded from a GDX file" if is_load(st) else (
+                "from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
+            computed.append((bool(tags), f"- {u['path']}:{st.start} [{_loc(u)}]  {src}", tags))
+        elif targets := [n for n in st.names if n in st.assigned and n.lower() != name.lower()]:
+            feeds.append((bool(tags), f"- {u['path']}:{st.start} [{_loc(u)}]  → {_names(targets, u['module'])}",
+                          tags))
+        else:
+            reads.append(u)
+
+    def section(title: str, items: list, unit: str = "statements") -> None:
+        if not items:
+            return
+        items.sort(key=lambda x: x[0])  # default-active links first
+        active = sum(1 for inactive, _, _ in items if not inactive)
+        out.append(f"## {title} ({len(items)} {unit}, {active} active by default)")
+        for _, line, tags in items[:max_links]:
+            out.append(line + "".join(f"\n    ⚠ {t}" for t in tags))
+        if len(items) > max_links:
+            out.append(f"- ... {len(items) - max_links} more (get_symbol lists all uses)")
+
+    section(f"Computed from (statements assigning {name})", computed)
+    section(f"Feeds into (statements reading {name} and assigning another symbol)", feeds)
+
+    eq_items = []
+    for (path, eq), u in equations.items():
+        tags = _use_tags(u) + _equation_status(path, eq)
+        members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
+        variables = [n for n in members if "variable" in _kind(n)]
+        others = [n for n in members if n not in variables]
+        line = (f"- {eq}  {path} [{_loc(u)}]\n    variables: {_names(variables, u['module']) or '-'}"
+                f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}")
+        eq_items.append((bool(tags), line, tags))
+    section("In equations (other symbols in the same equation)", eq_items, "equations")
+
+    if reads:
+        mods = sorted({u["module"] or u["path"] for u in reads})
+        out.append(f"## Other reads: {len(reads)} statements without an assignment (conditions, display, "
+                   f"output; {', '.join(mods[:8])}{', …' if len(mods) > 8 else ''}); see get_symbol")
+    if len(out) == 2:
+        out.append("No statements or equations found (declared but never used in GAMS code).")
     return "\n".join(out)
 
 

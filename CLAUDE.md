@@ -13,7 +13,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | All measured numbers | `FINDINGS.md`; audit rounds in `eval/rounds/round-NN.md` |
 | Big-picture overview, glossary | `../HANDOFF-260924-Introducing_REMIND_RAG.md` |
 | Structure diagram, commands | `README.md` |
-| Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `server.py` (MCP tools) |
+| Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `links.py` (statements for `get_links`), `server.py` (MCP tools) |
 | Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output |
 | Evaluations | `eval/retrieval_eval.py` (local, free), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |
@@ -30,8 +30,9 @@ uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # us
 
 ## Conventions
 
-- **Keep measured states reproducible.** Before a rebuild, copy the current index to `data/remind-bge-vN.db`; note
-  numbers in `FINDINGS.md` or `eval/results/`.
+- **Keep measured states reproducible.** Each index state gets a version: build into `data/remind-bge-vN.db` (next
+  free N; `--no-embed` rebuilds go into a copy), verify, then copy it to `data/remind-bge.db`, which the MCP
+  registration pins. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table.
 - **Parser changes:** the build must end with `parser checks: 0 warning(s)`, and `retrieval_eval.py` must not drop.
 - **Tool-output changes:** add or adjust a test in `tests/test_tool_output.py` that shows the information is present.
 - **Evaluation isolation:** answerer runs use `claude -p --setting-sources user` (no project CLAUDE.md, this file
