@@ -37,7 +37,8 @@ uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # us
 - **Evaluation isolation:** answerer runs use `claude -p --setting-sources user` (no project CLAUDE.md, this file
   included) and read-only tools; `audit.py` does this. Don't put a CLAUDE.md into `piam-rag/` itself, because
   `remind/` sits below it and would inherit it.
-- **Never edit tracked REMIND files** in `../remind/`; REMIND doc bugs go into `../TODO.md` (#2, #30) for upstream.
+- **Never interact with the REMIND repository**: no edits to tracked files in `../remind/`, no issues, PRs or
+  pushes. Stale comments and doc defects found on the way go into `../STALE_COMMENTS.md` and stay local.
 - Raw SQL against SQLite (FTS5 + sqlite-vec); no ORM (reasoning in `../TODO.md` appendix B).
 
 ## Working with the user

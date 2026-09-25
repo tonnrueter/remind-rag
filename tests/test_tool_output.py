@@ -49,6 +49,13 @@ def test_roles_separate_declaring_and_assigning_modules():
     assert "declared in (interface owner): 46_carbonpriceRegi" in out
 
 
+def test_module_off_by_default_is_named():
+    # 46_carbonpriceRegi defaults to "none": say the module is off, not "non-default realization (default: none)"
+    out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)
+    assert "module switched off by default (none)" in out
+    assert "(default: none)" not in out
+
+
 def test_ifthen_condition_inactive_by_default():
     # Q9/Q13-type: code under $ifthen of a switch that is off by default
     out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)

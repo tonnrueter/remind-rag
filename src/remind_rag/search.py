@@ -200,8 +200,14 @@ class Index:
             return None
         if default.lower() == realization.lower():
             return f"realization {realization}: DEFAULT"
+        if self.module_off_by_default(module):
+            return (f"realization {realization}: NOT DEFAULT (module {module} is switched off by default: "
+                    f"${module.partition('_')[2]} = {default})")
         return (f"realization {realization}: NOT DEFAULT (default: {default}; selected by "
                 f"${module.partition('_')[2]})")
+
+    def module_off_by_default(self, module: str | None) -> bool:
+        return (self.default_realization(module) or "").lower() in {"off", "none"}
 
     def condition_status(self, cond: str, what: str) -> str:
         v = eval_expr(cond, self.defaults)

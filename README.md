@@ -101,18 +101,35 @@ Register once per REMIND checkout (local scope = stored in `~/.claude.json`, not
 
 ```powershell
 cd ..\remind
-claude mcp add remind-rag --scope local -- uv run --offline --directory C:\Users\tonnru\lab\piam-rag\rag python -m remind_rag.server
+claude mcp add remind-rag --scope local -e REMIND_RAG_DB=C:/Users/tonnru/lab/piam-rag/rag/data/remind-bge.db -- uv run --offline --directory C:\Users\tonnru\lab\piam-rag\rag python -m remind_rag.server
 ```
 
-Check with `/mcp` inside Claude Code. Tools:
+`REMIND_RAG_DB` pins the stable name `remind-bge.db`, which always holds the current index; older builds are kept as
+`remind-bge-vN.db`. Without it, the server takes the newest complete `remind-bge*.db` by modification time, which can
+be a draft build. Check with `claude mcp get remind-rag`, and with `/mcp` inside Claude Code (reconnect there after
+a rebuild). Tools:
 
 | tool | use for |
 |---|---|
-| `search(query, k, module, realization, kind, phase, scenario)` | conceptual / free-text questions; `scenario` drops unselected realizations and down-ranks code compiled out by that scenario's switches |
-| `get_symbol(name)` | exact GAMS identifiers: declaration, description + unit, providing/consuming modules, equation, use sites |
+| `search(query, k, module, realization, kind, phase, scenario)` | conceptual / free-text questions; every hit carries `» status` lines (see below); `scenario` drops unselected realizations and down-ranks code compiled out by that scenario's switches |
+| `get_symbol(name)` | exact GAMS identifiers: declaration, description + unit, interface owner (`declared in`) and users, equation with its domain condition (`Generated for`), use sites grouped by role: declared / assigned / in equations / read |
 | `get_switch(name)` | `cm_*` / `c_*` switches and module selections: docs, default, allowed values, references |
-| `get_module(module)` | description, realizations (+ default), limitations, interfaces (inputs/outputs) |
+| `get_module(module)` | description, realizations marked `[DEFAULT]` / `[not default]`, limitations, interfaces (inputs/outputs) |
 | `get_scenario(name)` | a scenario's settings and what differs from the `main.gms` defaults |
+
+**Default status.** Results say whether code runs in a default run. The defaults are the switch values in `main.gms`.
+Examples:
+- `» realization MOFEX: NOT DEFAULT (default: grades2poly; selected by $fossil)`
+- `» compiled only if not "%c_tech_earlyreti_rate%" == "off": INACTIVE by default`
+- `» switch tests in this code (with default values): cm_emiscen = 6  (default cm_emiscen = 9) → false`
+
+In `get_symbol`, use lines get the same information as ⚠ tags, e.g. `⚠ inside if (cm_emiscen eq 6) → inactive by
+default` or `⚠ module switched off by default (none)`. For equations, `Generated for` shows the domain and
+`$`-condition that decide whether GAMS generates the equation at all. Conditions have three possible values: true, false,
+or "depends on non-default settings". Anything the evaluator can't read (function calls, set membership, comparisons
+between parameters) counts as unknown, so "depends" is common and not a warning. Roles come from the line alone:
+`assigned` means the name is the left-hand side of `=` or `.fx/.lo/.up/.l =`, or is loaded with
+`Execute_load`/`$load`; every other use is `read`.
 
 ## Use from opencode (untested)
 

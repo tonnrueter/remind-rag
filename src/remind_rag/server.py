@@ -94,7 +94,9 @@ def _use_tags(u) -> list[str]:
     tags = []
     s = idx.realization_status(u["module"], u["realization"])
     if s and "NOT DEFAULT" in s:
-        tags.append(f"non-default realization (default: {idx.default_realization(u['module'])})")
+        default = idx.default_realization(u["module"])
+        tags.append(f"module switched off by default ({default})" if idx.module_off_by_default(u["module"])
+                    else f"non-default realization (default: {default})")
     for c in json.loads(u["conditions"] or "[]"):
         if (v := idx.condition_status(c, "$ifthen")) and "INACTIVE" in v:
             tags.append(v.replace(": INACTIVE by default", " → inactive by default"))
@@ -158,8 +160,9 @@ def get_symbol(name: str, max_uses: int = 40) -> str:
             loc = (module or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
                                              else f"/{reals[0]}" if reals else "")
             default = idx.default_realization(module)
-            note = (f"  — only in non-default realizations (default: {default})"
-                    if reals and default and default.lower() not in {x.lower() for x in reals} else "")
+            note = ("" if not (reals and default and default.lower() not in {x.lower() for x in reals})
+                    else f"  — module switched off by default ({default})" if idx.module_off_by_default(module)
+                    else f"  — only in non-default realizations (default: {default})")
             out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
                        + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "") + note)
     if _has_table("module_interfaces"):

@@ -1,7 +1,9 @@
 # REMIND RAG — findings (2026-09-24)
 
 Sections 1–6 describe **v0.0.1** (indexes kept as `data/remind-bge-v0.db` / `data/remind-jina-v0.db`);
-section 7 describes **v0.1.0** (gms/goxygen, switch conditions, scenarios). Raw eval runs are in `eval/results/`.
+section 7 describes **v0.1.0** (gms/goxygen, switch conditions, scenarios); section 8 describes audit round 02
+and **v0.2.0** (default status, roles, parser checks). Raw eval runs are in `eval/results/`, audit rounds in
+`eval/rounds/`.
 
 Minimal local RAG over REMIND code + docs (674 files, 3.2 MB → 3,500 chunks), exposed to Claude Code as an
 MCP server (`search`, `get_symbol`, `get_switch`, `list_realizations`). Question: does it beat "a bunch of
@@ -178,3 +180,46 @@ the overall trend is meaningful; I stopped tuning at this point.
   listed as input; RAG answered from the codeCheck interfaces, complete.
 - Rerun of 3 old cross-module questions with v1: 5/6 (v0: 6/6) — one answer cited the wrong core equation
   despite the tools returning the right line. Single runs; within LLM variance.
+
+## 8. Audit round 02 (2026-09-25) and v0.2.0
+
+### Round 02: 20 questions × 2 arms, blind Opus grader
+Headless Sonnet with `remind-context` as static context, with and without the MCP server (v0.1.0 index). The Opus
+grader checks each claim against the code and doesn't know which arm it is grading. Rubric: `eval/audit/rubric.md`.
+Full report: `eval/rounds/round-02.md`.
+
+| arm | Critical | Major | Minor | traps caught | mean cost | mean turns | mean time |
+|---|---|---|---|---|---|---|---|
+| context+rag | 1 | 14 | 33 | 4/5 | $0.09 | 5.5 | 21 s |
+| context | 1 | 14 | 39 | 4/5 | $0.12 | 10.0 | 40 s |
+
+- **Same correctness, about twice as fast, 25 % cheaper.** The RAG doesn't make answers more correct yet.
+- **Largest failure class: "default not checked"** (10 of 28 classified failures, both arms). Answers describe code
+  from non-default realizations or `$ifthen` / `if(…)` branches that a default run never executes. The v0.1.0 tool
+  output contained no information about which code is active by default.
+- **Attribution** (Q10, Q11): the declaring module (codeCheck's interface owner) was presented as the module that
+  computes the value.
+- **Equation mechanics** (Q18): the `$`-condition in an equation's domain decides whether GAMS generates it, and the
+  output didn't show it. The parser missed 64 of 298 equations whose head spans several lines (#25).
+- Grader calibration against the hand grades of round 01: Q1 matched exactly, Q18 came out one step stricter.
+- The user's verdict: several questions and answer keys need work (TODO #16) before the next paid round.
+
+### v0.2.0: changes to the tool output
+- **Default status**: `» …` lines on search hits, ⚠ tags on `get_symbol` use lines, `[DEFAULT]` / `[not default]`
+  in `get_module`, with realization, `$ifthen` conditions and run-time `if(…)` / `$(…)` switch tests, each evaluated
+  against the `main.gms` defaults as true, false or "depends" (`usage.py` `eval_expr`). A module whose default is
+  `off` / `none` is called "switched off by default".
+- **Roles** in `symbol_uses`: declared / assigned / used in equations / read; `get_symbol` groups by role.
+- **Parser**: multi-line equation heads (298/298 equations found), equation chunks up to 12k chars (`qm_budget` in
+  one piece). Build-time checks (every declared equation has a definition, `$ifthen`/`$endif` balanced, each module
+  has a module doc) print a warning list and store it in the index meta: currently 0 warnings; 0 codeCheck
+  declarations missed.
+- **Tests**: `tests/test_tool_output.py`, 16 checks that replay round-02 failures on the tool output (no LLM).
+- **Retrieval unchanged**: hybrid 81 % recall@5 / MRR 0.69, same as before (`eval/results/retrieval-v2-defaults.txt`).
+  The status information only goes into the tool output, not into the embedded text.
+- Index: 4,755 chunks, 18,769 symbol uses (`data/remind-bge.db` = `remind-bge-v2.db`).
+
+### Not measured yet
+Whether answers actually get more correct. That needs round 03, which waits for a better question set.
+Known limits of the markers: the evaluator treats anything it can't read as unknown ("depends"). Roles come from
+single lines, so assignments inside loops or macros that span lines can come out as `read`.
