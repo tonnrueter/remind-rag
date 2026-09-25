@@ -13,7 +13,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | All measured numbers | `FINDINGS.md`; audit rounds in `eval/rounds/round-NN.md` |
 | Big-picture overview, glossary | `../HANDOFF-260924-Introducing_REMIND_RAG.md` |
 | Structure diagram, commands | `README.md` |
-| Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `links.py` (statements for `get_links`), `server.py` (MCP tools) |
+| Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `links.py` (statements for `get_links`), `server.py` (MCP tools); sweeps over REMIND: `preconditions.py` (abort preconditions), `doccheck.py` (names, defaults, file pointers in prose) |
 | Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output |
 | Evaluations | `eval/retrieval_eval.py` (local, free), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |

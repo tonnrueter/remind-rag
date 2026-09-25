@@ -180,3 +180,23 @@ Isolation: `--setting-sources user` (no project/parent `CLAUDE.md`), built-in to
 `--strict-mcp-config`; remind-context is injected via `--append-system-prompt-file`. Existing answers/grades are
 kept (so a run can be resumed); `--force` redoes them. To disagree with a grade, put the changed fields into
 `eval/rounds/round-NN/grades/<Q>-<arm>.override.json`; `report` marks them ✎.
+
+## Sweeps over REMIND (stale docs and checks)
+
+Two mechanical sweeps, no LLM, seconds per run, read-only on the checkout. They complement `gms::codeCheck`, which
+checks code structure and strips all comments first; these check the comments and abort conditions against the code.
+
+```powershell
+uv run python -m remind_rag.preconditions --root ..\remind [--all]   # abort preconditions: impossible / aborts by default
+uv run python -m remind_rag.doccheck --root ..\remind [--module modules/45_carbonprice] [--md out.md]
+```
+
+- `preconditions.py`: every `abort` in `modules/` and `core/`, with the switch settings that trigger it; flags
+  preconditions that name a nonexistent switch, realization or value, realizations that abort under the defaults, and
+  abort messages that name another realization.
+- `doccheck.py`: prose (comments, `!!`, declaration descriptions) against facts from the code: names that occur in no
+  code, stated defaults vs `main.gms`, file pointers to missing files or files that don't mention the subject,
+  nonexistent realization names. Regex extraction plus lookups; semantic mismatches need a reader.
+
+`tests/test_sweeps.py` pins known finds and tuned-away noise. Reports and the verified list live outside this repo
+(`../sweeps/`, `../STALE_COMMENTS.md`).
