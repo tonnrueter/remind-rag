@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import embeddings, gmsdata, scenarios, store
+from . import embeddings, gmsdata, preconditions, scenarios, store
 from .chunkers import ENDIF_RE, IFTHEN_RE, _code_part, _is_comment, _line_conditions, _stmt_end, chunk_file, path_meta
 from .usage import LOAD_RE, if_guards, role
 from .corpus import iter_files
@@ -125,6 +125,25 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
     return len(uses)
 
 
+def build_preconditions(db, root: Path) -> int:
+    """Every abort in modules/ and core/ with the conditions that reach it, classified by preconditions.py:
+    category precondition (switch settings alone) or assertion (data / run-time state), severity against the
+    main.gms defaults and the switches, realizations and values that exist."""
+    found, _ctx = preconditions.sweep(root)
+    db.execute("DROP TABLE IF EXISTS preconditions")
+    db.execute("CREATE TABLE preconditions (path TEXT, line INTEGER, module TEXT, realization TEXT, kind TEXT, "
+               "form TEXT, category TEXT, severity TEXT, abort_if TEXT, switches TEXT, message TEXT, problems TEXT, "
+               "notes TEXT, message_issue TEXT)")
+    db.executemany("INSERT INTO preconditions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
+        (p.path, p.line, p.module, p.realization, p.kind, p.form, p.category, p.severity, json.dumps(p.abort_if),
+         json.dumps(sorted({t.switch for t in p.tests})), p.message,
+         "; ".join(x for t in p.tests for x in t.problems), "; ".join(x for t in p.tests for x in t.notes),
+         p.message_issue)
+        for p in found])
+    db.commit()
+    return len(found)
+
+
 def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None) -> dict:
     t0 = time.perf_counter()
     files = list(iter_files(root))
@@ -189,6 +208,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
                        [(f"version_{k}", v) for k, v in gms_export["versions"].items()])
 
     n_uses = build_uses(db, files)
+    n_pre = build_preconditions(db, root)
 
     t1 = time.perf_counter()
     # GAMS tokenizes at ~2 chars/token, so embedding dominates build time on CPU. Embedding only the
@@ -216,6 +236,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
         "chunks": len(chunks),
         "symbols": len(symbols),
         "symbol_uses": n_uses,
+        "preconditions": n_pre,
         "switches": len(switches),
         "scenarios": len(scens),
         "gms_export": bool(gms_export),
@@ -248,10 +269,12 @@ def main() -> None:
         db = store.connect(db_path)
         store.build_fts(db)
         n = build_uses(db, list(iter_files(args.root)))
+        n_pre = build_preconditions(db, args.root)
         db.executemany("INSERT OR REPLACE INTO meta VALUES (?, ?)",
-                       [("symbol_uses", str(n)), ("uses_rebuilt_at", time.strftime("%Y-%m-%d %H:%M:%S"))])
+                       [("symbol_uses", str(n)), ("preconditions", str(n_pre)),
+                        ("uses_rebuilt_at", time.strftime("%Y-%m-%d %H:%M:%S"))])
         db.commit()
-        print(f"rebuilt keyword index and {n} symbol uses in {db_path}")
+        print(f"rebuilt keyword index, {n} symbol uses and {n_pre} preconditions in {db_path}")
         return
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if args.gms_export:

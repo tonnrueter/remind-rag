@@ -11,6 +11,7 @@ from .chunkers import _code_part, _is_comment
 
 EQ_OPERATOR_RE = re.compile(r"=[elgnxcbELGNXCB]=")
 LOAD_RE = re.compile(r"\bexecute_load(point)?\b|\$gdxin|\$load", re.I)
+FOR_OPEN_RE = re.compile(r"\bfor\s*\($", re.I)
 
 
 def _skip_group(s: str, k: int) -> int:
@@ -32,7 +33,9 @@ def role(line: str, name: str) -> str:
         return "assigned"
     for m in re.finditer(rf"(?<![\w.%]){re.escape(name)}(?!\w)", code, re.I):
         before = code[:m.start()].rstrip()
-        if before and before[-1] not in ";,(":  # the name must start a statement (or a loop/if body)
+        # the name must start a statement or a loop/if body (after `;` or `,`); after `(` only in `for (x = ...`,
+        # elsewhere `if(x = 2` / `$(x = 2)` is a comparison
+        if before and before[-1] not in ";," and not FOR_OPEN_RE.search(before):
             continue
         k = m.end()
         while k < len(code) and code[k] == " ":
@@ -45,8 +48,10 @@ def role(line: str, name: str) -> str:
                 k = _skip_group(code, k)
         while k < len(code) and code[k] == " ":
             k += 1
-        if k < len(code) and code[k] == "$":  # conditional assignment x(t)$(cond) = ...
+        if k < len(code) and code[k] == "$":  # conditional assignment x(t)$(cond) = ... or x(t) $ (cond) = ...
             k += 1
+            while k < len(code) and code[k] == " ":
+                k += 1
             k = _skip_group(code, k) if k < len(code) and code[k] == "(" else k + len(re.match(r"\w*", code[k:]).group())
             while k < len(code) and code[k] == " ":
                 k += 1

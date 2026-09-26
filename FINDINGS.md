@@ -2,7 +2,7 @@
 
 Sections 1–6 describe **v0.0.1** (indexes kept as `data/remind-bge-v0.db` / `data/remind-jina-v0.db`);
 section 7 describes **v0.1.0** (gms/goxygen, switch conditions, scenarios); section 8 describes audit round 02
-and **v0.2.0** (default status, roles, parser checks); section 9 describes **v0.3.0** (`get_links`, index v3). Raw eval runs are in `eval/results/`, audit rounds in
+and **v0.2.0** (default status, roles, parser checks); section 9 describes **v0.3.0** (`get_links`, index v3); section 10 index v4 (role fixes, `get_module` "steered by"). Raw eval runs are in `eval/results/`, audit rounds in
 `eval/rounds/`.
 
 Minimal local RAG over REMIND code + docs (674 files, 3.2 MB → 3,500 chunks), exposed to Claude Code as an
@@ -249,3 +249,27 @@ by default); feeds `p_priceCO2` and the 21_tax revenue parameters; shares equati
   lines stay `read` (the lines after them only supply the `=` for this line's own occurrence).
 - 0 uses changed from assigned to something else. Retrieval identical to v2 in every mode and category
   (`eval/results/retrieval-v3-uses.txt`). Tests: 26 pass.
+
+## 10. Index v4: role fixes and "steered by" in `get_module` (2026-09-26)
+
+### Index v4 = v3 + two role fixes + `preconditions` table (`--no-embed`, seconds)
+- **Comparisons counted as assignments.** `role()` accepted a name after `(` as the start of a statement, so
+  `if(cm_nucscen = 5,`, `elseif(…)`, `$(pm_data(…) = 4)` and `break$(… = 1)` were `assigned`. Only `for (x = …`
+  needs the `(`. 73 uses assigned → read, 51 of them switches.
+- **Conditional assignments with a space after `$` counted as reads.** `vm_cap.lo(t,regi,te,"1") $ (t.val >= 2030)
+  = 1e-7;` wasn't recognized (only `$(` was), which is REMIND's usual style for bounds. 143 uses read → assigned,
+  almost all bounds (`vm_cap`, `vm_deltaCap`, `vm_capEarlyReti`, `vm_co2CCS`) and calibration values
+  (`pm_cesdata_sigma`). Example: `get_symbol("vm_deltaCap")` assigned 80 → 108 lines, read 58 → 30.
+- Bug 1 partly hid bug 2: `p_capCum(…) $ (p_capCum(…) = 0) = …` counted as assigned only via the comparison.
+- Totals: assigned 4,632 → 4,702, read 8,854 → 8,784. Retrieval identical to v3 in every mode and category
+  (`eval/results/retrieval-v4-roles.txt`). Roles only reach tool output (`get_symbol`, `get_links`), not embeddings.
+- New table `preconditions` (100 aborts from `preconditions.py`, built at index time, also by `--no-embed`).
+
+### `get_module`: "Steered by" per realization
+From existing tables, no new parsing: abort preconditions (those that fail under the defaults or can never be met
+in full, the rest folded into one line), switches the realization's code uses, split into compile-time branches
+(`$ifthen`, from chunk conditions), run-time tests, overwrites and reads, each with its `main.gms` default;
+switches shared by all realizations listed once; and "in practice": how many scenario configs select the
+realization and what they set alongside. Example: all 20 configs that select `46/netZero` set
+`cm_multigasscen = 2`, the value its abort requires (default 3). `get_module("45")`: 21.7k → 27.5k characters.
+Tests: 66 pass (11 role cases, 5 `get_module` checks).

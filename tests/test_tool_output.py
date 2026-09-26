@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from remind_rag import server
+from remind_rag import server, usage
 
 
 def section(text: str, title: str) -> str:
@@ -83,6 +83,45 @@ def test_carbonprice_default_marked():
     assert re.search(r"realization functionalForm\s+\[not default\]", out)
 
 
+# ------------------------------------------------------------------ get_module: which switches steer a realization
+
+def steering(module: str, realization: str) -> str:
+    out = server.get_module(module)
+    m = re.search(rf"### {re.escape(realization)}  \[.*?(?=\n### |\n## |\Z)", out, re.S)
+    return m.group(0) if m else ""
+
+
+def test_precondition_aborting_by_default_is_shown():
+    # netZero aborts unless cm_multigasscen = 2 (default 3); all scenario configs that select it set 2
+    block = steering("46", "netZero")
+    assert "requires: aborts if not (cm_multigasscen = 2) → aborts under the defaults" in block
+    assert "cm_multigasscen = 2 (20)" in block
+
+
+def test_impossible_precondition_is_shown():
+    # smoke test answer 3 missed this: temperatureNotToExceed requires a climate realization that doesn't exist
+    block = steering("45", "temperatureNotToExceed")
+    assert "CAN NEVER BE MET" in block and "no realization 'magicc'" in block
+
+
+def test_switch_use_kinds():
+    block = steering("45", "functionalForm")
+    assert re.search(r"branches on \(compile time.*cm_taxCO2_functionalForm \(linear\)", block)
+    assert re.search(r"tests \(run time.*cm_iterative_target_adj \(0\)", block)
+    assert re.search(r"reads: .*cm_taxCO2_expGrowth \(1\.045\)", block)
+    assert "other abort checks (12 met by the defaults)" in block  # nested if/elseif chain folded into one line
+
+
+def test_switches_shared_by_all_realizations_listed_once():
+    out = server.get_module("51")
+    assert "used by all 12 realizations that use switches: cm_damages_SccHorizon (100)" in out
+    assert "cm_damages_SccHorizon" not in steering("51", "COACCHitr")
+
+
+def test_get_module_stays_readable():
+    assert len(server.get_module("45")) < 30_000
+
+
 # ------------------------------------------------------------------ equations
 
 def test_multiline_equation_head_is_an_equation():
@@ -139,6 +178,42 @@ def test_if_condition_is_not_an_assignment():
     # "if (cm_startyear gt 2005," followed by an Execute_Loadpoint: the if line only reads cm_startyear
     row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_startyear' AND "
                                 "path = 'core/preloop.gms' AND snippet LIKE 'if (cm_startyear gt 2005,%'").fetchone()
+    assert row and row["role"] == "read"
+
+
+# ------------------------------------------------------------------ index v4: role fixes (real REMIND lines)
+
+@pytest.mark.parametrize("line, name, expected", [
+    # `=` inside if( / elseif( / $( / break$( is a comparison
+    ("if(cm_nucscen = 5,", "cm_nucscen", "read"),
+    ("elseif(c_co2captureEnergy = 3), !! no bio carbon capture:", "c_co2captureEnergy", "read"),
+    ("if ( (pm_ffPolyCumEx(regi,enty,\"max\") = 0),", "pm_ffPolyCumEx", "read"),
+    ('loop(teNoLearn(te) $ (pm_data(regi,"tech_stat",te) = 2),', "pm_data", "read"),
+    ("break$(p47_implicitQttyTargetActive_iter(iteration2,ext_regi) = 1);", "p47_implicitQttyTargetActive_iter",
+     "read"),
+    # conditional assignments with a space after `$` are assignments
+    ('vm_cap.lo(t,regi,te,"1") $ (t.val >= 2030) = 1e-7;', "vm_cap", "assigned"),
+    ('p_capCum("2015",regi,te) $ (p_capCum("2015",regi,te) = 0) = fm_dataglob("ccap0",te) / card(regi);',
+     "p_capCum", "assigned"),
+    ('pm_cesdata_sigma(ttot,in)$ (pm_ttot_val(ttot) le 2025  AND sameAs(in, "inco")) = 0.1;', "pm_cesdata_sigma",
+     "assigned"),
+    # the loop variable of a for loop is assigned
+    ("for (sm_tmp = sm_tmp downto 0,", "sm_tmp", "assigned"),
+    ("if(cond, pm_x(regi) = 1);", "pm_x", "assigned"),
+])
+def test_role(line, name, expected):
+    assert usage.role(line, name) == expected
+
+
+def test_bounds_with_spaced_condition_are_assignments():
+    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'vm_cap' AND snippet LIKE "
+                                "'vm_cap.lo(t,regi,te,\"1\") $ (t.val >= 2030) = 1e-7;%'").fetchone()
+    assert row and row["role"] == "assigned"
+
+
+def test_switch_comparison_in_if_is_read():
+    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_multigasscen' AND "
+                                "path = 'modules/46_carbonpriceRegi/netZero/datainput.gms' AND line = 9").fetchone()
     assert row and row["role"] == "read"
 
 

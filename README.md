@@ -54,7 +54,7 @@ Numbers are from the current index (`data/remind-bge.db`, built 2026-09-24: 674 
     FTS5 copy + word index                ~5.8 MB   find by word
     vectors (4,706 × 384 floats)          ~7.9 MB   find by meaning
     symbols, symbol_uses, switches,       ~1–2 MB   exact lookups without ML
-    scenarios, module_interfaces, not_used
+    scenarios, module_interfaces, not_used, preconditions
     + SQLite indexes / page overhead
 
  QUERY TIME  python -m remind_rag.server   (started by Claude Code over stdio, no running service)
@@ -114,7 +114,7 @@ a rebuild). Tools:
 | `search(query, k, module, realization, kind, phase, scenario)` | conceptual / free-text questions; every hit carries `» status` lines (see below); `scenario` drops unselected realizations and down-ranks code compiled out by that scenario's switches |
 | `get_symbol(name)` | exact GAMS identifiers: declaration, description + unit, interface owner (`declared in`) and users, equation with its domain condition (`Generated for`), use sites grouped by role: declared / assigned / in equations / read |
 | `get_switch(name)` | `cm_*` / `c_*` switches and module selections: docs, default, allowed values, references |
-| `get_module(module)` | description, realizations marked `[DEFAULT]` / `[not default]`, limitations, interfaces (inputs/outputs) |
+| `get_module(module)` | description, realizations marked `[DEFAULT]` / `[not default]`, limitations, **steered by** per realization (abort preconditions, switches used as compile-time branch / run-time test / overwrite / read with their defaults, what the scenario configs that select it set), interfaces (inputs/outputs) |
 | `get_scenario(name)` | a scenario's settings and what differs from the `main.gms` defaults |
 | `get_links(name, max_links)` | one hop through the code: what a symbol is computed from, what is computed from it, which equations it shares with which variables; linked names carry their declaring module, links that don't run by default are marked and listed last. Call it again on a linked name for the next hop |
 
@@ -129,8 +129,9 @@ default` or `⚠ module switched off by default (none)`. For equations, `Generat
 `$`-condition that decide whether GAMS generates the equation at all. Conditions have three possible values: true, false,
 or "depends on non-default settings". Anything the evaluator can't read (function calls, set membership, comparisons
 between parameters) counts as unknown, so "depends" is common and not a warning. Roles: `assigned` means the name is
-the left-hand side of `=` or `.fx/.lo/.up/.l =` (the `=` may be on a following line), or is loaded with
-`Execute_load`/`$load`; every other use is `read`. Names in `!!` end-of-line comments are not uses.
+the left-hand side of `=` or `.fx/.lo/.up/.l =` (also behind a `$(…)` / `$ (…)` condition, and the `=` may be on a
+following line), or is loaded with `Execute_load`/`$load`; every other use is `read`, including `=` as a comparison
+inside `if(…)` / `$(…)`. Names in `!!` end-of-line comments are not uses.
 
 **How `get_links` finds links.** It needs nothing beyond the index: for each line where the symbol appears, it takes
 the whole GAMS statement from the chunk text (from the previous `;` to the next), and the stored roles say which
