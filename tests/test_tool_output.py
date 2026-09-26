@@ -266,3 +266,26 @@ def test_links_multiline_assignment_feeds():
     # Q11: vm_capEarlyReti feeds 70_water/heat through a statement whose "=" is on the next line
     feeds = links_section(server.get_links("vm_capEarlyReti"), "Feeds into")
     assert "modules/70_water/heat/output.gms:14" in feeds and "p70_cap_vintages" in feeds
+
+
+# ------------------------------------------------------------------ default status on the entry's first line
+
+def test_links_default_realization_marked_positively():
+    # smoke test 2026-09-26: q33_carbonRemovalspending (33/portfolio, the default) was called a non-default
+    # alternative; the entry carried no mark, only a missing ⚠
+    eqs = links_section(server.get_links("pm_taxCO2eqSum"), "In equations")
+    line = next(x for x in eqs.splitlines() if x.startswith("- q33_carbonRemovalspending"))
+    assert line.endswith("✓ default realization")
+
+
+def test_links_non_default_marked_on_first_line():
+    eqs = links_section(server.get_links("pm_taxCO2eq"), "In equations")
+    line = next(x for x in eqs.splitlines() if x.startswith("- q02_taxrev_Add"))
+    assert line.endswith("⚠ not in a default run")
+    assert "1 run by default, 1 not in a default run" in eqs.splitlines()[0]
+
+
+def test_symbol_use_lines_carry_status():
+    assigned = section(server.get_symbol("pm_taxCO2eqSum", max_uses=60), "Assigned")
+    assert "core/presolve.gms:10 [core/presolve] ✓ runs by default" in assigned
+    assert "core/postsolve.gms:51 [core/postsolve] ⚠ not in a default run" in assigned

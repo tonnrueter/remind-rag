@@ -124,8 +124,11 @@ Examples:
 - `» compiled only if not "%c_tech_earlyreti_rate%" == "off": INACTIVE by default`
 - `» switch tests in this code (with default values): cm_emiscen = 6  (default cm_emiscen = 9) → false`
 
-In `get_symbol`, use lines get the same information as ⚠ tags, e.g. `⚠ inside if (cm_emiscen eq 6) → inactive by
-default` or `⚠ module switched off by default (none)`. For equations, `Generated for` shows the domain and
+In `get_symbol` and `get_links`, every entry states its status on its first line: `✓ runs by default`, `✓ default
+realization`, `⚠ not in a default run` or `? depends on settings`, with the reasons on the lines below, e.g. `⚠ inside
+if (cm_emiscen eq 6) → inactive by default` or `⚠ module switched off by default (none)`. The positive mark is there
+because a missing ⚠ alone was misread: in a smoke test, the default `33_carbonRemoval/portfolio` was called an
+alternative. For equations, `Generated for` shows the domain and
 `$`-condition that decide whether GAMS generates the equation at all. Conditions have three possible values: true, false,
 or "depends on non-default settings". Anything the evaluator can't read (function calls, set membership, comparisons
 between parameters) counts as unknown, so "depends" is common and not a warning. Roles: `assigned` means the name is

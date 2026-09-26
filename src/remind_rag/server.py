@@ -57,8 +57,10 @@ server = MCPServer(
         "shows what a symbol is computed from, what is computed from it and which equations it shares, one hop "
         "at a time; call it again on the linked symbol that leads toward the target. "
         "Results cite path:line; read the file for more context when needed. "
-        "Results carry default-status lines (» ... / ⚠ ...): whether the code's realization is the default and "
-        "whether its $ifthen / if(...) / $(...) switch conditions hold in a default run. Lead with what a default "
+        "Results carry default status (» lines in search; ✓ / ⚠ / ? on each entry of get_symbol and get_links): "
+        "whether the code's realization is the default and whether its $ifthen / if(...) / $(...) switch "
+        "conditions hold in a default run. ✓ means it runs in a default run, ⚠ that it doesn't, ? that it depends "
+        "on settings. Only ⚠ entries are alternatives. Lead with what a default "
         "run does; describe non-default realizations or inactive branches as alternatives and name the switch "
         "that enables them. get_symbol separates where a symbol is declared, assigned, used in equations and read; "
         "codeCheck's interface owner is the declaring module, not necessarily where values are computed."
@@ -112,6 +114,32 @@ def _use_tags(u) -> list[str]:
         elif "depends" in v and any(t for t, _ in switch_tests(g, idx.defaults)):
             tags.append(v)
     return tags
+
+
+def _off(tag: str) -> bool:
+    return tag.endswith("inactive by default") or tag.startswith(("non-default realization", "module switched off"))
+
+
+def _detail(tags: list[str]) -> str:
+    """Reasons under an entry: ⚠ for what keeps it out of a default run, ? for conditions that depend on settings."""
+    return "".join(f"\n    {'⚠' if _off(t) else '?'} {t}" for t in tags)
+
+
+def _rank(tags: list[str]) -> int:
+    """0 runs by default, 1 depends on settings, 2 not in a default run (sort order of links)."""
+    return 2 if any(_off(t) for t in tags) else 1 if tags else 0
+
+
+def _mark(u, tags: list[str]) -> str:
+    """Default status for the first line of an entry, positive as well as negative: a missing ⚠ alone was read
+    as 'unknown' (33_carbonRemoval/portfolio, the default, was called an alternative in a smoke test)."""
+    if any(_off(t) for t in tags):
+        return "⚠ not in a default run"
+    if tags:
+        return "? depends on settings"
+    if u["realization"] and idx.default_realization(u["module"]):
+        return "✓ default realization"
+    return "✓ runs by default"
 
 
 @server.tool()
@@ -212,8 +240,9 @@ def get_symbol(name: str, max_uses: int = 40) -> str:
                 if u["context"]:
                     ctx += f", in {u['context']}"
                 tags = _use_tags(u) if has_roles else []
-                out.append(f"- {u['path']}:{u['line']} [{ctx}]  {u['snippet']}"
-                           + "".join(f"\n    ⚠ {t}" for t in tags))
+                mark = f" {_mark(u, tags)}" if has_roles else ""
+                out.append(f"- {u['path']}:{u['line']} [{ctx}]{mark}  {u['snippet']}"
+                           + _detail(tags))
             if n < len(us):
                 out.append(f"- ... {len(us) - n} more")
             budget = max(0, budget - n)
@@ -299,8 +328,9 @@ def get_links(name: str, max_links: int = 15) -> str:
                                    (name,)).fetchone()[0] or name
     out = [f"# Links of {name}" + (f" — {decl['kind']} \"{decl['description']}\" [declared in "
                                    f"{decl['module'] or 'core'}]" if decl else ""),
-           "One hop through the statements and equations that mention it. ⚠ = does not run in a default "
-           "configuration. Names carry [module] when declared outside the statement's module."]
+           "One hop through the statements and equations that mention it. Each entry says whether it runs in a "
+           "default configuration: ✓ yes, ⚠ no (reasons below it), ? depends on settings. Names carry [module] "
+           "when declared outside the statement's module."]
 
     # an equation: its members
     for r in eq_chunks:
@@ -310,7 +340,8 @@ def get_links(name: str, max_links: int = 15) -> str:
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
         out.append(f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
-                   + "".join(f"\n    ⚠ {t}" for t in tags)
+                   f" {_mark(r, tags)}"
+                   + _detail(tags)
                    + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
                    + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}")
 
@@ -330,21 +361,23 @@ def get_links(name: str, max_links: int = 15) -> str:
             inputs = [n for n in st.names_from(u["line"]) if n.lower() != name.lower() and n not in st.assigned]
             src = "loaded from a GDX file" if is_load(st) else (
                 "from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
-            computed.append((bool(tags), f"- {u['path']}:{st.start} [{_loc(u)}]  {src}", tags))
+            computed.append((_rank(tags), f"- {u['path']}:{st.start} [{_loc(u)}] {_mark(u, tags)}  {src}", tags))
         elif targets := [n for n in st.names if n in st.assigned and n.lower() != name.lower()]:
-            feeds.append((bool(tags), f"- {u['path']}:{st.start} [{_loc(u)}]  → {_names(targets, u['module'])}",
-                          tags))
+            feeds.append((_rank(tags), f"- {u['path']}:{st.start} [{_loc(u)}] {_mark(u, tags)}  → "
+                                      f"{_names(targets, u['module'])}", tags))
         else:
             reads.append(u)
 
     def section(title: str, items: list, unit: str = "statements") -> None:
         if not items:
             return
-        items.sort(key=lambda x: x[0])  # default-active links first
-        active = sum(1 for inactive, _, _ in items if not inactive)
-        out.append(f"## {title} ({len(items)} {unit}, {active} active by default)")
+        items.sort(key=lambda x: x[0])  # default-active links first, then depends, then inactive
+        counts = [sum(1 for rank, _, _ in items if rank == r) for r in range(3)]
+        out.append(f"## {title} ({len(items)} {unit}: {counts[0]} run by default"
+                   + (f", {counts[1]} depend on settings" if counts[1] else "")
+                   + (f", {counts[2]} not in a default run" if counts[2] else "") + ")")
         for _, line, tags in items[:max_links]:
-            out.append(line + "".join(f"\n    ⚠ {t}" for t in tags))
+            out.append(line + _detail(tags))
         if len(items) > max_links:
             out.append(f"- ... {len(items) - max_links} more (get_symbol lists all uses)")
 
@@ -357,9 +390,9 @@ def get_links(name: str, max_links: int = 15) -> str:
         members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
-        line = (f"- {eq}  {path} [{_loc(u)}]\n    variables: {_names(variables, u['module']) or '-'}"
+        line = (f"- {eq}  {path} [{_loc(u)}] {_mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
                 f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}")
-        eq_items.append((bool(tags), line, tags))
+        eq_items.append((_rank(tags), line, tags))
     section("In equations (other symbols in the same equation)", eq_items, "equations")
 
     if reads:
