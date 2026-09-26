@@ -2,7 +2,7 @@
 
 Sections 1–6 describe **v0.0.1** (indexes kept as `data/remind-bge-v0.db` / `data/remind-jina-v0.db`);
 section 7 describes **v0.1.0** (gms/goxygen, switch conditions, scenarios); section 8 describes audit round 02
-and **v0.2.0** (default status, roles, parser checks); section 9 describes **v0.3.0** (`get_links`, index v3); section 10 index v4 (role fixes, `get_module` "steered by"). Raw eval runs are in `eval/results/`, audit rounds in
+and **v0.2.0** (default status, roles, parser checks); section 9 describes **v0.3.0** (`get_links`, index v3); section 10 **v0.4.0** (index v4: role fixes, `get_module` "steered by", ✓/⚠/? status marks). Raw eval runs are in `eval/results/`, audit rounds in
 `eval/rounds/`.
 
 Minimal local RAG over REMIND code + docs (674 files, 3.2 MB → 3,500 chunks), exposed to Claude Code as an
@@ -250,7 +250,7 @@ by default); feeds `p_priceCO2` and the 21_tax revenue parameters; shares equati
 - 0 uses changed from assigned to something else. Retrieval identical to v2 in every mode and category
   (`eval/results/retrieval-v3-uses.txt`). Tests: 26 pass.
 
-## 10. Index v4: role fixes and "steered by" in `get_module` (2026-09-26)
+## 10. v0.4.0: index v4, role fixes, "steered by" in `get_module` (2026-09-26)
 
 ### Index v4 = v3 + two role fixes + `preconditions` table (`--no-embed`, seconds)
 - **Comparisons counted as assignments.** `role()` accepted a name after `(` as the start of a statement, so
@@ -273,3 +273,10 @@ switches shared by all realizations listed once; and "in practice": how many sce
 realization and what they set alongside. Example: all 20 configs that select `46/netZero` set
 `cm_multigasscen = 2`, the value its abort requires (default 3). `get_module("45")`: 21.7k → 27.5k characters.
 Tests: 66 pass (11 role cases, 5 `get_module` checks).
+
+### ✓ / ⚠ / ? status on every entry (`get_symbol`, `get_links`)
+Smoke test: asked how the carbon price affects the economy, the agent called `q33_carbonRemovalspending`
+(33/portfolio, the default) a non-default alternative. The tool output was right ("6 equations, 6 active by
+default", no ⚠ on the entry), but a missing ⚠ was the only sign. Every entry now carries its status on its first
+line, and "depends on settings" is counted separately instead of as inactive. A rerun of the question got the
+defaults right (n = 1).
