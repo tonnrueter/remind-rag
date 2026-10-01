@@ -83,11 +83,19 @@ def _description(name: str) -> str:
     return row[0] if row else ""
 
 
-def _fmt_chunk(r, rank: int | None = None) -> str:
+def _fmt_chunk(r, rank: int | None = None, cut: int | None = None) -> str:
+    """A chunk with location, default status and header; with cut, at most that many text lines plus a pointer
+    to the rest. The header's 'Uses:' line (symbol descriptions, there for the embedding) is left out."""
     where = f"{r['path']}:{r['line_start']}-{r['line_end']}"
     head = f"[{rank}] {where}" if rank else where
     status = "".join(f"\n» {s}" for s in idx.default_status(r))
-    return f"{head}  ({r['kind']}){status}\n{r['header']}\n```\n{r['text']}\n```"
+    header = "\n".join(x for x in r["header"].splitlines() if not x.startswith("Uses:"))
+    lines = r["text"].splitlines()
+    text = r["text"]
+    if cut and len(lines) > cut:
+        rest = r["line_start"] + cut
+        text = "\n".join(lines[:cut]) + f"\n… ({len(lines) - cut} more lines, {r['path']}:{rest}–{r['line_end']})"
+    return f"{head}  ({r['kind']}){status}\n{header}\n```\n{text}\n```"
 
 
 def _equation_head(text: str, name: str) -> str | None:
@@ -97,6 +105,8 @@ def _equation_head(text: str, name: str) -> str | None:
     j = code.find("..", i)
     return " ".join(code[i:j].split()) if i >= 0 and j > i else None
 
+
+SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
 
 ROLE_LABELS = {"declared": "Declared", "assigned": "Assigned / fixed / loaded",
                "equation": "Used in equations", "read": "Read"}
@@ -149,13 +159,14 @@ def _mark(u, tags: list[str]) -> str:
 
 
 @server.tool()
-def search(query: str, k: int = 6, module: str | None = None, realization: str | None = None,
+def search(query: str, k: int = 5, module: str | None = None, realization: str | None = None,
            kind: str | None = None, phase: str | None = None, scenario: str | None = None) -> str:
     """Hybrid (keyword + semantic) search over REMIND code and docs.
 
     Args:
         query: natural-language question or identifiers.
-        k: number of chunks to return (default 6).
+        k: number of chunks to return (default 5). Long chunks are cut after SEARCH_LINES lines with a
+            path:line range for the rest (read the file for it).
         module: restrict to a module, e.g. "33", "carbonRemoval", "33_carbonRemoval" or "core".
         realization: restrict to a realization, e.g. "portfolio", "nash".
         kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,
@@ -173,17 +184,63 @@ def search(query: str, k: int = 6, module: str | None = None, realization: str |
         return str(e)
     if not rows:
         return "No results."
-    return "\n\n".join(_fmt_chunk(r, i) for i, r in enumerate(rows, 1))
+    return "\n\n".join(_fmt_chunk(r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
+
+
+FULL_LIST_MAX = 15  # symbols with at most this many use lines get the full list instead of a summary
+FLAGGED_MAX = 10  # ⚠ / ? lines listed individually in a summary
+COMPUTED_MAX = 4  # ✓ assignments outside bounds listed individually: where the value is computed
+
+
+def _use_line(u, tags: list[str], also: list[int] | None = None, snippet: int | None = None) -> str:
+    ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
+    if u["context"]:
+        ctx += f", in {u['context']}"
+    text = _short(u["snippet"], snippet) if snippet else u["snippet"]
+    more = f"  (same reason: also line{'s' if len(also) > 1 else ''} {', '.join(map(str, also))})" if also else ""
+    return f"- {u['path']}:{u['line']} [{ctx}] {_mark(u, tags)}  {text}{more}" + _detail(tags)
+
+
+def _grouped(tagged: list) -> list[str]:
+    """Summary lines: uses in the same file with the same reasons share one entry (first snippet shown)."""
+    groups: dict[tuple, list] = {}
+    for u, t in tagged:
+        groups.setdefault((u["path"], tuple(t)), []).append((u, t))
+    return [_use_line(g[0][0], g[0][1], [u["line"] for u, _ in g[1:]], snippet=110) for g in groups.values()]
+
+
+def _per_file(us: list, limit: int = 6) -> str:
+    counts = Counter(u["path"] for u in us)
+    shown = [f"{p} {n}" for p, n in counts.most_common(limit)]
+    return ", ".join(shown) + (f", +{len(counts) - limit} more files" if len(counts) > limit else "")
 
 
 @server.tool()
-def get_symbol(name: str, max_uses: int = 40) -> str:
+def get_symbol(name: str, role: str | None = None, module: str | None = None, offset: int = 0,
+               max_uses: int = 40) -> str:
     """Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.
 
-    Returns its declaration(s) with domain and description/unit, which module provides it and which modules
-    consume it (gms::codeCheck), the equation definition if it is an equation, and where it is used
-    (path:line with the enclosing equation).
+    Returns its declaration(s) with domain and description/unit, which module declares it and which modules
+    consume it (gms::codeCheck), the equation definition if it is an equation, and where it is used. Use sites
+    come as a summary per role (declared / assigned / equation / read) with counts per file and every use that
+    does not run in a default run listed individually. For the lines themselves pass role="assigned" (or
+    "equation", "read", "declared"), optionally module="core" / "33" and offset for the next page.
     """
+    uses = idx.db.execute(
+        "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE ORDER BY path, line", (name,)
+    ).fetchall()
+    if role or module:  # drill-down: the lines themselves, paged
+        us = [u for u in uses if (not role or u["role"] == role) and (not module or _module_match(module, u["module"]))]
+        if not us:
+            return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + "."
+        page = us[offset:offset + max_uses]
+        out = [f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
+               + (f" in {module}" if module else "") + f", {offset + 1}–{offset + len(page)} of {len(us)}"]
+        out += [_use_line(u, _use_tags(u)) for u in page]
+        if offset + len(page) < len(us):
+            out.append(f"- … next page: offset={offset + len(page)}")
+        return "\n".join(out)
+
     decls = idx.db.execute("SELECT * FROM symbols WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     out = []
     if decls:
@@ -192,15 +249,15 @@ def get_symbol(name: str, max_uses: int = 40) -> str:
         groups: dict[tuple, list] = {}
         for d in decls:
             groups.setdefault((d["kind"], d["name"], d["domain"], d["description"], d["module"]), []).append(d)
-        for (kind, nm, domain, description, module), ds in groups.items():
+        for (kind, nm, domain, description, mod), ds in groups.items():
             first = ds[0]
             where = f"{first['path']}:{first['line']}"
             reals = [d["realization"] for d in ds if d["realization"]]
-            loc = (module or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
-                                             else f"/{reals[0]}" if reals else "")
-            default = idx.default_realization(module)
+            loc = (mod or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
+                                          else f"/{reals[0]}" if reals else "")
+            default = idx.default_realization(mod)
             note = ("" if not (reals and default and default.lower() not in {x.lower() for x in reals})
-                    else f"  — module switched off by default ({default})" if idx.module_off_by_default(module)
+                    else f"  — module switched off by default ({default})" if idx.module_off_by_default(mod)
                     else f"  — only in non-default realizations (default: {default})")
             out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
                        + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "") + note)
@@ -217,41 +274,48 @@ def get_symbol(name: str, max_uses: int = 40) -> str:
         skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
         if skipped:
             out.append("## Deliberately not used in (not_used.txt)")
-            out += [f"- {r['module']}/{r['realization']}: {r['reason']}" for r in skipped[:20]]
+            out += [f"- {r['module']}/{r['realization']}: {_short(r['reason'], 100)}" for r in skipped[:5]]
+            if len(skipped) > 5:
+                out.append(f"- … {len(skipped) - 5} more")
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
         head = _equation_head(r["text"], r["name"])
         out.append("## Equation definition\n"
-                   + (f"Generated for (domain and $-condition): {head}\n" if head else "") + _fmt_chunk(r))
-    uses = idx.db.execute(
-        "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE ORDER BY path, line", (name,)
-    ).fetchall()
+                   + (f"Generated for (domain and $-condition): {head}\n" if head else "") + _fmt_chunk(r, cut=60))
     if uses:
-        has_roles = "role" in uses[0].keys()
         groups: dict[str, list] = {}
         for u in uses:
-            groups.setdefault(u["role"] if has_roles else "read", []).append(u)
+            groups.setdefault(u["role"], []).append(u)
+        full = len(uses) <= FULL_LIST_MAX
         out.append(f"## Uses ({len(uses)} lines)")
-        budget = max_uses
-        for role in ("declared", "assigned", "equation", "read"):
-            us = groups.get(role, [])
+        flagged_left = FLAGGED_MAX
+        for r in ("declared", "assigned", "equation", "read"):
+            us = groups.get(r, [])
             if not us:
                 continue
+            tagged = [(u, _use_tags(u)) for u in us]
+            marks = Counter(_mark(u, t).split(" ")[0] for u, t in tagged)
+            split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
             mods = sorted({u["module"] or u["path"] for u in us})
-            out.append(f"### {ROLE_LABELS[role]} ({len(us)} lines; {', '.join(mods)})")
-            # assignments matter most for 'where is it computed', so they get more room
-            n = len(us) if role == "assigned" else max(3, min(len(us), budget))
-            for u in us[:n]:
-                ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
-                if u["context"]:
-                    ctx += f", in {u['context']}"
-                tags = _use_tags(u) if has_roles else []
-                mark = f" {_mark(u, tags)}" if has_roles else ""
-                out.append(f"- {u['path']}:{u['line']} [{ctx}]{mark}  {u['snippet']}"
-                           + _detail(tags))
-            if n < len(us):
-                out.append(f"- ... {len(us) - n} more")
-            budget = max(0, budget - n)
+            out.append(f"### {ROLE_LABELS[r]} ({len(us)} lines: {split}; {', '.join(mods)})")
+            if full:
+                out += [_use_line(u, t) for u, t in tagged]
+                continue
+            if r == "declared":  # the declarations themselves are listed above
+                continue
+            out.append(f"- per file: {_per_file(us)}")
+            if r == "equation":
+                names = Counter(u["context"] for u in us if u["context"])
+                out.append(f"- equations: {', '.join(names)}")
+            computed = []
+            if r == "assigned":  # where the value is computed: assignments outside bounds that run by default
+                computed = [(u, t) for u, t in tagged if not t and not u["path"].endswith("bounds.gms")][:COMPUTED_MAX]
+            flagged = [(u, t) for u, t in tagged if t][:flagged_left]
+            flagged_left = max(0, flagged_left - len(flagged))
+            # each computation on its own line; uses that are off for the same reason share one
+            out += [_use_line(u, t, snippet=110) for u, t in computed] + _grouped(flagged)
+            if len(computed) + len(flagged) < len(us):
+                out.append(f'- lines: get_symbol("{name}", role="{r}"[, module="…"])')
     if not out:
         similar = idx.db.execute(
             "SELECT DISTINCT name FROM symbols WHERE name LIKE ? LIMIT 15", (f"%{name}%",)
@@ -455,9 +519,29 @@ def _names_with_defaults(names, sws: dict, limit: int = 12) -> str:
     return ", ".join(shown) + (f", +{len(names) - limit} more" if len(names) > limit else "")
 
 
-def _steering(mod: str) -> str:
+def _doc_text(text: str) -> str:
+    """The prose of a goxygen doc chunk: `*'` lines without the tags, no $include boilerplate or separator lines."""
+    keep = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s.startswith("*'") or "@title" in s or "@authors" in s:
+            continue
+        s = re.sub(r"^\*'\s*(@\w+:?\s*)?", "", s)
+        if s and not re.fullmatch(r"[-=*#_ ]+", s):
+            keep.append(s)
+    return " ".join(keep)
+
+
+def _first_sentence(text: str, n: int = 180) -> str:
+    m = re.match(r"(.+?[.!?])(\s|$)", text)
+    return _short(m.group(1) if m else text, n)
+
+
+def _steering(mod: str) -> dict:
     """Per realization: the abort preconditions, the switches its code uses (compile-time branches, run-time
-    tests, overwrites, plain reads), and what the scenario configs that select it set alongside."""
+    tests, overwrites, plain reads), and what the scenario configs that select it set alongside.
+    Returns the full blocks (drill-down), the shared block, and per realization a one-line alert with the
+    config count for the summary."""
     sws = {r["name"].lower(): (r["value"] or "").strip().strip("\"'")
            for r in idx.db.execute("SELECT name, value FROM switches")}
     canon = {r["name"].lower(): r["name"] for r in idx.db.execute("SELECT name FROM switches")}
@@ -491,6 +575,15 @@ def _steering(mod: str) -> str:
             pre[p["realization"]].append(p)
     scens = [json.loads(r[0]) for r in idx.db.execute("SELECT settings FROM scenarios")]
     default = idx.default_realization(mod) or ""
+    chosen = {real: [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower()
+                     == real.lower()] for real in reals}
+
+    def condition(p) -> str:
+        cond = " and ".join(json.loads(p["abort_if"])) or "(unconditional)"
+        if len(cond) > 120:  # nested if/elseif chains: the message says it better than the condition
+            cond = (f"{', '.join(json.loads(p['switches']))} are inconsistent"
+                    + (f' ("{_short(p["message"], 120)}")' if p["message"] else ""))
+        return cond
 
     def block(real: str | None, title: str) -> list[str]:
         lines = [title]
@@ -499,12 +592,8 @@ def _steering(mod: str) -> str:
             if p["severity"] in ("ok", "depends"):
                 quiet.append(p)
                 continue
-            cond = " and ".join(json.loads(p["abort_if"])) or "(unconditional)"
-            if len(cond) > 120:  # nested if/elseif chains: the message says it better than the condition
-                cond = (f"{', '.join(json.loads(p['switches']))} are inconsistent"
-                        + (f' ("{_short(p["message"], 120)}")' if p["message"] else ""))
             sev = SEVERITY_TEXT.get(p["severity"], p["severity"])
-            lines.append(f"- requires: aborts if {cond} → {sev}"
+            lines.append(f"- requires: aborts if {condition(p)} → {sev}"
                          + (f" ({p['problems']})" if p["problems"] else "") + f"  [{p['path']}:{p['line']}]")
         if quiet:
             names = sorted({n for p in quiet for n in json.loads(p["switches"])}, key=str.lower)
@@ -525,15 +614,13 @@ def _steering(mod: str) -> str:
             if names:
                 lines.append(f"- {label}: {_names_with_defaults(names, sws)}")
         if real is not None:
-            chosen = [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower()
-                      == real.lower()]
             relevant = set(own) | {n for p in pre[real] for n in json.loads(p["switches"])}
             counts: dict[str, Counter] = defaultdict(Counter)
-            for s in chosen:
+            for s in chosen[real]:
                 for k, v in s.items():
                     if k in relevant or k.lower() in {n.lower() for n in relevant}:
                         counts[k][v] += 1
-            text = f"- in practice: {len(chosen)} of {len(scens)} scenario configs select it"
+            text = f"- in practice: {len(chosen[real])} of {len(scens)} scenario configs select it"
             if real.lower() == default.lower():
                 text += " (incl. those that leave the module switch empty)"
             top = sorted(counts.items(), key=lambda kv: -sum(kv[1].values()))[:8]
@@ -543,25 +630,78 @@ def _steering(mod: str) -> str:
             lines.append(text)
         return lines if len(lines) > 1 else []
 
-    out = [f"## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)"]
+    def alert(real: str) -> str:
+        """What the summary line of a realization must say: verdicts that change an answer, plus usage."""
+        parts = []
+        for p in pre[real]:
+            if p["severity"] in ("impossible", "suspicious"):
+                parts.append(f"⚠ {SEVERITY_TEXT[p['severity']]}: aborts if {condition(p)}"
+                             + (f" ({p['problems']})" if p["problems"] else ""))
+            elif p["severity"] == "aborts by default":
+                names = json.loads(p["switches"])
+                n_set = sum(any(k.lower() in {x.lower() for x in names} for k in s) for s in chosen[real])
+                parts.append(f"aborts under the defaults unless {', '.join(names)} "
+                             f"{'is' if len(names) == 1 else 'are'} changed"
+                             + (f" (set by {n_set} of {len(chosen[real])} selecting configs)" if chosen[real] else ""))
+        parts.append(f"{len(chosen[real])} of {len(scens)} configs")
+        return " · ".join(parts)
+
     shared = block(None, "### all realizations (module-level files)")
     if common:
         shared = shared or ["### all realizations (module-level files)"]
         who = "every realization" if len(active) == len(reals) else f"all {len(active)} realizations that use switches"
         shared.append(f"- used by {who}: {_names_with_defaults(common, sws)}")
-    out += shared
+    blocks = {}
     for real in reals:
         mark = "DEFAULT" if real.lower() == default.lower() else "not default"
-        out += block(real, f"### {real}  [{mark}]") or [f"### {real}  [{mark}]\n- no switch uses"]
-    return "\n".join(out)
+        blocks[real] = block(real, f"### {real}  [{mark}]") or [f"### {real}  [{mark}]", "- no switch uses"]
+    return {"reals": reals, "default": default, "shared": shared, "blocks": blocks,
+            "alerts": {r: alert(r) for r in reals}}
+
+
+STEER_HEAD = "## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)"
+
+
+def _interfaces(mod: str) -> list[str]:
+    """Names only (descriptions: get_symbol); outputs with their consumers, inputs grouped by source module."""
+    if not _has_table("module_interfaces"):
+        return []
+    ifs = idx.db.execute("SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name",
+                         (mod,)).fetchall()
+    out = []
+    provides = [r["name"] for r in ifs if r["direction"] == "out"]
+    if provides:
+        lines = [f"## Interfaces: provides (outputs), {len(provides)}"]
+        for n in provides:
+            users = sorted({r[0] for r in idx.db.execute(
+                "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'in'", (n,))} - {mod})
+            lines.append(f"- {n} -> used by {_short(', '.join(users) or '-', 120)}")
+        out.append("\n".join(lines))
+    consumes = [r["name"] for r in ifs if r["direction"] == "in"]
+    if consumes:
+        switches = [n for n in consumes if n.startswith("c")]
+        by_source = defaultdict(list)
+        for n in consumes:
+            if n in switches:
+                continue
+            src = idx.db.execute("SELECT module FROM module_interfaces WHERE name = ? AND direction = 'out' "
+                                 "AND module != ? ORDER BY module LIMIT 1", (n, mod)).fetchone()
+            by_source[src[0] if src else "?"].append(n)
+        lines = [f"## Interfaces: consumes (inputs), {len(consumes)}"]
+        lines += [f"- from {src}: {', '.join(ns)}" for src, ns in sorted(by_source.items())]
+        if switches:
+            lines.append(f"- switches read: {', '.join(switches)}")
+        out.append("\n".join(lines))
+    return out
 
 
 @server.tool()
-def get_module(module: str) -> str:
-    """Everything about a module (e.g. "33", "carbonRemoval", "core"): description, realizations with the
-    default one, known limitations, which switches steer each realization (abort preconditions, compile-time
-    branches, run-time tests, values read, what scenario configs set when they select it), and its interfaces
-    (what it provides to / consumes from other modules)."""
+def get_module(module: str, realization: str | None = None) -> str:
+    """A module (e.g. "33", "carbonRemoval", "core"): description, the default realization with the switches that
+    steer it, every alternative realization in one line (with verdicts such as "aborts under the defaults" or
+    "CAN NEVER BE MET" and how many scenario configs select it), and its interfaces (names; descriptions via
+    get_symbol). Pass realization="..." for one realization in full: its description, limitations, abort
+    preconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set."""
     rows = idx.db.execute(
         "SELECT * FROM chunks WHERE kind IN ('module_doc', 'realization_doc', 'limitations') "
         "ORDER BY realization IS NOT NULL, realization, line_start"
@@ -571,40 +711,58 @@ def get_module(module: str) -> str:
     if not rows and not is_core:
         return f"Module {module!r} not found."
     mod = "core" if is_core else rows[0]["module"]
+    default = idx.default_realization(mod) or ""
+    docs: dict[str | None, list] = defaultdict(list)
+    limits: dict[str | None, list] = defaultdict(list)
+    for r in rows:
+        (limits if r["kind"] == "limitations" else docs)[r["realization"]].append(r)
+
+    def described(real: str | None, n: int) -> str:
+        text = " ".join(_doc_text(r["text"]) for r in docs[real])
+        return _short(text, n) if text else "(no description)"
+
+    def where(real: str | None) -> str:
+        return f"  [{docs[real][0]['path']}:{docs[real][0]['line_start']}]" if docs[real] else ""
+
+    def limitations(real: str | None, n: int) -> list[str]:
+        return [f"## limitations ({real or 'module'})  [{r['path']}:{r['line_start']}]\n{_short(_doc_text(r['text']), n)}"
+                for r in limits[real]]
+
     out = []
     if not is_core:
         sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
         out.append(f"# {mod}" + (f"  (default realization in main.gms: {sel['value']})" if sel else ""))
-    for r in rows:
-        default = idx.default_realization(mod)
-        marker = ("" if not r["realization"] or not default else
-                  "  [DEFAULT]" if r["realization"].lower() == default.lower() else "  [not default]")
-        label = {"module_doc": "module", "limitations": f"limitations ({r['realization'] or 'module'})"}.get(
-            r["kind"], f"realization {r['realization']}") + marker
-        out.append(f"## {label}  {r['path']}:{r['line_start']}\n{r['text'][:1500]}")
-    if not is_core:
-        out.append(_steering(mod))
-    if _has_table("module_interfaces"):
-        ifs = idx.db.execute("SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name",
-                             (mod,)).fetchall()
-        for direction, label in (("out", "provides (outputs)"), ("in", "consumes (inputs)")):
-            names = [r["name"] for r in ifs if r["direction"] == direction]
-            switches = [n for n in names if n.startswith("c")] if direction == "in" else []
-            names = [n for n in names if n not in switches]
-            if not names and not switches:
-                continue
-            other = "in" if direction == "out" else "out"
-            arrow = "-> used by" if direction == "out" else "<- from"
-            lines = [f"## Interfaces: {label}, {len(names) + len(switches)}"]
-            for n in names[:80]:
-                peers = sorted({r[0] for r in idx.db.execute(
-                    "SELECT module FROM module_interfaces WHERE name = ? AND direction = ?", (n, other))} - {mod})
-                lines.append(f"- {n}: {_description(n)[:100]}  {arrow} {', '.join(peers) or '-'}")
-            if len(names) > 80:
-                lines.append(f"- ... {len(names) - 80} more")
-            if switches:
-                lines.append(f"- switches read: {', '.join(switches)}")
+    st = _steering(mod) if not is_core else None
+
+    if realization:  # drill-down: one realization in full
+        reals = st["reals"] if st else []
+        real = next((r for r in reals if r.lower() == realization.lower()), None)
+        if real is None:
+            return f"{mod} has no realization {realization!r}. Realizations: {', '.join(reals)}"
+        mark = "DEFAULT" if real.lower() == default.lower() else "not default"
+        out.append(f"## realization {real}  [{mark}]{where(real)}\n{described(real, 4000)}")
+        out += limitations(real, 1500)
+        out.append("\n".join([STEER_HEAD, *st["shared"], *st["blocks"][real]]))
+        return "\n\n".join(out)
+
+    out.append(f"## module{where(None)}\n{described(None, 700)}")
+    out += limitations(None, 400)
+    if st:
+        reals = st["reals"]
+        d = next((r for r in reals if r.lower() == default.lower()), None)
+        if d:
+            out.append(f"## realization {d}  [DEFAULT]{where(d)}\n{described(d, 900)}")
+            out += limitations(d, 400)
+            out.append("\n".join([STEER_HEAD, *st["shared"], *st["blocks"][d]]))
+        alts = [r for r in reals if r != d]
+        if alts:
+            lines = [f'## Alternatives (one in full: get_module("{mod}", realization="..."))']
+            for r in alts:
+                lim = " · has limitations" if limits[r] else ""
+                lines.append(f"- realization {r}  [not default]: {_first_sentence(described(r, 400))}{lim}"
+                             f" · {st['alerts'][r]}")
             out.append("\n".join(lines))
+    out += _interfaces(mod)
     return "\n\n".join(out)
 
 

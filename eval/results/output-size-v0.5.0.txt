@@ -1,0 +1,84 @@
+index: 2026-10-01 17:05:44  (remind-bge.db)
+call                                               chars  lines  ~tokens
+get_symbol(vm_deltaCap)                            22915    203    11457
+      20701  ### Assigned / fixed / loaded (108 lines; 05_initialCap, 22_
+        625  ### Read (30 lines; 05_initialCap, 21_tax, 22_subsidizeLearn
+        544  ### Used in equations (22 lines; 21_tax, 22_subsidizeLearnin
+        307  ## Deliberately not used in (not_used.txt)
+        271  ### Declared (1 lines; core)
+        230  ## Declarations
+get_symbol(vm_cap)                                 21542    160    10771
+      19640  ### Assigned / fixed / loaded (100 lines; 32_power, 33_carbo
+        532  ### Used in equations (37 lines; 32_power, 33_carbonRemoval,
+        478  ### Read (11 lines; 40_techpol, 70_water, core)
+        265  ### Declared (1 lines; core)
+        219  ## Declarations
+        206  ## Deliberately not used in (not_used.txt)
+get_symbol(pm_taxCO2eqSum)                          9769     68     4884
+       3770  ### Read (19 lines; 21_tax, 46_carbonpriceRegi, 47_regipol, 
+       2742  ### Assigned / fixed / loaded (13 lines; 47_regipol, core)
+       1677  ### Used in equations (7 lines; 21_tax, 33_carbonRemoval)
+        701  ### Declared (2 lines; 46_carbonpriceRegi)
+        614  ## Declarations
+        143  ## Module interface (gms::codeCheck)
+get_symbol(vm_co2eq)                                4355     40     2177
+       1377  ### Read (6 lines; 21_tax, 46_carbonpriceRegi, core)
+       1162  ### Assigned / fixed / loaded (6 lines; 41_emicapregi, 80_op
+        928  ### Used in equations (5 lines; 21_tax, 80_optimization, cor
+        297  ### Declared (1 lines; core)
+        274  ## Declarations
+        168  ## Deliberately not used in (not_used.txt)
+get_symbol(q21_taxrevGHG)                           2245     25     1122
+       1636  ## Equation definition
+        237  ### Declared (1 lines; 21_tax)
+        197  ### Used in equations (1 lines; 21_tax)
+        157  ## Declarations
+         18  ## Uses (2 lines)
+get_links(pm_taxCO2eqSum)                           6498     65     3249
+       2468  ## Computed from (statements assigning pm_taxCO2eqSum) (13 s
+       1958  ## Feeds into (statements reading pm_taxCO2eqSum and assigni
+       1570  ## In equations (other symbols in the same equation) (6 equa
+        502  # Links of pm_taxCO2eqSum — parameter "Total CO2 price inclu
+get_links(vm_cap)                                   4604     69     2302
+       2374  ## In equations (other symbols in the same equation) (31 equ
+       1486  ## Computed from (statements assigning vm_cap) (100 statemen
+        417  # Links of vm_cap — positive variable "net total capacities 
+        213  ## Feeds into (statements reading vm_cap and assigning anoth
+        114  ## Other reads: 9 statements without an assignment (conditio
+get_module(45_carbonprice)                         27382    289    13691
+       2973  ## Interfaces: consumes (inputs), 48
+       1755  ### functionalForm  [not default]
+       1612  ## realization functionalFormRegi  [not default]  modules/45
+       1605  ## realization functionalForm  [not default]  modules/45_car
+       1605  ## realization functionalForm  [not default]  modules/45_car
+       1605  ## realization functionalForm  [not default]  modules/45_car
+get_module(33_carbonRemoval)                        8107     97     4053
+       2162  ## Interfaces: consumes (inputs), 36
+       1593  ## realization portfolio  [DEFAULT]  modules/33_carbonRemova
+       1592  ## realization portfolio  [DEFAULT]  modules/33_carbonRemova
+       1031  ## module  modules/33_carbonRemoval/module.gms:9
+        792  ## Interfaces: provides (outputs), 6
+        781  ### portfolio  [DEFAULT]
+get_module(15_climate)                              4547     66     2273
+       1594  ## realization magicc7_ar6  [not default]  modules/15_climat
+        842  ## module  modules/15_climate/module.gms:9
+        513  ### magicc7_ar6  [not default]
+        504  ## Interfaces: provides (outputs), 4
+        401  ## realization off  [DEFAULT]  modules/15_climate/off/realiz
+        315  ## Interfaces: consumes (inputs), 6
+get_switch(cm_emiscen)                              4445     55     2222
+       3766  ## Referenced in
+        679  ## cm_emiscen  default: 9  allowed (regexp): 0|1|4|6|9|10  [
+get_scenario(SSP2-PkBudg1000)                       2026     38     1013
+        965  ## Differs from main.gms
+        627  ## Settings
+        434  # SSP2-PkBudg1000  [config/scenario_config.csv:12]
+search(how is the carbon price turned into )       12293    139     6146
+      12293  (top)
+search(early retirement of capacities)              7092     98     3546
+       7092  (top)
+search(why does the model not converge)             9001    149     4500
+       5125  ### Calibration Convergence Errors
+       2845  # Check the convergence
+       1031  (top)
+TOTAL                                             146821           73410

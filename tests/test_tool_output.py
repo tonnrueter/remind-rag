@@ -86,7 +86,7 @@ def test_carbonprice_default_marked():
 # ------------------------------------------------------------------ get_module: which switches steer a realization
 
 def steering(module: str, realization: str) -> str:
-    out = server.get_module(module)
+    out = server.get_module(module, realization=realization)  # #35: the full block is the drill-down
     m = re.search(rf"### {re.escape(realization)}  \[.*?(?=\n### |\n## |\Z)", out, re.S)
     return m.group(0) if m else ""
 
