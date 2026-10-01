@@ -144,12 +144,12 @@ a rebuild). Tools:
 
 | tool | use for |
 |---|---|
-| `search(query, k, module, realization, kind, phase, scenario)` | conceptual / free-text questions; every hit carries `» status` lines (see below); `scenario` drops unselected realizations and down-ranks code compiled out by that scenario's switches |
-| `get_symbol(name)` | exact GAMS identifiers: declaration, description + unit, interface owner (`declared in`) and users, equation with its domain condition (`Generated for`), use sites grouped by role: declared / assigned / in equations / read |
-| `get_switch(name)` | `cm_*` / `c_*` switches and module selections: docs, default, allowed values, references |
-| `get_module(module)` | description, realizations marked `[DEFAULT]` / `[not default]`, limitations, **steered by** per realization (abort preconditions, switches used as compile-time branch / run-time test / overwrite / read with their defaults, what the scenario configs that select it set), interfaces (inputs/outputs) |
+| `search(query, k, module, realization, kind, phase, scenario)` | conceptual / free-text questions; 5 hits by default, each with `» status` lines (see below) and at most 12 text lines plus a `path:L1–L2` pointer to the rest; `scenario` drops unselected realizations and down-ranks code compiled out by that scenario's switches |
+| `get_symbol(name, role, module, offset)` | exact GAMS identifiers: declaration, description + unit, interface owner (`declared in`) and users, equation with its domain condition (`Generated for`). Use sites as a summary per role (declared / assigned / in equations / read): counts per file with their default status, every use that doesn't run by default listed, up to 4 default assignments outside bounds (where the value is computed). `role="assigned"` (optionally `module=`, `offset=`) lists the lines |
+| `get_switch(name)` | `cm_*` / `c_*` switches and module selections: docs, default, allowed values, references (count, per file with status, the first 10, default-active first) |
+| `get_module(module, realization)` | description, the default realization with its **steered by** block (abort preconditions, switches used as compile-time branch / run-time test / overwrite / read with their defaults, what the selecting scenario configs set), every alternative in one line with alarming verdicts (`CAN NEVER BE MET`, `aborts under the defaults unless …`) and how many configs select it, interfaces as names. `realization="…"` gives one realization in full |
 | `get_scenario(name)` | a scenario's settings and what differs from the `main.gms` defaults |
-| `get_links(name, max_links)` | one hop through the code: what a symbol is computed from, what is computed from it, which equations it shares with which variables; linked names carry their declaring module, links that don't run by default are marked and listed last. Call it again on a linked name for the next hop |
+| `get_links(name, max_links)` | one hop through the code: what a symbol is computed from, what is computed from it, which equations it shares with which variables; linked names carry their declaring module, links that don't run by default are marked and listed last (at most half of `max_links`, default 10; the rest counted per module). Statements in one file with the same status share an entry (`; :22 → x`). Call it again on a linked name for the next hop |
 
 **Default status.** Results say whether code runs in a default run. The defaults are the switch values in `main.gms`.
 Examples:

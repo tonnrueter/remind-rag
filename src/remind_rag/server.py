@@ -385,7 +385,7 @@ def _equation_status(path: str, equation: str) -> list[str]:
 
 
 @server.tool()
-def get_links(name: str, max_links: int = 15) -> str:
+def get_links(name: str, max_links: int = 10) -> str:
     """Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are
     computed from it, and which other variables/parameters share an equation with it. Each link gives
     path:line, the declaring module of linked symbols when it differs, and whether the code runs in a
@@ -394,7 +394,8 @@ def get_links(name: str, max_links: int = 15) -> str:
 
     Args:
         name: exact GAMS symbol (vm_*, pm_*, p33_*, q_*, s_*, ...) or equation name.
-        max_links: maximum links per section (default 15).
+        max_links: maximum entries per section (default 10; links that don't run by default get at most half,
+            the rest is counted per module).
     """
     from .links import equation_members, is_load, statement
 
@@ -410,9 +411,8 @@ def get_links(name: str, max_links: int = 15) -> str:
                                    (name,)).fetchone()[0] or name
     out = [f"# Links of {name}" + (f" — {decl['kind']} \"{decl['description']}\" [declared in "
                                    f"{decl['module'] or 'core'}]" if decl else ""),
-           "One hop through the statements and equations that mention it. Each entry says whether it runs in a "
-           "default configuration: ✓ yes, ⚠ no (reasons below it), ? depends on settings. Names carry [module] "
-           "when declared outside the statement's module."]
+           "One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · "
+           "[module] = declared outside the statement's module."]
 
     # an equation: its members
     for r in eq_chunks:
@@ -443,27 +443,50 @@ def get_links(name: str, max_links: int = 15) -> str:
             inputs = [n for n in st.names_from(u["line"]) if n.lower() != name.lower() and n not in st.assigned]
             src = "loaded from a GDX file" if is_load(st) else (
                 "from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
-            computed.append((_rank(tags), f"- {u['path']}:{st.start} [{_loc(u)}] {_mark(u, tags)}  {src}", tags))
+            computed.append((_rank(tags), u["path"], st.start, _mark(u, tags), src, tags))
         elif targets := [n for n in st.names if n in st.assigned and n.lower() != name.lower()]:
-            feeds.append((_rank(tags), f"- {u['path']}:{st.start} [{_loc(u)}] {_mark(u, tags)}  → "
-                                      f"{_names(targets, u['module'])}", tags))
+            feeds.append((_rank(tags), u["path"], st.start, _mark(u, tags), f"→ {_names(targets, u['module'])}", tags))
         else:
             reads.append(u)
 
-    def section(title: str, items: list, unit: str = "statements") -> None:
+    def section(title: str, items: list, unit: str = "statements", merge_default: bool = True) -> None:
+        """items: (rank, path, line, mark, text, tags). Statements in the same file with the same status share one
+        entry, each further line with its own text ('; :22 → x'); with merge_default off, default statements stay
+        separate (in 'Computed from' each is a different way the value is computed)."""
         if not items:
             return
-        items.sort(key=lambda x: x[0])  # default-active links first, then depends, then inactive
-        counts = [sum(1 for rank, _, _ in items if rank == r) for r in range(3)]
+        # default-active first, then depends, then inactive; within a file by line (equations by name)
+        items.sort(key=lambda x: (x[0], x[1] or "", x[2] if isinstance(x[2], int) else 0, str(x[2])))
+        counts = [sum(1 for it in items if it[0] == r) for r in range(3)]
         out.append(f"## {title} ({len(items)} {unit}: {counts[0]} run by default"
                    + (f", {counts[1]} depend on settings" if counts[1] else "")
                    + (f", {counts[2]} not in a default run" if counts[2] else "") + ")")
-        for _, line, tags in items[:max_links]:
-            out.append(line + _detail(tags))
-        if len(items) > max_links:
-            out.append(f"- ... {len(items) - max_links} more (get_symbol lists all uses)")
+        groups: dict[tuple, list] = {}
+        for it in items:
+            separate = it[1] is None or (not merge_default and it[0] == 0)
+            key = (it[1], it[2]) if separate else (it[1], tuple(it[5]))
+            groups.setdefault(key, []).append(it)
+        entries = list(groups.values())
+        # links that don't run by default get at most half the room; the rest is counted per module
+        active = [g for g in entries if g[0][0] < 2][:max_links]
+        off = [g for g in entries if g[0][0] == 2][:max(3, min(max_links // 2, max_links - len(active)))]
+        for g in active + off:
+            rank, path, line, mark, text, tags = g[0]
+            if path is None:
+                out.append(f"- {text}" + _detail(tags))
+                continue
+            more = "".join(f"; :{x[2]} {x[4]}" for x in g[1:])
+            if rank == 2:  # not in a default run: the further lines' details may be cut
+                more = _short(more, 200)
+            out.append(f"- {path}:{line} {mark}  {text}{more}" + _detail(tags))
+        hidden = [it for g in entries if g not in active and g not in off for it in g]
+        if hidden:
+            mods = Counter((it[1] or "").split("/")[1] if (it[1] or "").startswith("modules/") else "core"
+                           for it in hidden)
+            out.append(f"- ... {len(hidden)} more ({', '.join(f'{m} {n}' for m, n in mods.most_common())}): "
+                       f'get_symbol("{name}", role=…, module=…) lists them')
 
-    section(f"Computed from (statements assigning {name})", computed)
+    section(f"Computed from (statements assigning {name})", computed, merge_default=False)
     section(f"Feeds into (statements reading {name} and assigning another symbol)", feeds)
 
     eq_items = []
@@ -472,9 +495,9 @@ def get_links(name: str, max_links: int = 15) -> str:
         members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
-        line = (f"- {eq}  {path} [{_loc(u)}] {_mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
+        text = (f"{eq}  {path} {_mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
                 f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}")
-        eq_items.append((_rank(tags), line, tags))
+        eq_items.append((_rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
     section("In equations (other symbols in the same equation)", eq_items, "equations")
 
     if reads:
@@ -504,15 +527,24 @@ def get_switch(name: str) -> str:
         if chunk:
             out.append(f"```\n{chunk['text']}\n```")
     uses = idx.db.execute(
-        "SELECT path, line, snippet FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path != 'main.gms' "
-        "ORDER BY path, line LIMIT 40", (name,)
+        "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path != 'main.gms' ORDER BY path, line", (name,)
     ).fetchall()
     if uses:
-        out.append("## Referenced in")
-        out += [f"- {u['path']}:{u['line']}  {u['snippet']}" for u in uses]
+        tagged = [(u, _use_tags(u)) for u in uses]
+        marks = Counter(_mark(u, t).split(" ")[0] for u, t in tagged)
+        split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
+        out.append(f"## Referenced in ({len(uses)} lines: {split})")
+        if len(uses) > SWITCH_REFS_LISTED:
+            out.append(f"- per file: {_per_file(tagged)}")
+        # code that runs by default first: that is what the default value actually steers
+        shown = sorted(tagged, key=lambda x: _rank(x[1]))[:SWITCH_REFS_LISTED]
+        out += [f"- {u['path']}:{u['line']} {_mark(u, t)}  {_short(u['snippet'], 110)}" for u, t in shown]
+        if len(uses) > SWITCH_REFS_LISTED:
+            out.append(f'- lines: get_symbol("{sws[0]["name"]}", role="read"[, module="…"]) (also role="assigned")')
     return "\n".join(out)
 
 
+SWITCH_REFS_LISTED = 10  # references of a switch listed individually (default-active first)
 SWITCH_REF_RE = re.compile(r"%(\w+)%")
 STEER_KINDS = [("branches", "branches on (compile time, $ifthen)"), ("tests", "tests (run time, if / $())"),
                ("sets", "overwrites"), ("reads", "reads")]
@@ -644,17 +676,19 @@ def _steering(mod: str) -> dict:
 
     def alert(real: str) -> str:
         """What the summary line of a realization must say: verdicts that change an answer, plus usage."""
-        parts = []
+        parts, needs = [], []
         for p in pre[real]:
             if p["severity"] in ("impossible", "suspicious"):
                 parts.append(f"⚠ {SEVERITY_TEXT[p['severity']]}: aborts if {condition(p)}"
                              + (f" ({p['problems']})" if p["problems"] else ""))
-            elif p["severity"] == "aborts by default":
-                names = json.loads(p["switches"])
-                n_set = sum(any(k.lower() in {x.lower() for x in names} for k in s) for s in chosen[real])
-                parts.append(f"aborts under the defaults unless {', '.join(names)} "
-                             f"{'is' if len(names) == 1 else 'are'} changed"
-                             + (f" (set by {n_set} of {len(chosen[real])} selecting configs)" if chosen[real] else ""))
+            elif p["severity"] == "aborts by default":  # all such checks of a realization in one clause
+                needs += [n for n in json.loads(p["switches"]) if n not in needs]
+        if needs:
+            low = {x.lower() for x in needs}
+            n_set = sum(any(k.lower() in low for k in s) for s in chosen[real])
+            parts.append(f"aborts under the defaults unless {', '.join(needs)} {'is' if len(needs) == 1 else 'are'}"
+                         " changed" + (f" (set by {n_set} of {len(chosen[real])} selecting configs)"
+                                       if chosen[real] else ""))
         parts.append(f"{len(chosen[real])} of {len(scens)} configs")
         return " · ".join(parts)
 
@@ -671,6 +705,7 @@ def _steering(mod: str) -> dict:
             "alerts": {r: alert(r) for r in reals}}
 
 
+INTERFACES_LISTED = 40  # longer output lists (core: 266) are summarized per consuming module
 STEER_HEAD = "## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)"
 
 
@@ -684,10 +719,14 @@ def _interfaces(mod: str) -> list[str]:
     provides = [r["name"] for r in ifs if r["direction"] == "out"]
     if provides:
         lines = [f"## Interfaces: provides (outputs), {len(provides)}"]
-        for n in provides:
-            users = sorted({r[0] for r in idx.db.execute(
-                "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'in'", (n,))} - {mod})
-            lines.append(f"- {n} -> used by {_short(', '.join(users) or '-', 120)}")
+        users = {n: sorted({r[0] for r in idx.db.execute(
+            "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'in'", (n,))} - {mod}) for n in provides}
+        if len(provides) <= INTERFACES_LISTED:
+            lines += [f"- {n} -> used by {_short(', '.join(users[n]) or '-', 120)}" for n in provides]
+        else:  # core provides hundreds: counts per consumer; each consumer's get_module lists its inputs by name
+            per = Counter(m for n in provides for m in users[n])
+            lines.append("- per consuming module: " + ", ".join(f"{m} {c}" for m, c in per.most_common()))
+            lines.append(f'- names: get_module("<consumer>") lists its inputs "from {mod}"; get_symbol for one name')
         out.append("\n".join(lines))
     consumes = [r["name"] for r in ifs if r["direction"] == "in"]
     if consumes:
@@ -771,7 +810,7 @@ def get_module(module: str, realization: str | None = None) -> str:
             lines = [f'## Alternatives (one in full: get_module("{mod}", realization="..."))']
             for r in alts:
                 lim = " · has limitations" if limits[r] else ""
-                lines.append(f"- realization {r}  [not default]: {_first_sentence(described(r, 400))}{lim}"
+                lines.append(f"- realization {r}  [not default]: {_first_sentence(described(r, 400), 140)}{lim}"
                              f" · {st['alerts'][r]}")
             out.append("\n".join(lines))
     out += _interfaces(mod)

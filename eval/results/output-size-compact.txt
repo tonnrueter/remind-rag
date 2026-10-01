@@ -5,14 +5,14 @@ get_symbol(vm_cap)                                  3998     38     1999
 get_symbol(pm_taxCO2eqSum)                          3956     37     1978
 get_symbol(vm_co2eq)                                2692     31     1346
 get_symbol(q21_taxrevGHG)                           1642     24      821
-get_links(pm_taxCO2eqSum)                           6498     65     3249
-get_links(vm_cap)                                   4604     69     2302
-get_module(45_carbonprice)                          5553     39     2776
+get_links(pm_taxCO2eqSum)                           4176     44     2088
+get_links(vm_cap)                                   4157     63     2078
+get_module(45_carbonprice)                          5316     39     2658
 get_module(33_carbonRemoval)                        3502     28     1751
 get_module(15_climate)                              1609     27      804
-get_switch(cm_emiscen)                              4445     55     2222
+get_switch(cm_emiscen)                              2116     27     1058
 get_scenario(SSP2-PkBudg1000)                       2026     38     1013
 search(how is the carbon price turned into )        4864     88     2432
 search(early retirement of capacities)              4513     78     2256
 search(why does the model not converge)             4397     77     2198
-TOTAL                                              58215           29107
+TOTAL                                              52880           26440

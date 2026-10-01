@@ -367,3 +367,11 @@ round 90 = v0.5.0 server (git worktree, `audit.py --rag-dir`), round 91 = compac
 - Q14's Major in round 90 (a fabricated config value) didn't recur; with n = 1 that is noise either way.
 - Tool output is a small part of the input tokens here (the remind-context system prompt dominates: 35–95k input
   tokens per answer either way); the gain shows in long interactive sessions with many calls.
+
+Finished afterwards (no new answer run): `get_module("core")` summarizes its 266 outputs per consuming module
+(16.5k → 1.9k); every module now ≤ 6k (median 2.2k, tested for all 34 + core); alternatives merge their
+"aborts under the defaults" checks into one clause. `get_links`: statements in one file with the same status share an
+entry without losing lines (`; :22 → x`), default computations stay separate, links that don't run by default get at
+most half of `max_links` (default 15 → 10) and the rest is counted per module (`pm_taxCO2eq` 6.1k → 5.0k). `get_switch`:
+the old `LIMIT 40` cut references silently (cm_emiscen has 55); now count, per-file status, first 10, drill-down via
+`get_symbol(role=)`. Same 15 calls: **147k → 53k chars**; largest single call 5.3k (was 27k). 143 tests pass.

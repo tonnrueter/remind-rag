@@ -116,3 +116,50 @@ def test_per_file_counts_carry_default_status():
     out = server.get_symbol("vm_capEarlyReti")
     assert re.search(r"core/bounds\.gms 6 \(5 ✓, 1 ⚠\)", out)
     assert re.search(r"modules/70_water/heat/output\.gms:\d+ .*✓ default realization", out)  # 1-line role in full
+
+
+# ------------------------------------------------------------------ finishing #35: core, every module, get_links
+
+LINKS_BUDGET = 5_000
+
+
+def _all_modules() -> list[str]:
+    rows = server.idx.db.execute("SELECT DISTINCT module FROM chunks WHERE path LIKE 'modules/%'").fetchall()
+    return sorted(r[0] for r in rows if r[0]) + ["core"]
+
+
+@pytest.mark.parametrize("module", _all_modules())
+def test_every_module_within_budget(module):
+    assert len(server.get_module(module)) <= MODULE_BUDGET
+
+
+def test_core_interfaces_summarized_per_consumer():
+    out = server.get_module("core")
+    assert re.search(r"per consuming module: .*80_optimization \d+", out)
+    assert 'get_module("<consumer>")' in out
+
+
+def test_aborts_by_default_merged_into_one_clause():
+    line = next(x for x in server.get_module("51").splitlines() if "realization BurkeLikeItr" in x)
+    assert line.count("aborts under the defaults") == 1 and "damages" in line
+
+
+@pytest.mark.parametrize("name", ["pm_taxCO2eqSum", "vm_cap", "vm_capEarlyReti", "pm_taxCO2eq"])
+def test_links_budget(name):
+    assert len(server.get_links(name)) <= LINKS_BUDGET
+
+
+def test_links_merged_entries_keep_each_line():
+    feeds = server.get_links("pm_taxCO2eqSum")
+    assert "modules/21_tax/on/postsolve.gms:21 ✓ default realization  → pm_taxrevGHG0; :22 → pm_taxrevCO2Sector0" in feeds
+    # default computations are never merged: each is a different way the value is computed
+    assert re.search(r"^- core/presolve\.gms:10 ✓ runs by default  from pm_taxCO2eq", feeds, re.M)
+
+
+def test_switch_references_are_counted_not_silently_cut():
+    # the old LIMIT 40 dropped references without saying so (cm_emiscen has 55)
+    out = server.get_switch("cm_emiscen")
+    total = server.idx.db.execute("SELECT count(*) FROM symbol_uses WHERE name = 'cm_emiscen' AND path != 'main.gms'"
+                                  ).fetchone()[0]
+    assert f"Referenced in ({total} lines" in out and 'role="read"' in out
+    assert len(out) <= SYMBOL_BUDGET
