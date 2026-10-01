@@ -24,7 +24,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 $env:UV_SYSTEM_CERTS = 1                                 # PIK network intercepts TLS (uv; UV_NATIVE_TLS is deprecated)
 uv run pytest tests                                      # tool-output checks against the newest index
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
-uv run python -m remind_rag.index --root ..\remind       # full rebuild, ~13 min CPU; prints parser checks
+uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
 uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # uses/FTS only, seconds
 ```
 
@@ -32,7 +32,7 @@ uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # us
 
 - **Keep measured states reproducible.** Each index state gets a version: build into `data/remind-bge-vN.db` (next
   free N; `--no-embed` rebuilds go into a copy), verify, then copy it to `data/remind-bge.db`, which the MCP
-  registration pins. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table.
+  registration pins. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content).
 - **Parser changes:** the build must end with `parser checks: 0 warning(s)`, and `retrieval_eval.py` must not drop.
 - **Tool-output changes:** add or adjust a test in `tests/test_tool_output.py` that shows the information is present.
 - **Evaluation isolation:** answerer runs use `claude -p --setting-sources user` (no project CLAUDE.md, this file

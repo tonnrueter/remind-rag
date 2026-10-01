@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -25,6 +27,26 @@ MAX_EMBED_CHARS = 1000
 
 def embed_text(header: str, text: str) -> str:
     return header + "\n" + re.sub(r"[ \t]+", " ", text)
+
+
+def embed_key(model: str, text: str) -> str:
+    """Cache key of one embedding: the vector is a pure function of the model and the exact text embedded."""
+    return hashlib.sha1(f"{model}|{text}".encode()).hexdigest()
+
+
+def load_vectors(db_path: Path, model: str) -> dict[str, bytes]:
+    """{embed_key: vector} from an existing index, recomputed from its stored header + text; {} if unusable."""
+    try:
+        old = store.connect(db_path)
+        if old.execute("SELECT value FROM meta WHERE key = 'model'").fetchone()[0] != model:
+            return {}
+        rows = old.execute("SELECT c.header, c.text, v.embedding FROM chunks c JOIN chunks_vec v ON v.rowid = c.id")
+        cache = {embed_key(model, embed_text(r[0], r[1])[:MAX_EMBED_CHARS]): r[2] for r in rows}
+        old.close()
+        return cache
+    except Exception as e:  # missing tables, half-built file: just embed everything
+        print(f"not reusing vectors from {db_path}: {e}")
+        return {}
 
 
 def check_parse(files: list[tuple[str, str]], parsed: dict) -> list[str]:
@@ -144,7 +166,8 @@ def build_preconditions(db, root: Path) -> int:
     return len(found)
 
 
-def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None) -> dict:
+def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
+          reuse: dict[str, bytes] | None = None) -> dict:
     t0 = time.perf_counter()
     files = list(iter_files(root))
     parsed = {rel: chunk_file(rel, text) for rel, text in files}
@@ -215,16 +238,21 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
     # header + start of each chunk and batching similar lengths together (less padding) keeps it tractable;
     # BM25 still indexes the full text.
     texts = [embed_text(c.header, c.text)[:MAX_EMBED_CHARS] for c in chunks]
-    order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+    keys = [embed_key(model, t) for t in texts]
+    reuse = reuse or {}
+    db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)",
+                   [(i + 1, reuse[k]) for i, k in enumerate(keys) if k in reuse])
+    todo = sorted((i for i, k in enumerate(keys) if k not in reuse), key=lambda i: len(texts[i]))
+    print(f"embeddings: {len(texts) - len(todo)} reused, {len(todo)} to compute", flush=True)
     batch = []
-    vecs = embeddings.embed_passages(model, [texts[i] for i in order])
-    for n, (i, vec) in enumerate(zip(order, vecs), 1):
+    vecs = embeddings.embed_passages(model, [texts[i] for i in todo]) if todo else []
+    for n, (i, vec) in enumerate(zip(todo, vecs), 1):
         batch.append((i + 1, np.asarray(vec, dtype=np.float32).tobytes()))
         if len(batch) == 256:
             db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)", batch)
             db.commit()
             batch.clear()
-            print(f"  embedded {n}/{len(texts)}  ({time.perf_counter() - t1:.0f}s)", flush=True)
+            print(f"  embedded {n}/{len(todo)}  ({time.perf_counter() - t1:.0f}s)", flush=True)
     db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)", batch)
     t_embed = time.perf_counter() - t1
 
@@ -246,6 +274,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
         "check_warnings": json.dumps(warnings),
         "chunk_seconds": round(t_chunk, 1),
         "embed_seconds": round(t_embed, 1),
+        "embed_reused": len(texts) - len(todo),
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     db.executemany("INSERT INTO meta VALUES (?, ?)", [(k, str(v)) for k, v in stats.items()])
@@ -272,6 +301,8 @@ def main() -> None:
     ap.add_argument("--gms-json", type=Path, default=DEFAULT_DB_DIR / "gms_export.json",
                     help="gms/goxygen export (r/export_gms.R); used if it exists")
     ap.add_argument("--gms-export", action="store_true", help="(re)run r/export_gms.R before indexing")
+    ap.add_argument("--reuse", type=Path, help="index to take unchanged embeddings from (default: the --db target)")
+    ap.add_argument("--no-reuse", action="store_true", help="embed every chunk (e.g. to measure a full build)")
     ap.add_argument("--no-embed", action="store_true",
                     help="existing db: only rebuild keyword index and where-used table (no re-embedding)")
     args = ap.parse_args()
@@ -294,7 +325,13 @@ def main() -> None:
     export = gmsdata.load(args.gms_json)
     if export is None:
         print(f"no gms export at {args.gms_json}: indexing without module interfaces / limitations")
-    print(json.dumps(build(args.root, db_path, args.model, export), indent=2))
+    reuse_from = args.reuse or db_path
+    reuse = {} if args.no_reuse or not reuse_from.exists() else load_vectors(reuse_from, args.model)
+    # build next to the target and swap at the end: the pinned name never holds a half-built index
+    tmp = db_path.with_name(db_path.name + ".building")
+    stats = build(args.root, tmp, args.model, export, reuse)
+    os.replace(tmp, db_path)
+    print(json.dumps(stats, indent=2))
     print(registration(args.root, db_path))
 
 

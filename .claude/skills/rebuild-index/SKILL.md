@@ -5,7 +5,8 @@ description: Rebuild the REMIND RAG index after parser, enrichment or REMIND cha
 
 # Rebuild and verify the index
 
-All local and free; a full rebuild takes ~13 min on the laptop CPU.
+All local and free. A rebuild reuses every embedding whose exact text is unchanged (`--reuse`), so it takes seconds
+to a minute; a full one (`--no-reuse`, a new model, or a change to `make_header`/`embed_text`) ~13 min on the laptop CPU.
 
 1. **Versions.** Every index state is kept as `data/remind-bge-vN.db`; `data/remind-bge.db` is a copy of the
    current one (the MCP registration pins it). The new build becomes the next free N. Make sure the baseline has
@@ -15,8 +16,9 @@ All local and free; a full rebuild takes ~13 min on the laptop CPU.
    `cp data/remind-bge-v<current>.db data/remind-bge-v<N>.db`, then
    `uv run python -m remind_rag.index --root ..\remind --no-embed --db data/remind-bge-v<N>.db` (records
    `uses_rebuilt_at` in meta). Compare role counts and sample changed rows against the previous version.
-3. **Full rebuild** (in the background):
-   `uv run python -m remind_rag.index --root ..\remind --model bge --db data/remind-bge-v<N>.db`.
+3. **Rebuild**: `uv run python -m remind_rag.index --root ..\remind --model bge --db data/remind-bge-v<N>.db
+   --reuse data/remind-bge-v<current>.db`. The log line `embeddings: X reused, Y to compute` shows the cost; run it
+   in the background when Y is large.
    Add `--gms-export` only when REMIND's module structure changed; it needs R with gms/goxygen in `r/library`.
    The log must show `parser checks: 0 warning(s)` and `codeCheck declarations: …, missed by our parser: 0`.
 4. **Verify** against the new file (the variable doesn't persist between shell calls, so set it on each command):

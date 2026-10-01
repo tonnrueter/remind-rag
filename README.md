@@ -91,7 +91,7 @@ Linux (e.g. the PIK cluster):
 ```bash
 cd <rag>
 uv sync                                                   # behind a TLS-intercepting proxy: export UV_SYSTEM_CERTS=1
-OMP_NUM_THREADS=4 uv run python -m remind_rag.index --root <remind> --model bge   # ~15 min; the thread cap keeps a login node usable
+OMP_NUM_THREADS=4 uv run python -m remind_rag.index --root <remind> --model bge   # first build ~15 min; the thread cap keeps a login node usable
 ```
 
 Windows (PowerShell):
@@ -100,7 +100,7 @@ Windows (PowerShell):
 cd <rag>
 $env:UV_SYSTEM_CERTS = 1        # PIK TLS proxy: use the Windows certificate store
 uv sync
-uv run python -m remind_rag.index --root <remind> --model bge   # ~15 min on a laptop CPU
+uv run python -m remind_rag.index --root <remind> --model bge   # first build ~15 min on a laptop CPU
 ```
 
 Options:
@@ -109,6 +109,13 @@ Options:
 - `--gms-export`: module interfaces, `@limitations`, `not_used.txt` reasons; needs R with `gms` and `goxygen` in
   `r/library` (`R CMD INSTALL -l r/library <gms clone> <goxygen clone>`). Without it the index has no module interfaces.
 - `--model jina`: ~4x slower AND worse retrieval here (see FINDINGS).
+- **Rebuilds are fast.** A build always redoes everything, but takes each embedding from the previous index (the
+  `--db` target, or `--reuse <other.db>`) when the exact text to embed is unchanged; only new or changed chunks are
+  embedded. After a `git pull` that's seconds to a minute instead of ~15 min: rerun the same command. A changed
+  symbol description re-embeds every chunk that uses the symbol (e.g. 26 chunks for `pm_taxCO2eqSum`); shifted line
+  numbers re-embed nothing. `--no-reuse` forces a full build. The build writes `<db>.building` and swaps it in at
+  the end, so the pinned file never holds a half-built index (on Windows the swap fails while a server holds the
+  file open: stop it first).
 - Copying an index to another machine works (paths inside are relative to the REMIND root). The index records the
   REMIND commit it was built from; the server tells Claude when the checkout it serves is at another commit.
 

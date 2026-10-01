@@ -288,3 +288,19 @@ in October 2026. On 3.13 the lock drops the 3.10-only pins: numpy 2.2.6 → 2.5.
 Index v4 (embedded under 3.10) queried under 3.13 (`eval/results/retrieval-v4-py313.txt`): recall@5 identical in every
 category and mode; one MRR cell moves in the third decimal (hybrid cross-module 0.08 → 0.07), from float differences
 in the query embedding that reorder near-ties. No rebuild needed. Tests: 74 pass.
+
+## 12. v0.5.0: rebuilds reuse unchanged embeddings (2026-10-01)
+
+A build always redoes chunking, symbol tables, uses and FTS (seconds), and takes each embedding from the previous
+index when sha1(model, embedded text) matches; the key is recomputed from the old index's stored header + text, so
+v4 was reusable without a new column. Measured on the laptop:
+
+| rebuild | computed / 4,755 | time |
+|---|---|---|
+| v4 → v5, same REMIND commit | 0 | 35 s total (was ~13 min) |
+| one comment line inserted in a datainput file | 1 | |
+| plus `pm_taxCO2eqSum`'s description reworded | 26 | 7 s embedding |
+
+v5 is byte-identical to v4 (chunks, vectors, symbol_uses, preconditions); tests 77 pass. 13 chunks share their
+embedded text with another chunk (4,742 distinct keys). Line shifts cost nothing (line numbers aren't embedded);
+symbol descriptions and switch defaults appear in headers, so changing one re-embeds its users.
