@@ -39,3 +39,13 @@ def staleness(meta: dict[str, str], root: Path | None) -> str:
         return (f"This index was built from REMIND commit {built[:9]} ({meta.get('remind_branch')}), the checkout "
                 f"is at {head[0][:9]} ({head[1]}): line numbers and code may differ. " + hint)
     return ""
+
+
+def tracked_files(root: Path) -> set[str] | None:
+    """Paths git tracks under root (posix, relative); None if root is no git checkout or git is missing."""
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, check=True,
+                             timeout=60).stdout
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return None
+    return {p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p}

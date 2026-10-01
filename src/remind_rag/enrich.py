@@ -67,7 +67,7 @@ def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
         parts.append("Only compiled if: " + _short(" and ".join(c.conditions), 200))
 
     if c.kind == "declaration" and iface:
-        # keep this short: only the first MAX_EMBED_CHARS of header + text get embedded
+        # keep this short: the model reads only the first 512 tokens of header + text
         roles = []
         for n in [n for n in IDENT_RE.findall(c.name or "") if n in iface][:4]:
             users = [u for u in iface[n]["consumed_by"] if u != c.module]

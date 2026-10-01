@@ -22,11 +22,21 @@ from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 
 DEFAULT_DB_DIR = Path(__file__).resolve().parents[2] / "data"
-MAX_EMBED_CHARS = 1000
 
 
 def embed_text(header: str, text: str) -> str:
     return header + "\n" + re.sub(r"[ \t]+", " ", text)
+
+
+# How the embedded text is cut from header + chunk text; stored in meta so a later build knows what an old vector saw.
+# "chars1000": first 1,000 characters (default; indexes up to v6 have no embed_rule row and used it);
+# "tokens": up to the model's limit (510 tokens for bge) -- measured worse for bge-small, FINDINGS 13.
+EMBED_RULES = ("chars1000", "tokens")
+EMBED_RULE = "chars1000"
+
+
+def seen_text(rule: str, model: str, text: str) -> str:
+    return text[:1000] if rule == "chars1000" else embeddings.visible(model, text)
 
 
 def embed_key(model: str, text: str) -> str:
@@ -35,13 +45,16 @@ def embed_key(model: str, text: str) -> str:
 
 
 def load_vectors(db_path: Path, model: str) -> dict[str, bytes]:
-    """{embed_key: vector} from an existing index, recomputed from its stored header + text; {} if unusable."""
+    """{embed_key: vector} from an existing index, recomputed from its stored header + text with the cut rule that
+    index was built with (so a vector is only reused for exactly the text it was computed from); {} if unusable."""
     try:
         old = store.connect(db_path)
-        if old.execute("SELECT value FROM meta WHERE key = 'model'").fetchone()[0] != model:
+        meta = dict(old.execute("SELECT key, value FROM meta").fetchall())
+        if meta.get("model") != model:
             return {}
+        rule = meta.get("embed_rule", "chars1000")
         rows = old.execute("SELECT c.header, c.text, v.embedding FROM chunks c JOIN chunks_vec v ON v.rowid = c.id")
-        cache = {embed_key(model, embed_text(r[0], r[1])[:MAX_EMBED_CHARS]): r[2] for r in rows}
+        cache = {embed_key(model, seen_text(rule, model, embed_text(r[0], r[1]))): r[2] for r in rows}
         old.close()
         return cache
     except Exception as e:  # missing tables, half-built file: just embed everything
@@ -167,7 +180,7 @@ def build_preconditions(db, root: Path) -> int:
 
 
 def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
-          reuse: dict[str, bytes] | None = None) -> dict:
+          reuse: dict[str, bytes] | None = None, rule: str = EMBED_RULE) -> dict:
     t0 = time.perf_counter()
     files = list(iter_files(root))
     parsed = {rel: chunk_file(rel, text) for rel, text in files}
@@ -234,10 +247,10 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
     n_pre = build_preconditions(db, root)
 
     t1 = time.perf_counter()
-    # GAMS tokenizes at ~2 chars/token, so embedding dominates build time on CPU. Embedding only the
-    # header + start of each chunk and batching similar lengths together (less padding) keeps it tractable;
-    # BM25 still indexes the full text.
-    texts = [embed_text(c.header, c.text)[:MAX_EMBED_CHARS] for c in chunks]
+    # GAMS tokenizes at ~2.6 chars/token, so embedding dominates build time on CPU. The model reads header + start
+    # of each chunk up to its token limit (`visible`, also the cache key); batching similar lengths together (less
+    # padding) keeps it tractable. BM25 still indexes the full text.
+    texts = [seen_text(rule, model, embed_text(c.header, c.text)) for c in chunks]
     keys = [embed_key(model, t) for t in texts]
     reuse = reuse or {}
     db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)",
@@ -275,6 +288,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
         "chunk_seconds": round(t_chunk, 1),
         "embed_seconds": round(t_embed, 1),
         "embed_reused": len(texts) - len(todo),
+        "embed_rule": rule,
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     db.executemany("INSERT INTO meta VALUES (?, ?)", [(k, str(v)) for k, v in stats.items()])
@@ -302,6 +316,7 @@ def main() -> None:
                     help="gms/goxygen export (r/export_gms.R); used if it exists")
     ap.add_argument("--gms-export", action="store_true", help="(re)run r/export_gms.R before indexing")
     ap.add_argument("--reuse", type=Path, help="index to take unchanged embeddings from (default: the --db target)")
+    ap.add_argument("--embed-rule", choices=EMBED_RULES, default=EMBED_RULE, help="how the embedded text is cut")
     ap.add_argument("--no-reuse", action="store_true", help="embed every chunk (e.g. to measure a full build)")
     ap.add_argument("--no-embed", action="store_true",
                     help="existing db: only rebuild keyword index and where-used table (no re-embedding)")
@@ -329,7 +344,7 @@ def main() -> None:
     reuse = {} if args.no_reuse or not reuse_from.exists() else load_vectors(reuse_from, args.model)
     # build next to the target and swap at the end: the pinned name never holds a half-built index
     tmp = db_path.with_name(db_path.name + ".building")
-    stats = build(args.root, tmp, args.model, export, reuse)
+    stats = build(args.root, tmp, args.model, export, reuse, args.embed_rule)
     os.replace(tmp, db_path)
     print(json.dumps(stats, indent=2))
     print(registration(args.root, db_path))

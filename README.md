@@ -113,7 +113,9 @@ Options:
   `--db` target, or `--reuse <other.db>`) when the exact text to embed is unchanged; only new or changed chunks are
   embedded. After a `git pull` that's seconds to a minute instead of ~15 min: rerun the same command. A changed
   symbol description re-embeds every chunk that uses the symbol (e.g. 26 chunks for `pm_taxCO2eqSum`); shifted line
-  numbers re-embed nothing. `--no-reuse` forces a full build. The build writes `<db>.building` and swaps it in at
+  numbers re-embed nothing. `--no-reuse` forces a full build. Only git-tracked files are indexed in a git checkout (your own notes in the
+  folder stay out). The embedded text is header + chunk cut at 1,000 characters (`--embed-rule tokens` cuts at the
+  model's 512-token limit instead; measured worse, FINDINGS §13); the rule is stored in the index. The build writes `<db>.building` and swaps it in at
   the end, so the pinned file never holds a half-built index (on Windows the swap fails while a server holds the
   file open: stop it first).
 - Copying an index to another machine works (paths inside are relative to the REMIND root). The index records the

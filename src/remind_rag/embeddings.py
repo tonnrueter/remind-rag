@@ -24,6 +24,15 @@ def load(alias: str):
     return TextEmbedding(MODELS[alias][0], cache_dir=str(CACHE_DIR))
 
 
+def visible(alias: str, text: str) -> str:
+    """The part of text the model actually reads: everything up to its token limit (512 incl. [CLS]/[SEP] for bge)."""
+    enc = load(alias).model.tokenizer.encode(text)
+    if not enc.overflowing:
+        return text
+    ends = [end for (start, end), special in zip(enc.offsets, enc.special_tokens_mask) if not special]
+    return text[:ends[-1]]
+
+
 def embed_passages(alias: str, texts: list[str], batch_size: int = 16):
     yield from load(alias).passage_embed(texts, batch_size=batch_size)
 

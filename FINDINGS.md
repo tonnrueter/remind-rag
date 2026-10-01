@@ -304,3 +304,39 @@ v4 was reusable without a new column. Measured on the laptop:
 v5 is byte-identical to v4 (chunks, vectors, symbol_uses, preconditions); tests 77 pass. 13 chunks share their
 embedded text with another chunk (4,742 distinct keys). Line shifts cost nothing (line numbers aren't embedded);
 symbol descriptions and switch defaults appear in headers, so changing one re-embeds its users.
+
+Real update (2026-10-01): REMIND `e50744c05` → master `be7130269` (22 commits, 7 indexed files, +66/−26 lines),
+built from a separate clone (`../current-remind`) with `--reuse` v5: **5 s, 15 of 4,744 chunks embedded**, exactly
+the chunks of the changed files (CHANGELOG 6, output.R 4, default.cfg 3, scenario_config.csv 2). A two-line fix in
+`45_carbonprice/functionalForm/postsolve.gms` needed no new vector: it sits at char 1,492 of its chunk, past the
+embedding window; keyword search and tool output carry the new text.
+
+Found on the way: the corpus took every file under the root, so the user's untracked `remind/CLAUDE.md` and
+`MODULE_HIERARCHY.md` (12 chunks) had been indexed as REMIND documentation since at least v4. Fixed: in a git
+checkout only tracked files are indexed (`checkout.tracked_files`). **Index v6** = v5 minus those 12 chunks;
+retrieval eval identical to v5 (`eval/results/retrieval-v6-tracked.txt`). v6 is the current index.
+
+## 13. Embedding window: 1,000 characters vs the model's 512 tokens (v7, negative result, 2026-10-01)
+
+Measured with bge-small's tokenizer: REMIND averages 2.6 chars/token, so the 1,000-char cap (chosen on day one for
+build speed) is ~390 tokens, below the model's 512. 1,357 of 4,743 chunks exceed 512 tokens anyway; the cap cut
+1,887 chunks, 536 of which would fit the model whole. The vectors saw 69 % of all tokens; cutting at the model's
+limit raises that to 82 %. Example: `q21_taxrevGHG` (`21_tax/on/equations.gms:74`): the header (mostly the `Uses:`
+line) takes ~830 chars, so the vector never saw the equation itself; at 510 tokens it sees most of it.
+
+**Index v7** = v6 with the cut at 510 tokens (`--embed-rule tokens`, 1,887 chunks re-embedded, 6 min):
+
+| mode | v6 (1,000 chars) | v7 (510 tokens) |
+|---|---|---|
+| bm25 | 71 % / 0.49 | 71 % / 0.49 |
+| vector | **65 % / 0.55** | **61 % / 0.51** |
+| hybrid | 81 % / 0.69 | 81 % / 0.69 |
+
+Vector-only lost on conceptual (100 → 67 %), docs (MRR 1.00 → 0.83), interface (0.28 → 0.11), limitations
+(1.00 → 0.75); gained on symbol (0.38 → 0.47) and realization (0.53 → 0.56). Reading: bge-small is an English model;
+the header and leading comment carry the meaning, more GAMS code makes the vector more code-like and moves it away
+from English questions. n = 31, so one or two questions, but no sign that "more visible code" helps. Default stays
+`chars1000`; the rule is recorded in `meta.embed_rule` so reuse never mixes vectors of different cuts.
+
+Bug caught by this run: the first v7 build reused all 4,743 vectors, because the reuse keys of the old index were
+recomputed with the *new* cut. Fixed (keys use the old index's rule; test `test_old_cut_rule_is_not_reused_for_longer_text`).
