@@ -1,0 +1,84 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "bounds.gms is compiled only when damages = KotzWenz; default is off (main.gms:438); dispatched in module.gms:22",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:438; modules/50_damages/module.gms:22; modules/50_damages/KotzWenz/realization.gms:17",
+        "note": ""
+      },
+      {
+        "claim": "bounds.gms fixes vm_damageProdFactor to 1 and vm_damageFactor to pm_damage for ttot >= cm_startyear",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/50_damages/KotzWenz/bounds.gms:9-10",
+        "note": ""
+      },
+      {
+        "claim": "Damages are not part of the optimization unless internalizeDamages = KotzWenzItr; otherwise they enter as a fixed variable updated between iterations",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/50_damages/KotzWenz/realization.gms:11",
+        "note": "This is a paraphrase of the @limitations comment in the realization."
+      },
+      {
+        "claim": "The realization reads cm_KotzWenzPerc (default mean) and cm_GDPpopScen (default SSP2)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:2152, main.gms:1569; modules/50_damages/KotzWenz/datainput.gms:12; postsolve.gms:15,20",
+        "note": ""
+      },
+      {
+        "claim": "Module 51 realizations KotzWenzItr and KotzWenzCPreg abort unless damages = KotzWenz",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/51_internalizeDamages/KotzWenzItr/datainput.gms:10; KotzWenzCPreg/datainput.gms:10",
+        "note": ""
+      },
+      {
+        "claim": "Three scenarios in scenario_config_RIKEN.csv select it: M-SSP2-NPi-KLW, VLLO-SSP2-KLW, VLLO-SSP1-KLW (lines 5-7); the VLLO ones use internalizeDamages = KotzWenzItr",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "config/scenario_config_RIKEN.csv:5-7",
+        "note": ""
+      },
+      {
+        "claim": "internalizeDamages for M-SSP2-NPi-KLW is not set or unconfirmed, and may be at its default",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "config/scenario_config_RIKEN.csv:5 (column 11 = off)",
+        "note": "The row sets internalizeDamages=off explicitly. The answer hedged instead of reading the row."
+      },
+      {
+        "claim": "The three scenarios set cm_KotzWenzPerc = med and cm_GDPpopScen SSP2/SSP1 (per the 'module description')",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "config/scenario_config_RIKEN.csv:1,5-7",
+        "note": "cm_KotzWenzPerc=med is correct. The cm_GDPpopScen column is empty in these rows. Any SSP1 value would come from copyConfigFrom (e.g. VLLO-SSP1-PkBudg650), and the 'module description' source is not identified."
+      },
+      {
+        "claim": "default.cfg:148 only mentions KotzWenz incidentally; no other scenario_config*.csv mentions it",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "config/default.cfg:148; config/scenario_config_magpie_RIKEN.csv:5-7",
+        "note": "default.cfg:148 is the run_KotzWenz_damages.R script entry, not a list of allowed values. scenario_config_magpie_RIKEN.csv has rows for the same three KLW scenarios (coupled MAgPIE settings). They don't contain the string 'KotzWenz' but are related."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 3,
+    "failure_class": "incomplete",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer leads with the default (damages=off) and the exact switch condition. It cites the dispatch line and describes bounds.gms content accurately. It finds exactly the three RIKEN scenarios with correct line numbers and internalizeDamages values for the VLLO runs. It also adds useful context: the module-51 abort guards and the limitation that damages are not internalized without KotzWenzItr. It is honest about what it did not read.",
+    "answer_key_issues": "None; the key matches the code. The key could also mention config/scenario_config_magpie_RIKEN.csv:5-7, which has coupled-run rows for the same three KLW scenarios.",
+    "summary": "The answer is accurate on all core points: the switch condition, the default off (main.gms:438), the bounds content and the three RIKEN scenarios. The only issues are minor. It hedged on M-SSP2-NPi-KLW's internalizeDamages, which is explicitly 'off' in the row. It gave a vague cm_GDPpopScen attribution even though that column is empty in these rows. It also mis-described default.cfg:148 and missed the related magpie_RIKEN coupling rows."
+  },
+  "grader_cost_usd": 0.20922199999999996,
+  "grader_turns": 9,
+  "grader_duration_s": 38.4,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q13",
+  "arm": "context+rag"
+}

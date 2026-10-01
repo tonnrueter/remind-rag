@@ -1,0 +1,39 @@
+{
+  "runs": [
+    {
+      "started": "2026-10-01 21:31:57",
+      "arms": "context+rag",
+      "ids": "Q11",
+      "answer_model": "sonnet",
+      "grader_model": "opus",
+      "rag_git": "086b4a6-dirty",
+      "rag_dir": "C:\\Users\\tonnru\\lab\\piam-rag\\rag",
+      "remind_git": "e50744c05-dirty",
+      "remind_context_git": "9760656",
+      "db": "C:\\Users\\tonnru\\lab\\piam-rag\\rag\\data\\remind-bge.db",
+      "db_meta": {
+        "version_gms": "0.35.0",
+        "version_goxygen": "1.5.1",
+        "version_R": "4.3.2",
+        "root": "C:\\Users\\tonnru\\lab\\piam-rag\\remind",
+        "remind_commit": "e50744c05ed8cee47455ccef4c5966518d31a3ef",
+        "remind_branch": "develop",
+        "model": "bge",
+        "files": "673",
+        "corpus_mb": "3.16",
+        "chunks": "4743",
+        "symbols": "3019",
+        "symbol_uses": "18524",
+        "preconditions": "100",
+        "switches": "337",
+        "scenarios": "577",
+        "gms_export": "True",
+        "check_warnings": "[]",
+        "chunk_seconds": "5.2",
+        "embed_seconds": "0.1",
+        "embed_reused": "4743",
+        "built_at": "2026-10-01 17:05:44"
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "tool_calls": [
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\50_damages\\\\KotzWenz\\\\bounds.gms\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"50\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\", \"output_mode\": \"content\", \"-o\": true, \"head_limit\": 30}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \"^[^,;]*,?.*KotzWenz\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\", \"glob\": \"scenario_config*.csv\", \"output_mode\": \"count\"}"
+    },
+    {
+      "name": "Grep",
+      "input": "{\"pattern\": \".\", \"path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\config\\\\scenario_config_RIKEN.csv\", \"output_mode\": \"content\", \"head_limit\": 10, \"-n\": true}"
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "`modules/50_damages/KotzWenz/bounds.gms` is active only when the damages module is set to `KotzWenz`. Three scenarios do that, all in `config/scenario_config_RIKEN.csv`.\n\n**When it's active**\n- The switch is `cfg$gms$damages = \"KotzWenz\"`, which is the module 50 selector. The default is `off`.\n- `modules/50_damages/module.gms` includes the realization's `bounds.gms` when `%phase% == \"bounds\"`. There is no other condition inside the file.\n- The file fixes `vm_damageProdFactor = 1`. It also fixes `vm_damageFactor` to `pm_damage` for years from `cm_startyear` onward.\n- Damages therefore enter as fixed values that are updated between iterations. They are only part of the optimization if module 51 (`internalizeDamages`) is set to `KotzWenzItr`.\n- The realization also reads `cm_KotzWenzPerc` (default `mean`) and `cm_GDPpopScen` (default `SSP2`).\n\n**Scenarios that use it**\n\n| Scenario | Module 51 | `cm_KotzWenzPerc` | Damages in optimization? |\n|---|---|---|---|\n| `M-SSP2-NPi-KLW` | `off` | `med` | No |\n| `VLLO-SSP2-KLW` | `KotzWenzItr` | `med` | Yes |\n| `VLLO-SSP1-KLW` | `KotzWenzItr` | `med` | Yes |\n\n- No other `config/scenario_config*.csv` file selects it. The other `KotzWenz` hit is a mention in `default.cfg`, line 148.\n- `M-SSP2-NPi-KLW` copies from `M-SSP2-NPi`. It uses the `magicc7_ar6` climate model and the RCP45 parset.\n- The two `VLLO` scenarios copy from `VLLO-SSP2-PkBudg650` and `VLLO-SSP1-PkBudg650`. They use the RCP20 parset.\n- I read the column values off the CSV rows without matching them to the header line, which was too long to display. The switch-to-column mapping is therefore inferred from the module description and the row contents. Run `get_scenario` on one of these names if you want it confirmed.",
+  "cost_usd": 0.0796586,
+  "turns": 6,
+  "duration_s": 16.6,
+  "is_error": false,
+  "input_tokens": 95690,
+  "output_tokens": 1434,
+  "tool_counts": {
+    "Read": 1,
+    "mcp__remind-rag__get_module": 1,
+    "Grep": 3
+  },
+  "id": "Q13",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "Under which switch settings is `modules/50_damages/KotzWenz/bounds.gms` active, and which scenarios in the config files use it?",
+  "wall_s": 24.5
+}

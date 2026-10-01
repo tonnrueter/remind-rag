@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "bounds.gms is active only when damages = KotzWenz; the default is off",
+        "evidence": "main.gms:438; modules/50_damages/module.gms:22",
+        "note": "",
+        "severity": "none",
+        "verdict": "correct"
+      },
+      {
+        "claim": "module.gms includes the realization's bounds.gms in the bounds phase, and the file has no other condition",
+        "evidence": "modules/50_damages/module.gms:22; modules/50_damages/KotzWenz/bounds.gms:9-10",
+        "note": "The phase dispatch is in KotzWenz/realization.gms. module.gms only includes realization.gms. The effect is the same.",
+        "severity": "minor",
+        "verdict": "partly"
+      },
+      {
+        "claim": "The file fixes vm_damageProdFactor = 1 and fixes vm_damageFactor = pm_damage for ttot >= cm_startyear",
+        "evidence": "modules/50_damages/KotzWenz/bounds.gms:9-10",
+        "note": "",
+        "severity": "none",
+        "verdict": "correct"
+      },
+      {
+        "claim": "Damages enter as fixed values updated between iterations, and are internalized only with internalizeDamages = KotzWenzItr",
+        "evidence": "modules/50_damages/module.gms:11; main.gms:444,453",
+        "note": "'Part of the optimization' is loose wording. The fixed damages still reduce output in the budget. What module 51 adds is internalization through the SCC.",
+        "severity": "minor",
+        "verdict": "partly"
+      },
+      {
+        "claim": "The realization reads cm_KotzWenzPerc (default mean) and cm_GDPpopScen (default SSP2)",
+        "evidence": "main.gms:2152,1569; modules/50_damages/KotzWenz/datainput.gms:12; postsolve.gms:15,20",
+        "note": "",
+        "severity": "none",
+        "verdict": "correct"
+      },
+      {
+        "claim": "Three scenarios in scenario_config_RIKEN.csv use it, with module 51 and cm_KotzWenzPerc values as tabulated",
+        "evidence": "config/scenario_config_RIKEN.csv:1,5-7",
+        "note": "The header confirms the column mapping (damages; internalizeDamages; ...; cm_KotzWenzPerc). The answer's own hedge about the mapping was unnecessary.",
+        "severity": "none",
+        "verdict": "correct"
+      },
+      {
+        "claim": "No other scenario_config file selects it; the only other KotzWenz hit is default.cfg:148",
+        "evidence": "config/default.cfg:148; config/scenario_config_magpie_RIKEN.csv:5-7",
+        "note": "No other file selects it, so the claim holds. scenario_config_magpie_RIKEN.csv has the same KLW scenario names on its coupled MAgPIE side, and the answer doesn't mention this.",
+        "severity": "minor",
+        "verdict": "partly"
+      },
+      {
+        "claim": "copyConfigFrom, climate model and parset details for the three scenarios",
+        "evidence": "config/scenario_config_RIKEN.csv:5-7",
+        "note": "",
+        "severity": "none",
+        "verdict": "correct"
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 3,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer leads with the default (off) and gets both bounds lines exactly right, including the cm_startyear condition. It identifies all three RIKEN scenarios with correct module 51 settings, adds the relevant switches cm_KotzWenzPerc and cm_GDPpopScen, and is open about what it did not verify.",
+    "answer_key_issues": "The key paraphrases line 10 without its condition: vm_damageFactor is fixed only for ttot >= cm_startyear. The key also doesn't mention that scenario_config_magpie_RIKEN.csv reuses the KLW scenario names for coupled runs.",
+    "summary": "The answer is accurate. The default, the fixed values in bounds.gms and the three scenarios in scenario_config_RIKEN.csv all match the code, and the column mapping the answer hedged on is confirmed by the CSV header. The only problems are minor: the include chain is simplified, 'part of the optimization' is loose wording for SCC internalization, and the MAgPIE-coupled RIKEN config with the same scenario names goes unmentioned."
+  },
+  "grader_cost_usd": 0.1362818,
+  "grader_turns": 8,
+  "grader_duration_s": 33.9,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q13",
+  "arm": "context+rag"
+}

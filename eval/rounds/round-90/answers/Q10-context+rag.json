@@ -1,0 +1,27 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"pm_taxCO2eqSum\", \"max_uses\": 60}"
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "**Declared in:** module 46_carbonpriceRegi. The default realization `none` declares it at `modules/46_carbonpriceRegi/none/declarations.gms:11`. The `netZero` realization also declares it, at `.../netZero/declarations.gms:23`, but it is off by default.\n\n**Where the value is computed (default run):**\n- `core/datainput.gms:13` and `core/preloop.gms:44` initialise it to 0.\n- `core/presolve.gms:10` sets the actual value:\n  `pm_taxCO2eqSum = pm_taxCO2eq + pm_taxCO2eqRegi + pm_taxCO2eqSCC`\n  This line runs every iteration. The three components are filled elsewhere, and I did not trace them.\n\n**Overrides, all inactive by default:**\n- `core/presolve.gms:15` caps the 2030 value. It is active only when `cm_CO2PriceLimit` is not \"off\".\n- `core/postsolve.gms:51-56` derives it from the `q_co2eq` marginal. It is active only when `cm_emiscen` is 6 (line 56 only when it is 1).\n- `47_regipol/regiCarbonPrice` writes it in `presolve.gms:24` and in `postsolve.gms:151`, `:962`, `:976`, `:986` and `:1001`. These are controlled by `cm_emiMktTarget`, `cm_regiExoPrice` and `cm_regiExoPrice_fromFile`.\n- `46_carbonpriceRegi/netZero/postsolve.gms:68` reads it for a rescale. It does not assign it.\n\n**Modules that read it:**\n- **21_tax/on**, which is the main consumer:\n  - Equations: `q21_taxrevGHG`, `q21_taxrevCO2Sector`, `q21_taxrevCO2luc`, `q21_taxrevImport` and `q21_taxrevCDR` (`equations.gms:79-347`).\n  - Its own pre- and postsolve calculations: the tax revenue parameters `pm_taxrev*0`, `p21_taxrevCDR0`, `p21_tau_Import` and `p21_taxCO2eqSum_NetNegEmi`.\n- **33_carbonRemoval/portfolio:** `q33_carbonRemovalspending` (`equations.gms:316`).\n- **core:** `presolve.gms:256` sets `p_priceCO2 = pm_taxCO2eqSum * 1000`.\n- **47_regipol/regiCarbonPrice:** it copies the value into `p47_taxCO2eq_AggEmi`, `_AggFE` and `_SectorAggFE` (`postsolve.gms:448-468`). That runs only when `cm_emiMktTarget` is not \"off\".\n- **46_carbonpriceRegi/netZero:** the rescale mentioned above, off by default.",
+  "cost_usd": 0.1054888,
+  "turns": 2,
+  "duration_s": 7.8,
+  "is_error": false,
+  "input_tokens": 39433,
+  "output_tokens": 1067,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 1
+  },
+  "id": "Q10",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "Which module declares `pm_taxCO2eqSum`, where is its value actually computed, and which modules read it?",
+  "wall_s": 18.1
+}

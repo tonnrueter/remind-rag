@@ -28,6 +28,7 @@ from pathlib import Path
 
 import yaml
 
+import e2e_eval
 from e2e_eval import HERE, RAG_DIR, mcp_config, static_context
 
 AUDIT = HERE / "audit"
@@ -100,7 +101,7 @@ def write_meta(rdir: Path, args) -> None:
     meta["runs"].append({
         "started": time.strftime("%Y-%m-%d %H:%M:%S"), "arms": args.arms, "ids": args.ids,
         "answer_model": args.model, "grader_model": args.grader_model,
-        "rag_git": git_head(RAG_DIR), "remind_git": git_head(args.remind),
+        "rag_git": git_head(args.rag_dir), "rag_dir": str(args.rag_dir), "remind_git": git_head(args.remind),
         "remind_context_git": git_head(args.remind / "remind-context"),
         "db": str(args.db), "db_meta": db_meta,
     })
@@ -378,6 +379,8 @@ def main() -> None:
     common.add_argument("--budget", type=float, default=2.0, help="max USD per answer")
     common.add_argument("--grader-budget", type=float, default=5.0, help="max USD per grade")
     common.add_argument("--force", action="store_true", help="redo existing answers/grades")
+    common.add_argument("--rag-dir", type=Path, default=RAG_DIR,
+                        help="rag checkout the MCP server runs from, e.g. a git worktree of an older version")
     p = sub.add_parser("run", parents=[common])
     p.add_argument("--grade", action="store_true", help="grade each answer right after it")
     p.add_argument("--jobs", type=int, default=2, help="questions processed in parallel")
@@ -390,7 +393,8 @@ def main() -> None:
     p.add_argument("--arm", required=True)
     p.add_argument("--file", type=Path, required=True)
     args = ap.parse_args()
-    args.remind, args.db = args.remind.resolve(), args.db.resolve()
+    args.remind, args.db, args.rag_dir = args.remind.resolve(), args.db.resolve(), args.rag_dir.resolve()
+    e2e_eval.RAG_DIR = args.rag_dir  # mcp_config() starts the server from this checkout
     rdir = round_dir(args.round)
     ids = sorted(args.ids.split(","), key=qkey)
     arms = args.arms.split(",")

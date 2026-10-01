@@ -1,0 +1,27 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"vm_capEarlyReti\"}"
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "Besides core itself, which uses it in equations and bounds, three modules touch `vm_capEarlyReti`. The codeCheck interface lists 40_techpol, 47_regipol and 70_water.\n\n**Default realizations (active in a default run)**\n- **47_regipol/regiCarbonPrice** (default) sets bounds in `bounds.gms`:\n  - Line 47 caps 2025 `pc` early retirement at 0.65 for DEU.\n  - Lines 190–195 cap `tnrs` early retirement at 1e-3 through 2050 for FRA, ENC, NEN, ECS, ESW and ECE.\n- **70_water/heat** (default) reads `vm_capEarlyReti.l` in `output.gms:16`, as `(1 - vm_capEarlyReti.l(ttot,regi,te))`. It uses the level only, so it would break if you change the variable's semantics (share of standing capacity) or its domain.\n\n**Non-default realizations (active only if selected)**\n- **47_regipol/none** caps 2025 `pc` early retirement at 0.65 in `bounds.gms:34`.\n- **40_techpol/NDCplus** sets lower bounds for `pc`, `coalchp` and `igcc` in 2020 and 2030 in `bounds.gms:30–34`. The default 40_techpol realization is NPi2025.\n- The other 40_techpol realizations (CombLowCandCoalPO, NDC, NPi2018, NPi2025, coalPhaseout, coalPhaseoutRegional, lowCarbonPush, none) are listed in `not_used.txt`, so they don't use it.\n\n**Core**\n- Equations: `q_transPe2se` (line 180), `q_cap` (310), `q_limitCapEarlyReti` (972–974) and `q_smoothphaseoutCapEarlyReti` (977–979).\n- Bounds in `core/bounds.gms:440–459`, plus a loadpoint in `core/preloop.gms:100`. The loadpoint is inactive unless `cm_startyear > 2005`.\n\n**What to check, depending on your change**\n- **Domain `(tall,all_regi,all_te)`:** this affects every consumer listed above.\n- **Bounds in `core/bounds.gms`:** the 47_regipol and NDCplus bounds are applied after these, so they overwrite the core values for those specific cells.\n- **Units or meaning:** `q_cap` and `q_transPe2se` multiply capacity by `(1 - vm_capEarlyReti)`, and 70_water/heat uses the same expression.\n\nI only searched for the symbol itself. Parameters derived from it, such as `pm_regiEarlyRetiRate` in NDCplus, would need their own `get_links` pass if you change how those are computed.",
+  "cost_usd": 0.094312,
+  "turns": 2,
+  "duration_s": 8.2,
+  "is_error": false,
+  "input_tokens": 36790,
+  "output_tokens": 1005,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 1
+  },
+  "id": "Q11",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "If I change how `vm_capEarlyReti` is defined in the core, which module realizations are affected?",
+  "wall_s": 18.4
+}

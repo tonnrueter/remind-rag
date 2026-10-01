@@ -1,0 +1,55 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_module",
+      "input": "{\"module\": \"15\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_switch",
+      "input": "{\"name\": \"climate\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\15_climate\\\\off\\\\datainput.gms\"}"
+    },
+    {
+      "name": "Glob",
+      "input": "{\"pattern\": \"modules/15_climate/magicc7_ar6/*.gms\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\15_climate\\\\magicc7_ar6\\\\datainput.gms\"}"
+    },
+    {
+      "name": "Read",
+      "input": "{\"file_path\": \"C:\\\\Users\\\\tonnru\\\\lab\\\\piam-rag\\\\remind\\\\modules\\\\15_climate\\\\magicc7_ar6\\\\postsolve.gms\"}"
+    },
+    {
+      "name": "mcp__remind-rag__get_links",
+      "input": "{\"name\": \"pm_globalMeanTemperature\"}"
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "**Default run (`climate = off`)**\n\nA default run has no temperature information inside the optimisation. `modules/15_climate/off/datainput.gms:53-56` sets these to zero:\n- `pm_gmt_conv`\n- `pm_globalMeanTemperature(tall)`\n- `pm_globalMeanTemperatureZeroed1900(tall)`\n- `pm_temperatureImpulseResponseCO2(tall,tall)`\n\nNothing is computed or loaded to replace them. The default damages and carbon-price modules don't use temperature. The consumers are 16_downscaleTemperature (CMIP5), 50_damages (COACCH) and 45_carbonprice (temperatureNotToExceed). Of these, only the 45_carbonprice (temperatureNotToExceed) realization reads `pm_globalMeanTemperature` without a separate module selection. I didn't check whether the default damages realization uses temperature in another way.\n\nThe only climate data in the `off` realization is exogenous.\n- **RCP forcing.** `off/datainput.gms:17-23` includes the non-REMIND greenhouse-gas forcing file for `cm_rcp_scen` (default `rcp45`).\n- **Emission caps.** `pm_emicapglob` is read from the `.inc` file matching `cm_rcp_scen` and `cm_multigasscen`.\n\n**With `climate = magicc7_ar6`**\n\n- **Initial values.** `datainput.gms:73-77` sets the temperature and `p15_gmt0` to a placeholder of 1, and `pm_gmt_conv` to 1. The impulse response `pm_temperatureImpulseResponseCO2` stays at 0 until the TIRF step has run. The module also sets the forcing targets `s15_gr_forc_os` and `s15_gr_forc_nte` from `cm_rcp_scen`.\n- **Iterative coupling.** `postsolve.gms:20-34` handles the coupling. From iteration 2 on, it dumps `fulldata_postsolve` and runs `Rscript climateAssessmentInterimRun.R`. That runs harmonization, infilling and MAGICC7 with the AR6 setup and takes about 2–3 minutes. It then loads `p15_forc_magicc` and `pm_globalMeanTemperature` from the `p15_climate` file.\n- **Beyond 2100.** The climate assessment only reports to 2100, so later years are held at the 2100 value (`postsolve.gms:37`).\n- **Calibration.** With `cm_magicc_calibrateTemperature2000 = HADCRUT4`, the temperature is shifted so the 2006–2015 mean is 0.97 K (`postsolve.gms:49-51`).\n- **Convergence.** In the same `HADCRUT4` branch, `pm_gmt_conv` is set to the largest relative change in temperature since the previous iteration, in percent. The nash optimisation uses it as a convergence test.\n- **Calibration switch.** That `$ifthen` block also contains the convergence code. With the default `uncalibrated`, the block is skipped, so the calibration, `pm_gmt_conv` and `p15_gmt0` aren't updated. `pm_gmt_conv` then stays at 1. The 3 scenario configs that select this module all set `HADCRUT4`.\n- **Zeroed-1900 temperature.** `pm_globalMeanTemperatureZeroed1900` is the temperature plus 0.092 (`postsolve.gms:64`).\n- **Optional TIRF.** With `cm_magicc_temperatureImpulseResponse = on`, `climateAssessmentImpulseResponse.R` runs after each of the first 10 iterations and then every fifth. It loads `pm_temperatureImpulseResponseCO2`, which the damage modules use. This adds roughly 10 minutes to the run.\n- **Tax adjustment.** With `cm_iterative_target_adj = 2` and `cm_emiscen = 9`, the carbon tax is rescaled between iterations by the ratio of MAGICC forcing to the forcing target (`postsolve.gms:87-117`). The default for `cm_iterative_target_adj` is 0. The 3 scenario configs that use this module all set it to 3 instead.\n\nOnly 3 of 577 scenario configs select `magicc7_ar6`.\n\nOne thing looks wrong. `45_carbonprice/temperatureNotToExceed/datainput.gms:10` aborts unless `%climate%` is `'magicc'`, but the realization is now named `magicc7_ar6`. That realization may therefore be unusable until the check is updated.",
+  "cost_usd": 0.0919624,
+  "turns": 8,
+  "duration_s": 17.2,
+  "is_error": false,
+  "input_tokens": 87088,
+  "output_tokens": 2092,
+  "tool_counts": {
+    "mcp__remind-rag__get_module": 1,
+    "mcp__remind-rag__get_switch": 1,
+    "Read": 3,
+    "Glob": 1,
+    "mcp__remind-rag__get_links": 1
+  },
+  "id": "Q14",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "The climate module is off by default. Where does a default run get its temperature information from, and what changes when `magicc7_ar6` is selected?",
+  "wall_s": 25.6
+}

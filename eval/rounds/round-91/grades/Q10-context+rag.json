@@ -1,0 +1,84 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "pm_taxCO2eqSum is declared by 46_carbonpriceRegi, in both the none realization (the default) and netZero",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/46_carbonpriceRegi/none/declarations.gms:11; modules/46_carbonpriceRegi/netZero/declarations.gms:23; main.gms:418",
+        "note": ""
+      },
+      {
+        "claim": "By default its value is computed in core/presolve.gms:10 as pm_taxCO2eq + pm_taxCO2eqRegi + pm_taxCO2eqSCC",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/presolve.gms:10",
+        "note": ""
+      },
+      {
+        "claim": "core/datainput.gms:13 and core/preloop.gms:44 only initialise it to 0",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/datainput.gms:13; core/preloop.gms:44",
+        "note": ""
+      },
+      {
+        "claim": "The 2030 cap in core/presolve.gms:15 applies only when cm_CO2PriceLimit is not off (the default is off)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/presolve.gms:15-16; main.gms:1482",
+        "note": ""
+      },
+      {
+        "claim": "The writes in core/postsolve.gms:51/53 (from the q_co2eq marginal) apply only for cm_emiscen eq 6, and the write at :56 only for cm_emiscen eq 1. The default cm_emiscen is 9",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/postsolve.gms:51,53,56; main.gms:535",
+        "note": "I did not open the guard lines myself. The writes are consistent with emiscen-specific branches."
+      },
+      {
+        "claim": "The writes in 47_regipol/regiCarbonPrice are active only with cm_emiMktTarget, cm_regiExoPrice or cm_regiExoPrice_fromFile, and all three are off by default",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/presolve.gms:20-24; postsolve.gms:145,959,982; main.gms:1604,1615",
+        "note": ""
+      },
+      {
+        "claim": "21_tax/on reads it in q21_taxrevGHG, q21_taxrevCO2Sector, q21_taxrevCO2luc, q21_taxrevImport and q21_taxrevCDR, in 7 presolve lines and in 6 postsolve lines",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/equations.gms:78-98,255-273,346-347; presolve.gms:17,30,31,32,42,68,69; postsolve.gms:21,22,23,33,58,59",
+        "note": ""
+      },
+      {
+        "claim": "33_carbonRemoval/portfolio reads it in q33_carbonRemovalspending",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:313-316",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/regiCarbonPrice reads it in postsolve.gms (3 lines); 46_carbonpriceRegi/netZero reads it in postsolve.gms (1 line, off by default); core reads it in presolve.gms (2 lines)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/postsolve.gms:448,458,468; modules/46_carbonpriceRegi/netZero/postsolve.gms:68; core/presolve.gms:16,256",
+        "note": "The 3 regipol reads sit inside the cm_emiMktTarget block (postsolve.gms:145-473), so they are also inactive by default. The answer did not mention this."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 0,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer keeps declared, populated and read apart, as the key asks. It names the default realization (none) and states the default switch state for every conditional writer: cm_CO2PriceLimit, cm_emiscen, and the regipol switches. Its line counts for reads match the code exactly. It is honest that it did not inspect the individual read lines.",
+    "answer_key_issues": "None of substance. The key leaves out a reader that the answer correctly adds: 46_carbonpriceRegi/netZero/postsolve.gms:68 (a non-default realization). The key also lists only the main computation and not the conditional overwriters in core/postsolve.gms and 47_regipol.",
+    "summary": "The answer is accurate and well structured. The declaration (46_carbonpriceRegi, default none), the computation (core/presolve.gms:10) and the readers (core, 21_tax, 33_carbonRemoval, 47_regipol, plus netZero) all match the code, and each conditional writer is correctly flagged as off by default. The only gap: the 47_regipol reads are not flagged as gated behind cm_emiMktTarget."
+  },
+  "grader_cost_usd": 0.16726480000000002,
+  "grader_turns": 7,
+  "grader_duration_s": 30.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q10",
+  "arm": "context+rag"
+}

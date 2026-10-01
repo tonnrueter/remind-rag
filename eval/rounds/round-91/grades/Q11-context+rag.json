@@ -1,0 +1,91 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "vm_capEarlyReti is declared at core/declarations.gms:386",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:386",
+        "note": ""
+      },
+      {
+        "claim": "Used in core equations q_transPe2se, q_cap, q_limitCapEarlyReti and q_smoothphaseoutCapEarlyReti",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:174-180, 307-310, 971-979",
+        "note": "It also correctly adds q_transPe2se, which the answer key leaves out."
+      },
+      {
+        "claim": "Core bounds set in core/bounds.gms with .up = 1 at line 446; that block is active only when c_tech_earlyreti_rate is not \"off\"",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "core/bounds.gms:440-459",
+        "note": "Only the loop at lines 443-448 is conditional. The bounds at lines 440, 441, 451, 455 and 459 (.up for teEarlyReti, the time-window restrictions, the region restriction and .lo=1e-4) apply unconditionally. The wording could suggest that all core bounds are switch-gated."
+      },
+      {
+        "claim": "core/preloop.gms:100 loads the level from input_ref when cm_startyear > 2005",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/preloop.gms:98-101",
+        "note": ""
+      },
+      {
+        "claim": "40_techpol/NDCplus sets .lo for 2030 on pc/coalchp/igcc; NDCplus is not the default (NPi2025 is)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/40_techpol/NDCplus/bounds.gms:30-34; main.gms:364",
+        "note": "NDCplus also sets .lo for 2020. The default NPi2025 is correct."
+      },
+      {
+        "claim": "Eight other 40_techpol realizations list it in not_used.txt and are not affected",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/*/not_used.txt (lowCarbonPush, NPi2025, CombLowCandCoalPO, NPi2018, none, coalPhaseoutRegional, NDC, coalPhaseout)",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/regiCarbonPrice (the default) assigns it in bounds.gms in 7 lines",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/bounds.gms:47,190-195; main.gms:425",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/none sets .up('2025',regi,'pc') = 0.65 and is not the default",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/none/bounds.gms:34",
+        "note": ""
+      },
+      {
+        "claim": "70_water/heat reads it in output.gms (reporting only); the answer did not check other realizations or whether heat is the default",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/70_water/heat/output.gms:16; main.gms:463 ($setglobal water heat !! def = heat); modules/70_water/off/",
+        "note": "The use site is correct. The answer left the default unchecked although it is a one-line lookup: heat is the default, and the only other realization, off, does not use the variable. The answer hedged honestly instead of asserting something wrong."
+      },
+      {
+        "claim": "Affected in a default run: core, 47_regipol/regiCarbonPrice, and 70_water/heat (conditional)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:364,425,463",
+        "note": "This is correct once heat is confirmed as the default. The conditional framing is unnecessary."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 4,
+    "failure_class": "default not checked",
+    "fix_layer": "procedure",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer names affected realizations, not just modules, as the key asks. It separates default from non-default realizations for 40_techpol and 47_regipol. It uses not_used.txt to exclude the 40_techpol realizations that don't use the variable. It finds an extra core use site (q_transPe2se) that the key omits. All identifiers and line citations check out.",
+    "answer_key_issues": "The key omits the core equation q_transPe2se (core/equations.gms:174-180), which also uses vm_capEarlyReti. The key could also note the comment-only mention in modules/05_initialCap/on/preloop.gms:234, which is commented out and not a real use. Neither changes the expected module list.",
+    "summary": "This is an accurate, realization-level answer. Every named equation, bound and use site checks out, and default realizations are correctly identified for 40_techpol and 47_regipol. The small weaknesses are: it did not check that 70_water/heat is the default (main.gms:463) and left that as an open hedge; it implied that all core bounds are gated by c_tech_earlyreti_rate when only one loop is; and it omitted the 2020 .lo bound in NDCplus."
+  },
+  "grader_cost_usd": 0.1909382,
+  "grader_turns": 9,
+  "grader_duration_s": 34.7,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q11",
+  "arm": "context+rag"
+}

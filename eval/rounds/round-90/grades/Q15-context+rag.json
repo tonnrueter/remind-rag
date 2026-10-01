@@ -1,0 +1,98 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "Module 33 default realization is portfolio",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:335",
+        "note": ""
+      },
+      {
+        "claim": "Carbon price enters module 33 only in q33_carbonRemovalspending at equations.gms:313-317 with the quoted formula",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:313-317",
+        "note": ""
+      },
+      {
+        "claim": "Equation active only for t >= max(2035, cm_startyear)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:313",
+        "note": ""
+      },
+      {
+        "claim": "pm_taxCO2eqSum is the total CO2 price (general trajectory + regional markup + others) and comes from module 46 (carbonpriceRegi)",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/46_carbonpriceRegi/none/declarations.gms:11; core/presolve.gms:10",
+        "note": "Declared in module 46, but the value is computed in core/presolve.gms:10 as pm_taxCO2eq + pm_taxCO2eqRegi + pm_taxCO2eqSCC. Module 47 can also overwrite it."
+      },
+      {
+        "claim": "vm_emiAllco2neg is net-negative CO2 emissions as a positive variable, from module 21 (tax)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/declarations.gms:147; modules/21_tax/on/equations.gms:356; main.gms:284",
+        "note": ""
+      },
+      {
+        "claim": "postsolve.gms:10 sets the upper bound v33_NetNegEmi_expenses.up = p33_GDP_NetNeg_share * pm_gdp_gdx, limiting spending to a GDP share",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/postsolve.gms:10",
+        "note": ""
+      },
+      {
+        "claim": "The share comes from cm_33_GDP_netNegCDR_maxShare, set in datainput.gms:148-151; the default is GLO 1 (100%) and it can be set per region",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:1721; modules/33_carbonRemoval/portfolio/datainput.gms:148-152",
+        "note": "The per-region loop runs to line 152; this is trivial."
+      },
+      {
+        "claim": "At the default of 100% GDP the cap rarely binds",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:1721",
+        "note": "This is reasonable inference."
+      },
+      {
+        "claim": "cm_frac_NetNegEmi is the fraction of net-negative emissions not counted toward the expense; at 0.5, half counts",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:1185-1187; modules/21_tax/on/equations.gms:335-339",
+        "note": "The arithmetic is right (the default is 0.5, so half counts). But the switch is documented as a tax on net-negative emissions, expressed as a fraction of the carbon price and applied in module 21. The answer's gloss is an interpretation drawn from the formula, not the switch's documented meaning."
+      },
+      {
+        "claim": "The equation comment warns it must be adapted if cm_NetNegEmi_calculation = 1",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:311; main.gms:1198",
+        "note": ""
+      },
+      {
+        "claim": "The other module-33 limits (cm_33_maxFeShare, EW, OAE) and the biochar price (cm_33_BCpriceForm) don't use the carbon price",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/datainput.gms:81-86,143",
+        "note": "Grep finds no other carbon-price symbol in module 33."
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 2,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer finds the exact equation and the postsolve bound that turns it into a GDP-share cap. It states the default realization and the switch default (GLO 1), and notes that the cap is effectively non-binding at that default. It also flags the cm_NetNegEmi_calculation caveat and states the limits of its search honestly.",
+    "answer_key_issues": "There are none. The key leaves out the mechanism that enforces the limit: the bound in postsolve.gms:10 (v33_NetNegEmi_expenses.up = p33_GDP_NetNeg_share * pm_gdp_gdx). The answer supplies it correctly.",
+    "summary": "The answer is correct and more complete than the key. It identifies q33_carbonRemovalspending and the postsolve upper bound that caps net-negative-emissions spending at a GDP share set by cm_33_GDP_netNegCDR_maxShare (default 100%). There are two minor imprecisions. pm_taxCO2eqSum is attributed to module 46, where it is declared, but it is computed in core/presolve.gms. And cm_frac_NetNegEmi is glossed from the formula, not from its documented meaning as a tax fraction."
+  },
+  "grader_cost_usd": 0.174993,
+  "grader_turns": 7,
+  "grader_duration_s": 27.3,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q15",
+  "arm": "context+rag"
+}

@@ -1,0 +1,84 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "Default realization of 33_carbonRemoval is portfolio",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:335",
+        "note": ""
+      },
+      {
+        "claim": "The carbon price is used in one place in the module: q33_carbonRemovalspending at equations.gms:313-317, active from max(2035, cm_startyear)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:313-317; module 33 contains no other pm_taxCO2 references",
+        "note": ""
+      },
+      {
+        "claim": "pm_taxCO2eqSum is the regional CO2 price and is declared in 46_carbonpriceRegi",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/46_carbonpriceRegi/none/declarations.gms:11",
+        "note": ""
+      },
+      {
+        "claim": "vm_emiAllco2neg is net-negative CO2 emissions and comes from 21_tax",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/21_tax/on/declarations.gms:147; modules/21_tax/on/equations.gms:356",
+        "note": ""
+      },
+      {
+        "claim": "cm_frac_NetNegEmi is the share of net negative emissions left out of the expenses, default 0.5",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "main.gms:1185-1187",
+        "note": "The default of 0.5 and the (1-x) factor are right. The switch itself is documented as a tax on net negative emissions, expressed as a fraction of the carbon price and applied in 21_tax. The answer doesn't say this, so the reader doesn't learn why the expense term uses (1-frac)."
+      },
+      {
+        "claim": "Some scenario configs set cm_frac_NetNegEmi to 0 or 0.75",
+        "verdict": "unverifiable",
+        "severity": "none",
+        "evidence": "config/scenario_config*.csv (not checked in detail)",
+        "note": ""
+      },
+      {
+        "claim": "The upper bound v33_NetNegEmi_expenses.up = p33_GDP_NetNeg_share * pm_gdp_gdx is set in postsolve.gms:10",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/postsolve.gms:10",
+        "note": ""
+      },
+      {
+        "claim": "The share comes from cm_33_GDP_netNegCDR_maxShare (read at datainput.gms:148), with a default of GLO 1, i.e. 100% of GDP, so the cap rarely binds",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "main.gms:1721; modules/33_carbonRemoval/portfolio/datainput.gms:148-153",
+        "note": ""
+      },
+      {
+        "claim": "The cap is on the carbon-price-weighted value of net negative emissions, not on CDR volume",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/33_carbonRemoval/portfolio/equations.gms:316",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer names the equation and its location exactly. It gives the time condition, the default realization, the default switch values, and where the bound is set in postsolve. It also adds a useful caveat: the 100% GDP default rarely binds, and the cap is on value, not volume. The modules it attributes pm_taxCO2eqSum and vm_emiAllco2neg to are correct.",
+    "answer_key_issues": "None. The key leaves out that the bound is applied in postsolve.gms:10 and that the default share is GLO 1 (100% of GDP, main.gms:1721). The answer covers both.",
+    "summary": "The answer is correct and complete. It cites q33_carbonRemovalspending (equations.gms:313-317) and the GDP-share upper bound in postsolve.gms:10, and gives the right defaults (portfolio, cm_frac_NetNegEmi=0.5, cm_33_GDP_netNegCDR_maxShare=GLO 1). The only gap is minor: it doesn't say that cm_frac_NetNegEmi is documented as a tax on net negative emissions applied in 21_tax."
+  },
+  "grader_cost_usd": 0.1632746,
+  "grader_turns": 8,
+  "grader_duration_s": 27.7,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q15",
+  "arm": "context+rag"
+}

@@ -340,3 +340,30 @@ from English questions. n = 31, so one or two questions, but no sign that "more 
 
 Bug caught by this run: the first v7 build reused all 4,743 vectors, because the reuse keys of the old index were
 recomputed with the *new* cut. Fixed (keys use the old index's rule; test `test_old_cut_rule_is_not_reused_for_longer_text`).
+
+## 14. Compact tool output (#35) and an answer comparison (2026-10-01)
+
+Default calls now return a summary with drill-down parameters (`get_symbol(role=, module=, offset=)`,
+`get_module(realization=)`, `search` cut at 12 lines per hit, k = 5). Same 15 calls (`eval/output_size.py`):
+**147k → 58k chars** (get_symbol 60.8k → 16.1k, get_module 40.0k → 10.7k, search 28.4k → 13.8k; get_links,
+get_switch, get_scenario untouched). `tests/test_compact_output.py` was written first and pins what the summary must
+keep (every ⚠/? use, the ✓ computing lines, alarming preconditions on the realization's own line).
+
+Answer comparison, audit questions Q10, Q11, Q13, Q14, Q15, arm context+rag, same index (v6), n = 1 per question:
+round 90 = v0.5.0 server (git worktree, `audit.py --rag-dir`), round 91 = compact server.
+
+| | old (round 90) | compact (round 91) |
+|---|---|---|
+| Critical / Major / Minor | 0 / 1 / 8 | 0 / 0 / 9 |
+| mean cost, turns, RAG calls | $0.09, 4.6, 1.4 | $0.07, 5.2, 1.6 |
+
+- Claude used the drill-down unprompted: Q13 `get_module("50", realization="KotzWenz")`, Q14
+  `realization="magicc7_ar6"` and `get_symbol(…, role="assigned")`.
+- Q11 lost quality (1 → 4 Minors, "default not checked"): the per-file counts carried no default status
+  (`70_water/heat/output.gms 1`), so the answer hedged on whether 70_water/heat is the default, and
+  `core/bounds.gms 6` next to one ⚠ line read as "all core bounds gated". Fixed: every per-file entry carries its
+  status (`core/bounds.gms 6 (5 ✓, 1 ⚠)`), roles with ≤ 3 lines are listed in full, not_used beyond 5 as names.
+  Rerun (round 92): 2 Minors, failure class none, defaults correct.
+- Q14's Major in round 90 (a fabricated config value) didn't recur; with n = 1 that is noise either way.
+- Tool output is a small part of the input tokens here (the remind-context system prompt dominates: 35–95k input
+  tokens per answer either way); the gain shows in long interactive sessions with many calls.

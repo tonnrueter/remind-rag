@@ -190,6 +190,7 @@ def search(query: str, k: int = 5, module: str | None = None, realization: str |
 FULL_LIST_MAX = 15  # symbols with at most this many use lines get the full list instead of a summary
 FLAGGED_MAX = 10  # ⚠ / ? lines listed individually in a summary
 COMPUTED_MAX = 4  # ✓ assignments outside bounds listed individually: where the value is computed
+SHORT_ROLE = 3  # a role with at most this many lines is listed in full
 
 
 def _use_line(u, tags: list[str], also: list[int] | None = None, snippet: int | None = None) -> str:
@@ -209,10 +210,21 @@ def _grouped(tagged: list) -> list[str]:
     return [_use_line(g[0][0], g[0][1], [u["line"] for u, _ in g[1:]], snippet=110) for g in groups.values()]
 
 
-def _per_file(us: list, limit: int = 6) -> str:
-    counts = Counter(u["path"] for u in us)
-    shown = [f"{p} {n}" for p, n in counts.most_common(limit)]
-    return ", ".join(shown) + (f", +{len(counts) - limit} more files" if len(counts) > limit else "")
+def _per_file(tagged: list, limit: int = 6) -> str:
+    """'path n ✓' or 'path n (5 ✓, 1 ⚠)': every file with its default status, so a count never hides whether
+    the file runs (audit 2026-10-01: '70_water/heat/output.gms 1' without a mark left the default unchecked)."""
+    marks: dict[str, Counter] = defaultdict(Counter)
+    for u, t in tagged:
+        marks[u["path"]][_mark(u, t).split(" ")[0]] += 1
+    files = sorted(marks, key=lambda p: -sum(marks[p].values()))
+
+    def status(c: Counter) -> str:
+        if len(c) == 1:
+            return next(iter(c))
+        return "(" + ", ".join(f"{c[m]} {m}" for m in "✓?⚠" if c[m]) + ")"
+
+    shown = [f"{p} {sum(marks[p].values())} {status(marks[p])}" for p in files[:limit]]
+    return ", ".join(shown) + (f", +{len(files) - limit} more files" if len(files) > limit else "")
 
 
 @server.tool()
@@ -276,7 +288,7 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             out.append("## Deliberately not used in (not_used.txt)")
             out += [f"- {r['module']}/{r['realization']}: {_short(r['reason'], 100)}" for r in skipped[:5]]
             if len(skipped) > 5:
-                out.append(f"- … {len(skipped) - 5} more")
+                out.append(f"- also: {', '.join(r['module'] + '/' + r['realization'] for r in skipped[5:])}")
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
         head = _equation_head(r["text"], r["name"])
@@ -298,12 +310,12 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
             mods = sorted({u["module"] or u["path"] for u in us})
             out.append(f"### {ROLE_LABELS[r]} ({len(us)} lines: {split}; {', '.join(mods)})")
-            if full:
+            if r == "declared" and not full:  # the declarations themselves are listed above
+                continue
+            if full or len(us) <= SHORT_ROLE:
                 out += [_use_line(u, t) for u, t in tagged]
                 continue
-            if r == "declared":  # the declarations themselves are listed above
-                continue
-            out.append(f"- per file: {_per_file(us)}")
+            out.append(f"- per file: {_per_file(tagged)}")
             if r == "equation":
                 names = Counter(u["context"] for u in us if u["context"])
                 out.append(f"- equations: {', '.join(names)}")

@@ -1,0 +1,98 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "codeCheck interface lists 40_techpol, 47_regipol and 70_water as consumers besides core",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/NDCplus/bounds.gms:30; modules/47_regipol/regiCarbonPrice/bounds.gms:47; modules/70_water/heat/output.gms:16; core/declarations.gms:386",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/regiCarbonPrice (default) caps 2025 pc early retirement at 0.65 for DEU at bounds.gms:47",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/regiCarbonPrice/bounds.gms:47; main.gms:425",
+        "note": ""
+      },
+      {
+        "claim": "regiCarbonPrice bounds.gms:190–195 cap tnrs early retirement at 1e-3 through 2050 for FRA, ENC, NEN, ECS, ESW, ECE",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/47_regipol/regiCarbonPrice/bounds.gms:183-196; main.gms:1658",
+        "note": "Doesn't mention that these lines sit inside $IFTHEN.NucRegiPol. That switch is on by default (cm_NucRegiPol = on), so they are active in a default run, but they depend on a switch. The bounds also start from cm_startyear."
+      },
+      {
+        "claim": "70_water/heat (default) reads vm_capEarlyReti.l in output.gms:16 as (1 - vm_capEarlyReti.l)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/70_water/heat/output.gms:16; main.gms:463",
+        "note": ""
+      },
+      {
+        "claim": "47_regipol/none caps 2025 pc early retirement at 0.65 in bounds.gms:34",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/47_regipol/none/bounds.gms:34",
+        "note": ""
+      },
+      {
+        "claim": "40_techpol/NDCplus sets lower bounds for pc/coalchp/igcc in 2020/2030 at bounds.gms:30–34; default techpol is NPi2025",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/NDCplus/bounds.gms:28-36; main.gms:364",
+        "note": ""
+      },
+      {
+        "claim": "The other 40_techpol realizations list vm_capEarlyReti in not_used.txt",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/*/not_used.txt (8 realizations: coalPhaseout, coalPhaseoutRegional, NPi2025, lowCarbonPush, CombLowCandCoalPO, NPi2018, none, NDC)",
+        "note": ""
+      },
+      {
+        "claim": "Core equations: q_transPe2se (180), q_cap (310), q_limitCapEarlyReti (972–974), q_smoothphaseoutCapEarlyReti (977–979)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:174-180, 307-310, 971-974, 976-979",
+        "note": ""
+      },
+      {
+        "claim": "Core bounds at core/bounds.gms:440–459; loadpoint at core/preloop.gms:100, active only if cm_startyear > 2005",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/bounds.gms:440-459; core/preloop.gms:99-101",
+        "note": ""
+      },
+      {
+        "claim": "Module bounds are applied after core bounds and overwrite core values for those cells",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/loop.gms:47-48",
+        "note": ""
+      },
+      {
+        "claim": "q_cap and q_transPe2se multiply by (1 - vm_capEarlyReti), and 70_water/heat uses the same expression",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:180,310; modules/70_water/heat/output.gms:16",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 1,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer lists affected realizations, not just modules, and separates default from non-default realizations, checked against main.gms. All line citations are accurate. It uses not_used.txt to rule out the other 40_techpol realizations, and it correctly notes that module bounds run after core bounds (loop.gms ordering). It also states the limits of its own search: derived parameters such as pm_regiEarlyRetiRate were not traced.",
+    "answer_key_issues": "The key leaves out q_transPe2se (core/equations.gms:174-180), which also multiplies by (1 - vm_capEarlyReti). It also leaves out the Execute_Loadpoint in core/preloop.gms:100. The answer correctly includes both.",
+    "summary": "The answer is accurate and complete. It names the realizations that use vm_capEarlyReti (47_regipol/regiCarbonPrice and none, 70_water/heat, 40_techpol/NDCplus) and every core use site, with correct line numbers and default status. The only gap is minor: it doesn't mention that the tnrs bounds in regiCarbonPrice are gated by cm_NucRegiPol, which is on by default."
+  },
+  "grader_cost_usd": 0.2645856,
+  "grader_turns": 13,
+  "grader_duration_s": 34.0,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q11",
+  "arm": "context+rag"
+}

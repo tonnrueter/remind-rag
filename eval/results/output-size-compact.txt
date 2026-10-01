@@ -1,9 +1,9 @@
 index: 2026-10-01 17:05:44  (remind-bge.db)
 call                                               chars  lines  ~tokens
-get_symbol(vm_deltaCap)                             3792     38     1896
-get_symbol(vm_cap)                                  3928     38     1964
-get_symbol(pm_taxCO2eqSum)                          3912     37     1956
-get_symbol(vm_co2eq)                                2668     31     1334
+get_symbol(vm_deltaCap)                             3916     38     1958
+get_symbol(vm_cap)                                  3998     38     1999
+get_symbol(pm_taxCO2eqSum)                          3956     37     1978
+get_symbol(vm_co2eq)                                2692     31     1346
 get_symbol(q21_taxrevGHG)                           1642     24      821
 get_links(pm_taxCO2eqSum)                           6498     65     3249
 get_links(vm_cap)                                   4604     69     2302
@@ -15,4 +15,4 @@ get_scenario(SSP2-PkBudg1000)                       2026     38     1013
 search(how is the carbon price turned into )        4864     88     2432
 search(early retirement of capacities)              4513     78     2256
 search(why does the model not converge)             4397     77     2198
-TOTAL                                              57953           28976
+TOTAL                                              58215           29107

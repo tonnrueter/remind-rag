@@ -1,0 +1,77 @@
+{
+  "grade": {
+    "claims": [
+      {
+        "claim": "vm_capEarlyReti is declared in core/declarations.gms:386 with domain (tall,all_regi,all_te)",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/declarations.gms:386",
+        "note": ""
+      },
+      {
+        "claim": "40_techpol NDCplus sets .lo bounds for pc/coalchp/igcc in bounds.gms:30-34; default techpol is NPi2025",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/40_techpol/NDCplus/bounds.gms:30-34; main.gms:364",
+        "note": ""
+      },
+      {
+        "claim": "techpol realizations CombLowCandCoalPO, NDC, NPi2018, NPi2025, coalPhaseout list it in not_used.txt",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/40_techpol/*/not_used.txt (also none, lowCarbonPush, coalPhaseoutRegional)",
+        "note": "The list is incomplete: none, lowCarbonPush and coalPhaseoutRegional also mark it as not used. This doesn't matter much, because these realizations don't use the variable anyway."
+      },
+      {
+        "claim": "47_regipol regiCarbonPrice (the default) sets bounds in 7 lines; none/bounds.gms:34 sets .up('2025','pc')=0.65",
+        "verdict": "partly",
+        "severity": "minor",
+        "evidence": "modules/47_regipol/regiCarbonPrice/bounds.gms:47,190-195; modules/47_regipol/none/bounds.gms:34; main.gms:425",
+        "note": "The count and the default are correct. The answer leaves out two conditions: lines 190-195 sit inside the $IFTHEN cm_NucRegiPol block (on by default), and all of these bounds only apply to specific regions (DEU and the EU subregions)."
+      },
+      {
+        "claim": "70_water heat (the default) reads vm_capEarlyReti.l only in output.gms:16",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "modules/70_water/heat/output.gms:16; main.gms:463",
+        "note": ""
+      },
+      {
+        "claim": "core/equations.gms has 6 uses, in q_transPe2se, q_cap, q_limitCapEarlyReti and q_smoothphaseoutCapEarlyReti",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/equations.gms:174-180,310,972-979",
+        "note": ""
+      },
+      {
+        "claim": "core/bounds.gms has 6 assignments; line 446 only applies if c_tech_earlyreti_rate is not off",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/bounds.gms:440-459, 443-448",
+        "note": ""
+      },
+      {
+        "claim": "core/preloop.gms:100 loads the level from input_ref when cm_startyear > 2005",
+        "verdict": "correct",
+        "severity": "none",
+        "evidence": "core/preloop.gms:98-101",
+        "note": ""
+      }
+    ],
+    "critical": 0,
+    "major": 0,
+    "minor": 2,
+    "failure_class": "none",
+    "fix_layer": "none",
+    "premise_handled": "not_applicable",
+    "went_well": "The answer names realizations, not just modules, and gives the default status of each (NPi2025, regiCarbonPrice, heat). The line citations and counts are accurate. It covers every use in core (equations, bounds with the compile-time condition, the preloop load from input_ref), and it states plainly that it did not trace indirect effects.",
+    "answer_key_issues": "The key leaves out q_transPe2se (core/equations.gms:180), which also uses vm_capEarlyReti, and the load in core/preloop.gms:100. It also doesn't mention that 47_regipol/none sets a bound too, or that 05_initialCap/on/preloop.gms:234 refers to it only in a comment.",
+    "summary": "This is an accurate, realization-level impact analysis that matches the code. All consumer realizations, default statuses and core uses are verified. The only problems are two small omissions: three more techpol realizations that don't use the variable are missing from the list, and the regiCarbonPrice bounds depend on cm_NucRegiPol and apply only to certain regions, which the answer doesn't say."
+  },
+  "grader_cost_usd": 0.19355180000000002,
+  "grader_turns": 13,
+  "grader_duration_s": 41.1,
+  "grader_model": "claude-opus-5-5",
+  "id": "Q11",
+  "arm": "context+rag"
+}

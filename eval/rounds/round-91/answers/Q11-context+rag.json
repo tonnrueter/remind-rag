@@ -1,0 +1,27 @@
+{
+  "tool_calls": [
+    {
+      "name": "mcp__remind-rag__get_symbol",
+      "input": "{\"name\": \"vm_capEarlyReti\", \"max_uses\": 60}"
+    }
+  ],
+  "model": "claude-sonnet-5-5",
+  "mcp_servers": [
+    "remind-rag"
+  ],
+  "answer": "Changing `vm_capEarlyReti` in core touches three modules directly (40_techpol, 47_regipol, 70_water), plus core equations that every realization depends on. Source: the codeCheck interface and use sites from `get_symbol`.\n\n**Core (affects every run)**\n- Declared at `core/declarations.gms:386`.\n- Used in the equations `q_transPe2se`, `q_cap`, `q_limitCapEarlyReti` and `q_smoothphaseoutCapEarlyReti`, all in `core/equations.gms`. A change to the definition therefore propagates to all realizations through the capacity balance.\n- Bounds are set in `core/bounds.gms`, with `.up = 1` at line 446. That block is only active when `c_tech_earlyreti_rate` is not `\"off\"`.\n- `core/preloop.gms:100` loads the variable from `input_ref`. It only runs when `cm_startyear > 2005`.\n\n**Modules that use it**\n- **40_techpol**\n  - `NDCplus` sets `.lo` for 2030 on `pc`, `coalchp` and `igcc` in `bounds.gms`. It is not the default (the default is `NPi2025`).\n  - `CombLowCandCoalPO`, `NDC`, `NPi2018`, `NPi2025`, `coalPhaseout` and 3 more are listed in `not_used.txt` as deliberately not using it. They aren't affected.\n- **47_regipol**\n  - `regiCarbonPrice` (the default) assigns it in `bounds.gms` (7 lines). This one is affected in a default run.\n  - `none` sets `.up('2025',regi,'pc') = 0.65` in `bounds.gms`. It is not the default.\n- **70_water**\n  - `heat` reads it in `output.gms`, which is a reporting-only use. Check whether other 70_water realizations are affected. The interface only lists the module, so I haven't confirmed which realizations use it.\n\n**Affected in a default run:** core, `47_regipol/regiCarbonPrice` and `70_water/heat`, if `heat` is the selected water realization. I haven't checked that.\n\nIf you change the variable's meaning, units or domain, update the core equations first. Then update the `.lo`/`.up` assignments in `NDCplus`, `regiCarbonPrice` and `none`, and the read in `heat`.",
+  "cost_usd": 0.0854734,
+  "turns": 2,
+  "duration_s": 8.2,
+  "is_error": false,
+  "input_tokens": 35224,
+  "output_tokens": 887,
+  "tool_counts": {
+    "mcp__remind-rag__get_symbol": 1
+  },
+  "id": "Q11",
+  "kind": "rewrite",
+  "arm": "context+rag",
+  "question": "If I change how `vm_capEarlyReti` is defined in the core, which module realizations are affected?",
+  "wall_s": 16.2
+}

@@ -106,3 +106,13 @@ def test_module_drill_down_by_realization():
     out = server.get_module("45", realization="functionalForm")
     assert re.search(r"branches on \(compile time.*cm_taxCO2_functionalForm \(linear\)", out)
     assert "other abort checks (12 met by the defaults)" in out
+
+
+# ------------------------------------------------------------------ answer comparison 2026-10-01 (rounds 90/91)
+
+def test_per_file_counts_carry_default_status():
+    # Q11 on the compact server: "modules/70_water/heat/output.gms 1" had no mark, so the answer left open whether
+    # 70_water/heat (the default) is affected; "core/bounds.gms 6" next to one ⚠ line read as "all core bounds gated"
+    out = server.get_symbol("vm_capEarlyReti")
+    assert re.search(r"core/bounds\.gms 6 \(5 ✓, 1 ⚠\)", out)
+    assert re.search(r"modules/70_water/heat/output\.gms:\d+ .*✓ default realization", out)  # 1-line role in full
