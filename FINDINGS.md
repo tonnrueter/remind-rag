@@ -280,3 +280,11 @@ Smoke test: asked how the carbon price affects the economy, the agent called `q3
 default", no ⚠ on the entry), but a missing ⚠ was the only sign. Every entry now carries its status on its first
 line, and "depends on settings" is counted separately instead of as inactive. A rerun of the question got the
 defaults right (n = 1).
+
+## 11. v0.4.2: Python 3.10 → 3.13 (2026-10-01)
+
+`.python-version` had been 3.10 by accident (`uv init` took the first interpreter it found). 3.10 reaches end of life
+in October 2026. On 3.13 the lock drops the 3.10-only pins: numpy 2.2.6 → 2.5.3, onnxruntime 1.23.2 → 1.30.0.
+Index v4 (embedded under 3.10) queried under 3.13 (`eval/results/retrieval-v4-py313.txt`): recall@5 identical in every
+category and mode; one MRR cell moves in the third decimal (hybrid cross-module 0.08 → 0.07), from float differences
+in the query embedding that reorder near-ties. No rebuild needed. Tests: 74 pass.

@@ -1,12 +1,12 @@
 [project]
 name = "remind-rag"
-version = "0.4.1"
+version = "0.4.2"
 description = "Local RAG over the REMIND model source, exposed as an MCP server"
 readme = "README.md"
 authors = [
     { name = "Tonn Rueter", email = "tonn.rueter@pik-potsdam.de" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "fastembed>=0.8.1",
     "mcp[cli]>=2.2.0",
