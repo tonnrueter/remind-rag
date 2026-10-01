@@ -2,6 +2,7 @@
 
     uv run --directory <rag> python -m remind_rag.server
     env REMIND_RAG_DB selects the index (default: newest complete data/remind-bge*.db, else remind-jina*.db)
+    env REMIND_RAG_ROOT names the REMIND checkout it is served for (default: the one the index was built from)
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
+from . import checkout
 from .search import Index, _module_match
 from .usage import STR_TEST_RE, TEST_RE, switch_tests
 
@@ -43,13 +45,17 @@ def _default_db() -> Path:
 
 
 idx = Index(_default_db())
+_root = checkout.served_root(idx.meta)
+_where = f"the REMIND checkout at {_root}" if _root else "the REMIND checkout you are working in"
+_stale = checkout.staleness(idx.meta, _root)
 
 server = MCPServer(
     name="remind-rag",
     instructions=(
         "Search index over the REMIND model source (GAMS core/modules, main.gms switches, scenario configs, "
-        f"R scripts, tutorials). Paths are relative to the REMIND checkout at {idx.root}. "
-        "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which modules provide / "
+        f"R scripts, tutorials). Paths are relative to {_where}. "
+        + (_stale + " " if _stale else "")
+        + "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which modules provide / "
         "consume them, get_switch for cm_*/c_* switches and module selections, get_module for a module's "
         "realizations, interfaces and limitations, get_scenario for a scenario's settings, and search for "
         "conceptual questions (pass scenario=... only when the question is about a specific scenario). "

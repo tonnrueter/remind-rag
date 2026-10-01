@@ -13,7 +13,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | All measured numbers | `FINDINGS.md`; audit rounds in `eval/rounds/round-NN.md` |
 | Big-picture overview, glossary | `../HANDOFF-260924-Introducing_REMIND_RAG.md` |
 | Structure diagram, commands | `README.md` |
-| Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `links.py` (statements for `get_links`), `server.py` (MCP tools); sweeps over REMIND: `preconditions.py` (abort preconditions), `doccheck.py` (names, defaults, file pointers in prose) |
+| Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `links.py` (statements for `get_links`), `server.py` (MCP tools), `checkout.py` (index commit vs served checkout); sweeps over REMIND: `preconditions.py` (abort preconditions), `doccheck.py` (names, defaults, file pointers in prose) |
 | Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output |
 | Evaluations | `eval/retrieval_eval.py` (local, free), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |
@@ -21,7 +21,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 ## Commands
 
 ```powershell
-$env:UV_NATIVE_TLS = 1                                   # PIK network intercepts TLS (uv, HF downloads)
+$env:UV_SYSTEM_CERTS = 1                                 # PIK network intercepts TLS (uv; UV_NATIVE_TLS is deprecated)
 uv run pytest tests                                      # tool-output checks against the newest index
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
 uv run python -m remind_rag.index --root ..\remind       # full rebuild, ~13 min CPU; prints parser checks

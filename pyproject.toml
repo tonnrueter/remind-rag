@@ -1,6 +1,6 @@
 [project]
 name = "remind-rag"
-version = "0.4.0"
+version = "0.4.1"
 description = "Local RAG over the REMIND model source, exposed as an MCP server"
 readme = "README.md"
 authors = [

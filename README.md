@@ -77,33 +77,57 @@ Folder layout:
 | `eval/` | `questions.yaml`, `retrieval_eval.py`, `e2e_eval.py`, raw `results/`, `rounds/` (graded rounds), `cases/` (logged failures) |
 | `FINDINGS.md` | all measured numbers |
 
+Development files (`CLAUDE.md`, `.claude/skills/`, eval and sweep commands) assume the author's workspace: REMIND at
+`../remind`, notes in `../TODO.md` and `../STALE_COMMENTS.md`. Using the server needs none of them.
+
 ## Setup
 
-```powershell
-cd rag
-$env:UV_NATIVE_TLS = 1          # PIK TLS proxy: use the Windows certificate store
-uv sync
+`rag/` is a standalone checkout; put it anywhere, typically next to the REMIND checkout it serves. Below, `<rag>`
+and `<remind>` are those two folders. `uv sync` creates `<rag>/.venv`; `uv run --directory <rag>` always uses it, also
+when another venv (e.g. a Jupyter one) is active. Indexes and the downloaded embedding model live in `<rag>/data/`.
 
-# optional, needs R: current gms/goxygen from the sibling clones into a project-local library
-R CMD INSTALL -l r/library ..\gms ..\goxygen
+Linux (e.g. the PIK cluster):
 
-uv run python -m remind_rag.index --root ..\remind --model bge --gms-export   # ~15 min on a laptop CPU
-uv run python -m remind_rag.index --root ..\remind --model jina   # optional: ~4x slower AND worse retrieval here (see FINDINGS)
+```bash
+cd <rag>
+uv sync                                                   # behind a TLS-intercepting proxy: export UV_SYSTEM_CERTS=1
+OMP_NUM_THREADS=4 uv run python -m remind_rag.index --root <remind> --model bge   # ~15 min; the thread cap keeps a login node usable
 ```
 
-Indexes land in `data/remind-<model>.db`; the server uses `REMIND_RAG_DB` or, by default,
-the newest complete `remind-bge*.db`, else `remind-jina*.db`. Superseded indexes are kept with a
+Windows (PowerShell):
+
+```powershell
+cd <rag>
+$env:UV_SYSTEM_CERTS = 1        # PIK TLS proxy: use the Windows certificate store
+uv sync
+uv run python -m remind_rag.index --root <remind> --model bge   # ~15 min on a laptop CPU
+```
+
+Options:
+- `--db data/<name>.db`: one index per REMIND checkout. Several checkouts can share one `<rag>`; give each its own
+  file and pin it at registration (below).
+- `--gms-export`: module interfaces, `@limitations`, `not_used.txt` reasons; needs R with `gms` and `goxygen` in
+  `r/library` (`R CMD INSTALL -l r/library <gms clone> <goxygen clone>`). Without it the index has no module interfaces.
+- `--model jina`: ~4x slower AND worse retrieval here (see FINDINGS).
+- Copying an index to another machine works (paths inside are relative to the REMIND root). The index records the
+  REMIND commit it was built from; the server tells Claude when the checkout it serves is at another commit.
+
+The build ends by printing the `claude mcp add` line with this machine's paths. Without `REMIND_RAG_DB`, the server
+takes the newest complete `remind-bge*.db` in `data/`, else `remind-jina*.db`. Superseded indexes are kept with a
 `-vN` suffix (e.g. `remind-bge-v0.db` = the v0.0.1 index).
 
 ## Use from Claude Code
 
-Register once per REMIND checkout (local scope = stored in `~/.claude.json`, nothing written into the repo):
+Register once per REMIND checkout, from inside it (local scope = stored in `~/.claude.json`, nothing written into the
+repo):
 
-```powershell
-cd ..\remind
-claude mcp add remind-rag --scope local -e REMIND_RAG_DB=C:/Users/tonnru/lab/piam-rag/rag/data/remind-bge.db -- uv run --offline --directory C:\Users\tonnru\lab\piam-rag\rag python -m remind_rag.server
+```bash
+cd <remind>
+claude mcp add remind-rag --scope local -e REMIND_RAG_DB=<rag>/data/remind-bge.db -e REMIND_RAG_ROOT=<remind>   -- uv run --offline --directory <rag> python -m remind_rag.server
 ```
 
+Use absolute paths. `REMIND_RAG_ROOT` is the checkout the server answers for (default: the folder the index was built
+from); it is compared with the commit stored in the index.
 `REMIND_RAG_DB` pins the stable name `remind-bge.db`, which always holds the current index; older builds are kept as
 `remind-bge-vN.db`. Without it, the server takes the newest complete `remind-bge*.db` by modification time, which can
 be a draft build. Check with `claude mcp get remind-rag`, and with `/mcp` inside Claude Code (reconnect there after
@@ -152,7 +176,8 @@ are only counted.
   "mcp": {
     "remind-rag": {
       "type": "local",
-      "command": ["uv", "run", "--offline", "--directory", "C:/Users/tonnru/lab/piam-rag/rag", "python", "-m", "remind_rag.server"],
+      "command": ["uv", "run", "--offline", "--directory", "<rag>", "python", "-m", "remind_rag.server"],
+      "environment": {"REMIND_RAG_DB": "<rag>/data/remind-bge.db", "REMIND_RAG_ROOT": "<remind>"},
       "enabled": true
     }
   }

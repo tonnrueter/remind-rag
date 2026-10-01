@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import embeddings, gmsdata, preconditions, scenarios, store
+from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
 from .chunkers import ENDIF_RE, IFTHEN_RE, _code_part, _is_comment, _line_conditions, _stmt_end, chunk_file, path_meta
 from .usage import LOAD_RE, if_guards, role
 from .corpus import iter_files
@@ -228,8 +228,11 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
     db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)", batch)
     t_embed = time.perf_counter() - t1
 
+    head = checkout.git_head(root)
     stats = {
         "root": str(root.resolve()),
+        "remind_commit": head[0] if head else "",
+        "remind_branch": head[1] if head else "",
         "model": model,
         "files": len(files),
         "corpus_mb": round(sum(len(t) for _, t in files) / 1e6, 2),
@@ -251,6 +254,14 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None)
     db.close()
     stats["db_mb"] = round(db_path.stat().st_size / 1e6, 1)
     return stats
+
+
+def registration(root: Path, db_path: Path) -> str:
+    """The `claude mcp add` line for this machine's paths (run it in the REMIND checkout)."""
+    rag = DEFAULT_DB_DIR.parent
+    return (f"register (run in {root.resolve()}):\n  claude mcp add remind-rag --scope local "
+            f"-e REMIND_RAG_DB={db_path.resolve().as_posix()} -e REMIND_RAG_ROOT={root.resolve().as_posix()} "
+            f"-- uv run --offline --directory {rag.as_posix()} python -m remind_rag.server")
 
 
 def main() -> None:
@@ -275,6 +286,7 @@ def main() -> None:
                         ("uses_rebuilt_at", time.strftime("%Y-%m-%d %H:%M:%S"))])
         db.commit()
         print(f"rebuilt keyword index, {n} symbol uses and {n_pre} preconditions in {db_path}")
+        print(registration(args.root, db_path))
         return
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if args.gms_export:
@@ -283,6 +295,7 @@ def main() -> None:
     if export is None:
         print(f"no gms export at {args.gms_json}: indexing without module interfaces / limitations")
     print(json.dumps(build(args.root, db_path, args.model, export), indent=2))
+    print(registration(args.root, db_path))
 
 
 if __name__ == "__main__":
