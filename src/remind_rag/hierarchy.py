@@ -27,7 +27,7 @@ PREFIXES = ("vm_", "pm_", "qm_", "fm_")
 BETWEEN = {"presolve", "postsolve", "loop", "solve"}
 ONCE = {"datainput", "preloop", "bounds", "sets_calculations", None, "module"}
 
-idx = Index(store.default_db())
+idx = Index(store.default_db())  # the pinned index (or REMIND_RAG_DB), as the server uses
 default_run = DefaultRun(idx.db)
 
 

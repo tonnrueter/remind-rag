@@ -313,8 +313,12 @@ def check_defaults(path: str, n: int, prose: str, code: str, ctx: Context, doc_s
         before = prose[: dm.start()]
         # the switch named last before "default" (not a module switch: tax, trade, industry are common words)
         names = [x for x in re.findall(r"\w+", before) if x.lower() in ctx.switches and x.lower() not in ctx.modules]
-        # the enclosing switch doc only for explicit `def = X` lines
-        name = names[-1] if names else doc_switch if re.match(r"\s*def\b", prose.lstrip("*' ")) else None
+        if names:
+            name = names[-1]
+        elif re.match(r"\s*def\b", prose.lstrip("*' ")):
+            name = doc_switch  # the enclosing switch doc counts only for explicit `def = X` lines
+        else:
+            continue
         if not name or name.lower() not in ctx.switches:
             continue
         sw = ctx.switches[name.lower()]
