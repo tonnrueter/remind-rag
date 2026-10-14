@@ -321,6 +321,23 @@ def test_single_quoted_string_tests_are_decided(cond, expected):
     assert usage.eval_expr(cond, DEFAULTS) is expected
 
 
+# ------------------------------------------------------------------ #51: switch declarations in main.gms
+
+def test_switch_declaration_in_main_gms_is_declared():
+    # main.gms declares its switches inside switch chunks: `parameter cm_nash_mode "…" ;` then `cm_nash_mode = 2;`
+    rows = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_nash_mode' AND path = 'main.gms' "
+                                 "ORDER BY line").fetchall()
+    assert [r["role"] for r in rows] == ["declared", "assigned"]
+    assert "main.gms" in section(server.get_symbol("cm_nash_mode"), "Declared").splitlines()[0]
+
+
+def test_switch_description_mentions_are_not_uses():
+    # cm_taxCO2_peakBudgYr's description names cm_peakBudgYr; that is not a read of cm_peakBudgYr
+    row = server.idx.db.execute("SELECT count(*) FROM symbol_uses WHERE name = 'cm_peakBudgYr' AND path = 'main.gms' "
+                                "AND snippet LIKE 'cm_taxCO2_peakBudgYr%'").fetchone()
+    assert row[0] == 0
+
+
 def test_search_shows_no_switch_test_from_a_comment():
     # q_limitCapEarlyReti's `!!` comment mentions "cm_startyear = 2005"; its code tests no switch
     out = server.search("q_limitCapEarlyReti", k=1)

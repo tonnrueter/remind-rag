@@ -375,3 +375,20 @@ entry without losing lines (`; :22 → x`), default computations stay separate, 
 most half of `max_links` (default 15 → 10) and the rest is counted per module (`pm_taxCO2eq` 6.1k → 5.0k). `get_switch`:
 the old `LIMIT 40` cut references silently (cm_emiscen has 55); now count, per-file status, first 10, drill-down via
 `get_symbol(role=)`. Same 15 calls: **147k → 53k chars**; largest single call 5.3k (was 27k). 143 tests pass.
+
+## 15. Correct switch tests and declarations (#50, #51, index v8, 2026-10-14)
+
+Found while following `q_limitCapEarlyReti` through the index (workspace `WALKTHROUGH-one-chunk.md`).
+
+- **Switch tests from code only (#50).** The "switch tests in this code" line read comments and message strings:
+  83 phantom tests in 59 of 2,844 equation/block/declaration chunks (63 from `*`/`!!`/`$ontext` comments in 42
+  chunks, 20 from abort/display text), 0 real tests lost. Query time only, no rebuild.
+- **Single-quoted string tests (`$ifi %x% == 'y'`).** Read with an empty value until now: 3 of 214 distinct
+  conditions go from "depends" to decided (`%optimization% == 'negishi'` false, `%emicapregi% == 'none'` true), 22
+  chunks get the tested value. `get_symbol("pm_taxCO2eqSum")` separates `core/postsolve.gms:51` (negishi) from `:53`
+  (else): 4,214 chars, symbol budget 4,000 → 4,500. 15 fixed calls: 52.8k chars (v0.6.0: 53k).
+- **Switch declarations (#51, index v8 = v6 rebuilt with `--reuse`, 0 embeddings computed).** `main.gms`
+  declares its switches inside switch chunks, so 134 declaration lines counted as "read". Now `declared`; the
+  same rule drops 57 "reads" that were names inside other switches' descriptions. Roles v6 → v8: declared 2,761 →
+  2,895, read 8,784 → 8,593, assigned and equation unchanged; chunks, symbols, switches, scenarios, interfaces and
+  preconditions identical. Retrieval unchanged (hybrid 81 % / 0.69, `eval/results/retrieval-v8-switchdecl.txt`).

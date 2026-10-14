@@ -200,6 +200,15 @@ def _common_conditions(lines: list[str], conds: list[tuple[str, ...]], s: int, e
     return list(common or ())
 
 
+def decl_start(line: str) -> re.Match | None:
+    """DECL_RE match if the line starts a declaration statement ("parameter", "positive variables", ...)."""
+    m = DECL_RE.match(line) if not _is_comment(line) else None
+    # "sets" etc. must be the statement keyword, not e.g. "set_x(t) = ..."
+    if m and (not m.group(2) or m.group(2)[:1] in " \t\"'(" or not m.group(2).strip()):
+        return m
+    return None
+
+
 def _is_comment(line: str) -> bool:
     return line.startswith("*")
 
@@ -292,10 +301,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
     # 1) declaration blocks
     i = 0
     while i < len(lines):
-        line = lines[i]
-        m = DECL_RE.match(line) if not _is_comment(line) else None
-        # "sets" etc. must be the statement keyword, not e.g. "set_x(t) = ..."
-        if m and (not m.group(2) or m.group(2)[:1] in " \t\"'(" or not m.group(2).strip()):
+        if m := decl_start(lines[i]):
             e = _stmt_end(lines, i)
             kind = _decl_kind(m.group(1))
             syms = _parse_decl_block(path, lines, i, e, m.group(2), kind, meta)

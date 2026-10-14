@@ -16,7 +16,8 @@ from pathlib import Path
 import numpy as np
 
 from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
-from .chunkers import ENDIF_RE, IFTHEN_RE, _code_part, _is_comment, _line_conditions, _stmt_end, chunk_file, path_meta
+from .chunkers import (ENDIF_RE, IFTHEN_RE, _code_part, _is_comment, _line_conditions, _stmt_end, chunk_file,
+                       decl_start, path_meta)
 from .usage import LOAD_RE, if_guards, role
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
@@ -118,12 +119,15 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
     usable |= {r[0] for r in db.execute("SELECT name FROM switches")}
     eq_ranges: dict[str, list[tuple[int, int, str]]] = {}
     decl_ranges: dict[str, list[tuple[int, int]]] = {}
-    for path, s, e, name, kind in db.execute(
-            "SELECT path, line_start, line_end, name, kind FROM chunks WHERE kind IN ('equation', 'declaration')"):
+    switch_ranges: dict[str, list[tuple[int, int]]] = {}
+    for path, s, e, name, kind in db.execute("SELECT path, line_start, line_end, name, kind FROM chunks "
+                                             "WHERE kind IN ('equation', 'declaration', 'switch')"):
         if kind == "equation":
             eq_ranges.setdefault(path, []).append((s, e, name))
-        else:
+        elif kind == "declaration":
             decl_ranges.setdefault(path, []).append((s, e))
+        else:
+            switch_ranges.setdefault(path, []).append((s, e))
     db.execute("DROP TABLE IF EXISTS symbol_uses")
     db.execute("CREATE TABLE symbol_uses (name TEXT, path TEXT, line INTEGER, module TEXT, realization TEXT, "
                "phase TEXT, context TEXT, snippet TEXT, role TEXT, conditions TEXT, guards TEXT)")
@@ -137,6 +141,9 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
         comment = "*" if is_gms else "#"
         ranges, decls = eq_ranges.get(rel, []), decl_ranges.get(rel, [])
         lines = text.splitlines()
+        # main.gms declares its switches inside switch chunks (`parameter cm_x "…" ;` then `cm_x = 1;`)
+        decls = decls + [(i + 1, _stmt_end(lines, i)) for s, e in switch_ranges.get(rel, [])
+                         for i in range(s - 1, min(e, len(lines))) if decl_start(lines[i])]
         conds = _line_conditions(lines) if is_gms else [()] * len(lines)
         guards = if_guards(lines) if is_gms else [()] * len(lines)
         for n, line in enumerate(lines, 1):
