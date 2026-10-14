@@ -1,4 +1,4 @@
-"""SQLite schema: chunks + FTS5 (BM25) + sqlite-vec vectors + symbol tables."""
+"""SQLite schema: chunks + FTS5 (BM25) + sqlite-vec vectors + symbol tables. Every table is created here."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import sqlite3
 from pathlib import Path
 
 import sqlite_vec
+
+SCHEMA_VERSION = 1  # bump when tables or their meaning change; the server refuses older indexes
 
 SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -23,7 +25,17 @@ CREATE TABLE symbols (
     path TEXT, line INTEGER, module TEXT, realization TEXT
 );
 CREATE INDEX symbols_name ON symbols(name COLLATE NOCASE);
--- symbol_uses is (re)created by index.build_uses
+-- where-used: every code line naming a symbol or switch (index.build_uses); conditions / guards: JSON lists
+CREATE TABLE symbol_uses (
+    name TEXT, path TEXT, line INTEGER, module TEXT, realization TEXT, phase TEXT,
+    context TEXT, snippet TEXT, role TEXT, conditions TEXT, guards TEXT
+);
+CREATE INDEX symbol_uses_name ON symbol_uses(name COLLATE NOCASE);
+-- abort preconditions per realization (index.build_preconditions, preconditions.py)
+CREATE TABLE preconditions (
+    path TEXT, line INTEGER, module TEXT, realization TEXT, kind TEXT, form TEXT, category TEXT, severity TEXT,
+    abort_if TEXT, switches TEXT, message TEXT, problems TEXT, notes TEXT, message_issue TEXT
+);
 CREATE TABLE switches (
     name TEXT, default_value TEXT, allowed TEXT, value TEXT, path TEXT, line INTEGER, chunk_id INTEGER
 );
@@ -56,9 +68,6 @@ def fts_title(header: str, kind: str, name: str | None) -> str:
 
 
 def build_fts(db: sqlite3.Connection) -> None:
-    # '_' is a token character so identifiers like vm_cap stay single tokens
-    db.execute("DROP TABLE IF EXISTS chunks_fts")
-    db.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(title, text, tokenize=\"unicode61 tokenchars '_'\")")
     rows = db.execute("SELECT id, header, kind, name, text FROM chunks").fetchall()
     db.executemany("INSERT INTO chunks_fts(rowid, title, text) VALUES (?, ?, ?)",
                    [(r["id"], fts_title(r["header"], r["kind"], r["name"]), r["text"]) for r in rows])
@@ -70,5 +79,7 @@ def create(db_path: Path, dim: int) -> sqlite3.Connection:
         db_path.unlink()
     db = connect(db_path)
     db.executescript(SCHEMA)
+    # '_' is a token character so identifiers like vm_cap stay single tokens
+    db.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(title, text, tokenize=\"unicode61 tokenchars '_'\")")
     db.execute(f"CREATE VIRTUAL TABLE chunks_vec USING vec0(embedding float[{dim}] distance_metric=cosine)")
     return db

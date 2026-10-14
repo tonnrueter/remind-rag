@@ -64,10 +64,9 @@ def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
     active = [r for r in reals if uses[r]]
     common = set.intersection(*(set(uses[r]) for r in active)) if len(active) > 1 else set()
     pre = defaultdict(list)
-    if db.execute("SELECT 1 FROM sqlite_master WHERE name = 'preconditions'").fetchone():
-        for p in db.execute("SELECT * FROM preconditions WHERE module = ? AND category = 'precondition' "
-                            "ORDER BY path, line", (mod,)):
-            pre[p["realization"]].append(p)
+    for p in db.execute("SELECT * FROM preconditions WHERE module = ? AND category = 'precondition' "
+                        "ORDER BY path, line", (mod,)):
+        pre[p["realization"]].append(p)
     scens = [json.loads(r[0]) for r in db.execute("SELECT settings FROM scenarios")]
     default = run.default_realization(mod) or ""
     chosen = {real: [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower()

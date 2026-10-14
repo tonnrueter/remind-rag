@@ -3,11 +3,11 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
 ## Computed from (statements assigning pm_taxCO2eqSum) (13 statements: 3 run by default, 10 not in a default run)
 - core/datainput.gms:13 ✓ runs by default  constant or set-based (no symbol inputs)
 - core/preloop.gms:44 ✓ runs by default  constant or set-based (no symbol inputs)
-- core/presolve.gms:10 ✓ runs by default  from pm_taxCO2eqRegi [46_carbonpriceRegi], pm_taxCO2eqSCC [51_internalizeDamages], pm_taxCO2eq
-- core/postsolve.gms:51 ⚠ not in a default run  from pm_pvp, pm_ts, q_co2eq, sm_eps
+- core/presolve.gms:10 ✓ runs by default  from pm_taxCO2eq, pm_taxCO2eqRegi [46_carbonpriceRegi], pm_taxCO2eqSCC [51_internalizeDamages]
+- core/postsolve.gms:51 ⚠ not in a default run  from q_co2eq, pm_ts, pm_pvp, sm_eps
     ⚠ $ifthen %optimization% == 'negishi' → inactive by default
     ⚠ inside if (cm_emiscen eq 6) → inactive by default
-- core/postsolve.gms:53 ⚠ not in a default run  from qm_budget [01_macro], q_co2eq, sm_eps
+- core/postsolve.gms:53 ⚠ not in a default run  from q_co2eq, qm_budget [01_macro], sm_eps
     ⚠ inside if (cm_emiscen eq 6) → inactive by default
 - core/postsolve.gms:55 ⚠ not in a default run  from pm_taxCO2eq
     ⚠ inside if not ((cm_emiscen eq 6)) and ((cm_emiscen eq 1)) → inactive by default
@@ -27,7 +27,7 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
 ## In equations (other symbols in the same equation) (6 equations: 6 run by default)
 - q21_taxrevCDR  modules/21_tax/on/equations.gms ✓ default realization
     variables: v21_taxrevCDR, vm_emiCdrAll [core]
-    parameters / switches: cm_startyear [core], p21_taxrevCDR0, cm_frac_CDR [core]
+    parameters / switches: cm_startyear [core], cm_frac_CDR [core], p21_taxrevCDR0
 - q21_taxrevCO2Sector  modules/21_tax/on/equations.gms ✓ default realization
     variables: v21_taxrevCO2Sector, vm_emiCO2Sector [core]
     parameters / switches: cm_startyear [core], p21_CO2TaxSectorMarkup, pm_taxrevCO2Sector0
@@ -35,11 +35,11 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
     variables: v21_taxrevCO2luc, vm_emiMacSector [core]
     parameters / switches: cm_startyear [core], cm_multigasscen [core], pm_taxrevCO2LUC0
 - q21_taxrevGHG  modules/21_tax/on/equations.gms ✓ default realization
-    variables: v21_taxrevGHG, vm_emiMacSector [core], vm_co2eq [core]
+    variables: v21_taxrevGHG, vm_co2eq [core], vm_emiMacSector [core]
     parameters / switches: cm_startyear [core], cm_multigasscen [core], pm_taxrevGHG0
 - q21_taxrevImport  modules/21_tax/on/equations.gms ✓ default realization
     variables: v21_taxrevImport, vm_Mport [24_trade]
-    parameters / switches: pm_pvp [core], p21_tau_Import, p21_taxrevImport0, pm_cintraw [core]
+    parameters / switches: p21_tau_Import, pm_pvp [core], p21_taxrevImport0, pm_cintraw [core]
 - q33_carbonRemovalspending  modules/33_carbonRemoval/portfolio/equations.gms ✓ default realization
     variables: v33_NetNegEmi_expenses, vm_emiAllco2neg [21_tax]
     parameters / switches: cm_startyear [core], cm_frac_NetNegEmi [core]

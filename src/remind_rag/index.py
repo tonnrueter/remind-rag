@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
+import shutil
 import time
 from pathlib import Path
 
@@ -128,10 +130,6 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
             decl_ranges.setdefault(path, []).append((s, e))
         else:
             switch_ranges.setdefault(path, []).append((s, e))
-    db.execute("DROP TABLE IF EXISTS symbol_uses")
-    db.execute("CREATE TABLE symbol_uses (name TEXT, path TEXT, line INTEGER, module TEXT, realization TEXT, "
-               "phase TEXT, context TEXT, snippet TEXT, role TEXT, conditions TEXT, guards TEXT)")
-    db.execute("CREATE INDEX IF NOT EXISTS symbol_uses_name ON symbol_uses(name COLLATE NOCASE)")
     uses = []
     for rel, text in files:
         is_gms = rel.endswith(".gms")
@@ -174,10 +172,6 @@ def build_preconditions(db, root: Path) -> int:
     category precondition (switch settings alone) or assertion (data / run-time state), severity against the
     main.gms defaults and the switches, realizations and values that exist."""
     found, _ctx = preconditions.sweep(root)
-    db.execute("DROP TABLE IF EXISTS preconditions")
-    db.execute("CREATE TABLE preconditions (path TEXT, line INTEGER, module TEXT, realization TEXT, kind TEXT, "
-               "form TEXT, category TEXT, severity TEXT, abort_if TEXT, switches TEXT, message TEXT, problems TEXT, "
-               "notes TEXT, message_issue TEXT)")
     db.executemany("INSERT INTO preconditions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
         (p.path, p.line, p.module, p.realization, p.kind, p.form, p.category, p.severity, json.dumps(p.abort_if),
          json.dumps(sorted({t.switch for t in p.tests})), p.message,
@@ -298,6 +292,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
         "embed_seconds": round(t_embed, 1),
         "embed_reused": len(texts) - len(todo),
         "embed_rule": rule,
+        "schema_version": store.SCHEMA_VERSION,
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     if sha := embeddings.fingerprint(model):  # absent when every vector was reused and the model isn't here
@@ -308,6 +303,32 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
     db.close()
     stats["db_mb"] = round(db_path.stat().st_size / 1e6, 1)
     return stats
+
+
+PINNED = DEFAULT_DB_DIR / "remind-bge.db"  # what the server and tests use without REMIND_RAG_DB
+
+
+def promote(db_path: Path, warnings: list[str]) -> Path:
+    """Copy a verified build to the pinned name: no parser warnings, and recall@5 and MRR of every ranking mode at
+    least as high as the pinned index's (eval/retrieval_eval.py). Returns the path to register."""
+    if warnings:
+        print(f"not promoted: {len(warnings)} parser warning(s)")
+        return db_path
+    spec = importlib.util.spec_from_file_location("retrieval_eval", DEFAULT_DB_DIR.parent / "eval" / "retrieval_eval.py")
+    ev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev)
+    new = ev.scores(db_path)
+    old = ev.scores(PINNED) if PINNED.exists() else {}
+    for mode, (recall, mrr) in new.items():
+        print(f"retrieval {mode}: recall@5 {recall:.0%}, MRR {mrr:.2f}"
+              + (f" (pinned: {old[mode][0]:.0%}, {old[mode][1]:.2f})" if mode in old else ""))
+    lower = [m for m in old if new[m][0] < old[m][0] or new[m][1] < old[m][1] - 1e-9]
+    if lower:
+        print(f"not promoted: retrieval lower than {PINNED.name} in {', '.join(lower)}")
+        return db_path
+    shutil.copy2(db_path, PINNED)
+    print(f"promoted: {db_path.name} -> {PINNED.name} (servers pick it up on their next start: /mcp reconnect)")
+    return PINNED
 
 
 def registration(root: Path, db_path: Path) -> str:
@@ -331,22 +352,10 @@ def main() -> None:
     ap.add_argument("--reuse", type=Path, help="index to take unchanged embeddings from (default: the --db target)")
     ap.add_argument("--embed-rule", choices=EMBED_RULES, default=EMBED_RULE, help="how the embedded text is cut")
     ap.add_argument("--no-reuse", action="store_true", help="embed every chunk (e.g. to measure a full build)")
-    ap.add_argument("--no-embed", action="store_true",
-                    help="existing db: only rebuild keyword index and where-used table (no re-embedding)")
+    ap.add_argument("--promote", action="store_true",
+                    help=f"then copy to {PINNED.name} if parser checks are clean and retrieval is not lower")
     args = ap.parse_args()
     db_path = args.db or DEFAULT_DB_DIR / f"remind-{args.model}.db"
-    if args.no_embed:
-        db = store.connect(db_path)
-        store.build_fts(db)
-        n = build_uses(db, list(iter_files(args.root)))
-        n_pre = build_preconditions(db, args.root)
-        db.executemany("INSERT OR REPLACE INTO meta VALUES (?, ?)",
-                       [("symbol_uses", str(n)), ("preconditions", str(n_pre)),
-                        ("uses_rebuilt_at", time.strftime("%Y-%m-%d %H:%M:%S"))])
-        db.commit()
-        print(f"rebuilt keyword index, {n} symbol uses and {n_pre} preconditions in {db_path}")
-        print(registration(args.root, db_path))
-        return
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if args.gms_export:
         gmsdata.run_export(args.root, args.gms_json)
@@ -360,6 +369,8 @@ def main() -> None:
     stats = build(args.root, tmp, args.model, export, reuse, args.embed_rule)
     os.replace(tmp, db_path)
     print(json.dumps(stats, indent=2))
+    if args.promote and db_path.resolve() != PINNED.resolve():
+        db_path = promote(db_path, json.loads(stats["check_warnings"]))
     print(registration(args.root, db_path))
 
 

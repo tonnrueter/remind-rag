@@ -15,7 +15,7 @@ from typing import NamedTuple
 
 from mcp.server.mcpserver import MCPServer
 
-from . import checkout, embeddings
+from . import checkout, embeddings, store
 from .search import Index, module_match
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .status import DefaultRun, detail, equation_domain, rank
@@ -33,6 +33,10 @@ def _default_db() -> Path:
 
 
 idx = Index(_default_db())
+if (_schema := int(idx.meta.get("schema_version", 0))) < store.SCHEMA_VERSION:
+    raise SystemExit(f"{_default_db()} was built by an older remind-rag (index schema {_schema}, this version reads "
+                     f"{store.SCHEMA_VERSION}); rebuild it, reusing its embeddings (seconds): uv run python -m "
+                     f"remind_rag.index --root <remind> --reuse {_default_db()}")
 default_run = DefaultRun(idx.db)
 _root = checkout.served_root(idx.meta)
 _where = f"the REMIND checkout at {_root}" if _root else "the REMIND checkout you are working in"
@@ -63,10 +67,6 @@ server = MCPServer(
         "codeCheck's interface owner is the declaring module, not necessarily where values are computed."
     ),
 )
-
-
-def _has_table(name: str) -> bool:
-    return idx.db.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (name,)).fetchone() is not None
 
 
 SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
@@ -156,22 +156,21 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
                     else f"  — only in non-default realizations (default: {default})")
             out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
                        + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "") + note)
-    if _has_table("module_interfaces"):
-        rows = idx.db.execute("SELECT module, direction FROM module_interfaces WHERE name = ? COLLATE NOCASE",
-                              (name,)).fetchall()
-        if rows:
-            prov = sorted({r["module"] for r in rows if r["direction"] == "out"})
-            cons = sorted({r["module"] for r in rows if r["direction"] == "in"})
-            # codeCheck's "output" module is the one that declares the object; where values are actually
-            # assigned is listed under Uses below
-            out.append(f"## Module interface (gms::codeCheck)\n- declared in (interface owner): "
-                       f"{', '.join(prov) or '?'}\n- used by: {', '.join(cons) or 'none'}")
-        skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
-        if skipped:
-            out.append("## Deliberately not used in (not_used.txt)")
-            out += [f"- {r['module']}/{r['realization']}: {short(r['reason'], 100)}" for r in skipped[:5]]
-            if len(skipped) > 5:
-                out.append(f"- also: {', '.join(r['module'] + '/' + r['realization'] for r in skipped[5:])}")
+    rows = idx.db.execute("SELECT module, direction FROM module_interfaces WHERE name = ? COLLATE NOCASE",
+                          (name,)).fetchall()
+    if rows:
+        prov = sorted({r["module"] for r in rows if r["direction"] == "out"})
+        cons = sorted({r["module"] for r in rows if r["direction"] == "in"})
+        # codeCheck's "output" module is the one that declares the object; where values are actually
+        # assigned is listed under Uses below
+        out.append(f"## Module interface (gms::codeCheck)\n- declared in (interface owner): "
+                   f"{', '.join(prov) or '?'}\n- used by: {', '.join(cons) or 'none'}")
+    skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
+    if skipped:
+        out.append("## Deliberately not used in (not_used.txt)")
+        out += [f"- {r['module']}/{r['realization']}: {short(r['reason'], 100)}" for r in skipped[:5]]
+        if len(skipped) > 5:
+            out.append(f"- also: {', '.join(r['module'] + '/' + r['realization'] for r in skipped[5:])}")
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
         head = equation_domain(r["text"], r["name"])
@@ -425,8 +424,6 @@ STEER_HEAD = "## Steered by  (switches in the module's code; values in parenthes
 
 def _interfaces(mod: str) -> list[str]:
     """Names only (descriptions: get_symbol); outputs with their consumers, inputs grouped by source module."""
-    if not _has_table("module_interfaces"):
-        return []
     ifs = idx.db.execute("SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name",
                          (mod,)).fetchall()
     out = []

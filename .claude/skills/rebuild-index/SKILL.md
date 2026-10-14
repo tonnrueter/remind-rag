@@ -12,10 +12,8 @@ to a minute; a full one (`--no-reuse`, a new model, or a change to `make_header`
    current one (the MCP registration pins it). The new build becomes the next free N. Make sure the baseline has
    saved retrieval scores in `eval/results/` (`uv run python eval/retrieval_eval.py data/remind-bge-vN.db`).
 2. **Quick check without embedding** (seconds): run the chunker plus `check_parse` from `remind_rag.index` on
-   `iter_files(Path('../remind'))`, and expect an empty warning list. For changes that only touch `symbol_uses` or FTS:
-   `cp data/remind-bge-v<current>.db data/remind-bge-v<N>.db`, then
-   `uv run python -m remind_rag.index --root ..\remind --no-embed --db data/remind-bge-v<N>.db` (records
-   `uses_rebuilt_at` in meta). Compare role counts and sample changed rows against the previous version.
+   `iter_files(Path('../remind'))`, and expect an empty warning list. After a rebuild (step 3, seconds with
+   `--reuse`), compare role counts and sample changed rows against the previous version.
 3. **Rebuild**: `uv run python -m remind_rag.index --root ..\remind --model bge --db data/remind-bge-v<N>.db
    --reuse data/remind-bge-v<current>.db`. The log line `embeddings: X reused, Y to compute` shows the cost; run it
    in the background when Y is large.
@@ -25,5 +23,6 @@ to a minute; a full one (`--no-reuse`, a new model, or a change to `make_header`
    - `REMIND_RAG_DB=data/remind-bge-v<N>.db uv run pytest tests`: all pass.
    - `uv run python eval/retrieval_eval.py data/remind-bge-v<N>.db`: hybrid recall@5 / MRR not below the baseline
      (81 % / 0.69 at v2 and v3, 2026-09-25). Save it under `eval/results/`.
-5. **Promote:** `cp data/remind-bge-v<N>.db data/remind-bge.db`. Sessions pick it up on their next server start
+5. **Promote:** add `--promote` to the build (it copies to `data/remind-bge.db` only with 0 parser warnings and
+   recall@5 / MRR of every mode at least the pinned index's), or `cp` by hand. Sessions pick it up on their next server start
    (Claude Code: `/mcp` → reconnect). Record the new numbers in `FINDINGS.md`.
