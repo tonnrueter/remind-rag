@@ -8,7 +8,9 @@ import sqlite3
 
 from .usage import eval_expr, switch_tests
 
+# the marks as Claude reads them in the tool output (the reference test records them)
 OFF, DEPENDS, ON = "⚠ not in a default run", "? depends on settings", "✓ runs by default"
+TRUTH = {True: "true", False: "false", None: "?"}  # a switch test's value under the defaults; None: undecided
 
 
 def equation_domain(text: str, name: str) -> str | None:
@@ -51,6 +53,7 @@ def switch_defaults(db: sqlite3.Connection) -> dict[str, str]:
 
 
 def _inactive(verdict: str) -> str:
+    # the capitalized INACTIVE is for the callers' checks; in a reason shown to Claude it reads as a plain arrow
     return verdict.replace(": INACTIVE by default", " → inactive by default")
 
 
@@ -120,7 +123,7 @@ class DefaultRun:
         if r["kind"] in ("equation", "gams_block", "declaration"):
             tests = switch_tests(r["text"], self.defaults)
             if tests:
-                shown = [f"{t} → {'true' if v else 'false' if v is False else '?'}" for t, v in tests[:max_tests]]
+                shown = [f"{t} → {TRUTH[v]}" for t, v in tests[:max_tests]]
                 more = f" (+{len(tests) - max_tests} more)" if len(tests) > max_tests else ""
                 out.append("switch tests in this code (with default values): " + "; ".join(shown) + more)
         return out
@@ -148,6 +151,8 @@ class DefaultRun:
             v = self.condition_status(g, "inside if")
             if "INACTIVE" in v:
                 tags.append(_inactive(v))
+            # an undecided if() counts only if it tests a switch: one over data (`if(p_x gt 0,`) says nothing
+            # about settings, and marking it "?" would flag a large part of REMIND
             elif "depends" in v and any(t for t, _ in switch_tests(g, self.defaults)):
                 tags.append(v)
         return tags
@@ -173,7 +178,7 @@ class DefaultRun:
         head = equation_domain(row["text"], equation) if row else None
         if not head or "$" not in head:
             return []
-        cond = head[head.index("$") + 1 :]
+        cond = head[head.index("$") + 1 :]  # q_x(t,regi)$(cond): the part after the first $
         if not switch_tests(cond, self.defaults):
             return []
         v = self.condition_status(cond, "generated only if")

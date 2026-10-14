@@ -44,7 +44,7 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
     """The GAMS statement containing path:line, bounded by the chunk it sits in."""
     row = db.execute(
         "SELECT line_start, text FROM chunks WHERE path = ? AND line_start <= ? AND line_end >= ? "
-        "AND kind IN ('gams_block', 'equation') ORDER BY line_end - line_start LIMIT 1",
+        "AND kind IN ('gams_block', 'equation') ORDER BY line_end - line_start LIMIT 1",  # the tightest chunk
         (path, line, line),
     ).fetchone()
     if not row:
@@ -53,6 +53,7 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
     i = line - first
     if not 0 <= i < len(lines):
         return None
+    # back to the previous statement's `;` (or a $ directive), forward to this one's `;`
     start = i
     while (
         start > 0
@@ -67,22 +68,22 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
     while end < len(lines) - 1 and end - i < MAX_FORWARD and not _ends_statement(lines[end]):
         end += 1
     text = "\n".join(x for x in lines[start : end + 1] if not is_comment(x))
-    st = Statement(path, first + start, first + end, text)
+    stmt = Statement(path, first + start, first + end, text)
     for r in db.execute(
         "SELECT name, role, line FROM symbol_uses WHERE path = ? AND line BETWEEN ? AND ? ORDER BY line",
-        (path, st.start, st.end),
+        (path, stmt.start, stmt.end),
     ):
-        if r["name"] not in st.names:
-            st.names.append(r["name"])
-        st.lines.setdefault(r["name"], []).append(r["line"])
+        if r["name"] not in stmt.names:
+            stmt.names.append(r["name"])
+        stmt.lines.setdefault(r["name"], []).append(r["line"])
         if r["role"] == "assigned":
-            st.assigned.add(r["name"])
-    return st
+            stmt.assigned.add(r["name"])
+    return stmt
 
 
-def is_load(st: Statement) -> bool:
+def is_load(stmt: Statement) -> bool:
     """The statement loads values from a gdx file (execute_load, $gdxin, $load) instead of computing them."""
-    return bool(LOAD_RE.search(code_part(st.text)))
+    return bool(LOAD_RE.search(code_part(stmt.text)))
 
 
 def equation_members(db: sqlite3.Connection, path: str, equation: str) -> list[str]:

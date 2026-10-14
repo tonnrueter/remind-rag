@@ -74,7 +74,7 @@ def use_line(run: DefaultRun, u, tags: list[str], also: list[int] | None = None,
 
 def grouped(run: DefaultRun, tagged: list) -> list[str]:
     """Summary lines: uses in the same file with the same reasons share one entry (first snippet shown)."""
-    groups: dict[tuple, list] = {}
+    groups: dict[tuple, list] = {}  # (file, reasons) -> its use lines, in order
     for u, t in tagged:
         groups.setdefault((u["path"], tuple(t)), []).append((u, t))
     return [use_line(run, g[0][0], g[0][1], [u["line"] for u, _ in g[1:]], snippet=110) for g in groups.values()]
@@ -82,13 +82,14 @@ def grouped(run: DefaultRun, tagged: list) -> list[str]:
 
 def mark_split(run: DefaultRun, tagged: list) -> str:
     """'5 ✓, 1 ⚠': how many use lines run by default, depend on settings, don't run."""
+    # the mark's first character is the symbol; "✓?⚠" is the display order
     marks = Counter(run.mark(u, t).split(" ")[0] for u, t in tagged)
     return ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
 
 
 def per_file(run: DefaultRun, tagged: list, limit: int = 6) -> str:
     """'path n ✓' or 'path n (5 ✓, 1 ⚠)': every file with its default status, so a count never hides whether
-    the file runs (audit 2026-10-01: '70_water/heat/output.gms 1' without a mark left the default unchecked)."""
+    the file runs (FINDINGS 14: a bare '70_water/heat/output.gms 1' left an answer unsure about the default)."""
     marks: dict[str, Counter] = defaultdict(Counter)
     for u, t in tagged:
         marks[u["path"]][run.mark(u, t).split(" ")[0]] += 1

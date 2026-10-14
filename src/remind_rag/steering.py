@@ -42,7 +42,7 @@ class Steering:
     uses: dict[str | None, dict[str, set[str]]]  # realization (None: module level) -> switch -> kinds
     common: set[str]  # switches every realization with switch uses shares
     active: list[str]  # realizations with switch uses
-    pre: dict[str | None, list[sqlite3.Row]]  # realization -> abort preconditions
+    preconditions: dict[str | None, list[sqlite3.Row]]  # realization -> abort preconditions
     scens: list[dict[str, str]]  # settings of every scenario config
     chosen: dict[str, list[dict[str, str]]]  # realization -> configs that select it
 
@@ -85,18 +85,19 @@ def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
     # off/none realizations use no switches, so "shared" means shared by the ones that use any
     active = [r for r in reals if uses[r]]
     common = set.intersection(*(set(uses[r]) for r in active)) if len(active) > 1 else set()
-    pre = defaultdict(list)
+    preconditions = defaultdict(list)
     for p in db.execute(
         "SELECT * FROM preconditions WHERE module = ? AND category = 'precondition' ORDER BY path, line", (mod,)
     ):
-        pre[p["realization"]].append(p)
+        preconditions[p["realization"]].append(p)
     scens = [json.loads(r[0]) for r in db.execute("SELECT settings FROM scenarios")]
     default = run.default_realization(mod) or ""
+    # a config selects a realization through the module switch (e.g. carbonprice); left empty, it keeps the default
     chosen = {
         real: [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower() == real.lower()]
         for real in reals
     }
-    return Steering(values, reals, default, uses, common, active, pre, scens, chosen)
+    return Steering(values, reals, default, uses, common, active, preconditions, scens, chosen)
 
 
 def names_with_defaults(names, values: dict, limit: int = 12) -> str:
@@ -119,7 +120,7 @@ def block(s: Steering, real: str | None, title: str) -> list[str]:
     """The full block of one realization (None: module-level files); [] if there is nothing to say."""
     lines = [title]
     quiet = []
-    for p in s.pre[real]:
+    for p in s.preconditions[real]:
         if p["severity"] in ("ok", "depends"):
             quiet.append(p)
             continue
@@ -136,23 +137,23 @@ def block(s: Steering, real: str | None, title: str) -> list[str]:
             where[p["path"].rsplit("/", 1)[-1]].append(str(p["line"]))
         locs = "; ".join(f + ":" + ",".join(ls) for f, ls in where.items())
         ok = sum(p["severity"] == "ok" for p in quiet)
-        counts = ", ".join(
-            x
-            for x in (
-                f"{ok} met by the defaults" if ok else "",
-                f"{len(quiet) - ok} depend on other settings" if len(quiet) > ok else "",
-            )
-            if x
-        )
-        lines.append(f"- other abort checks ({counts}) on {', '.join(names)}  [{locs}]")
+        counts = []
+        if ok:
+            counts.append(f"{ok} met by the defaults")
+        if len(quiet) > ok:
+            counts.append(f"{len(quiet) - ok} depend on other settings")
+        lines.append(f"- other abort checks ({', '.join(counts)}) on {', '.join(names)}  [{locs}]")
     own = {n: k for n, k in s.uses[real].items() if n not in s.common}
-    for i, (kind, label) in enumerate(STEER_KINDS):
-        stronger = {k for k, _ in STEER_KINDS[:i]}
-        names = [n for n, ks in own.items() if kind in ks and not ks & stronger]
+    # each switch is listed once, under the strongest way the realization uses it
+    order = [kind for kind, _ in STEER_KINDS]
+    strongest = {n: next(kind for kind in order if kind in kinds) for n, kinds in own.items()}
+    for kind, label in STEER_KINDS:
+        names = [n for n, k in strongest.items() if k == kind]
         if names:
             lines.append(f"- {label}: {names_with_defaults(names, s.values)}")
     if real is not None:
-        lines.append(_in_practice(s, real, set(own) | {n for p in s.pre[real] for n in json.loads(p["switches"])}))
+        named = {n for p in s.preconditions[real] for n in json.loads(p["switches"])}
+        lines.append(_in_practice(s, real, set(own) | named))
     return lines if len(lines) > 1 else []
 
 
@@ -178,7 +179,7 @@ def _in_practice(s: Steering, real: str, relevant: set[str]) -> str:
 def alert(s: Steering, real: str) -> str:
     """What the summary line of a realization must say: verdicts that change an answer, plus usage."""
     parts, needs = [], []
-    for p in s.pre[real]:
+    for p in s.preconditions[real]:
         if p["severity"] in ("impossible", "suspicious"):
             parts.append(
                 f"⚠ {SEVERITY_TEXT[p['severity']]}: aborts if {condition(p)}"
