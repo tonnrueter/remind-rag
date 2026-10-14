@@ -392,3 +392,10 @@ Found while following `q_limitCapEarlyReti` through the index (workspace `WALKTH
   same rule drops 57 "reads" that were names inside other switches' descriptions. Roles v6 → v8: declared 2,761 →
   2,895, read 8,784 → 8,593, assigned and equation unchanged; chunks, symbols, switches, scenarios, interfaces and
   preconditions identical. Retrieval unchanged (hybrid 81 % / 0.69, `eval/results/retrieval-v8-switchdecl.txt`).
+
+**Shared embedding model (#39).** `REMIND_RAG_MODELS` names one shared model folder (HPC); a shared folder is only
+read, and a missing model stops with the command to fill it (`python -m remind_rag.embeddings download`). With
+fastembed 0.8.1 a model already on disk loads without network (Hugging Face endpoint unreachable: 1.2 s), so the
+remaining offline problem was only fastembed's download retries for a missing model. New builds record the model's
+sha256 (`meta.model_sha256`, = the Hugging Face blob name, bge-small `51f1bd0a…`); the server says so when the
+model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference output, 40 new tests), #39; 205 tests.

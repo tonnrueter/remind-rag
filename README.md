@@ -94,6 +94,19 @@ uv sync                                                   # behind a TLS-interce
 OMP_NUM_THREADS=4 uv run python -m remind_rag.index --root <remind> --model bge   # first build ~15 min; the thread cap keeps a login node usable
 ```
 
+**One model for everyone (HPC).** The embedding model (bge-small, 64 MB) goes to `<rag>/data/models` on the first
+build. On a cluster, keep one shared copy instead: the maintainer fills a group-readable folder once,
+
+```bash
+REMIND_RAG_MODELS=<shared dir> uv run python -m remind_rag.embeddings download   # prints the model's sha256
+chmod -R g+rX <shared dir>
+```
+
+and every user puts `export REMIND_RAG_MODELS=<shared dir>` into `~/.bashrc`. A shared folder is only read, never
+downloaded into, so builds and searches work on compute nodes without internet; a missing model stops with the
+command above. The build records the model's sha256, and the server tells Claude when the model on this machine
+differs from the one that built the index.
+
 Windows (PowerShell):
 
 ```powershell
@@ -136,7 +149,8 @@ claude mcp add remind-rag --scope local -e REMIND_RAG_DB=<rag>/data/remind-bge.d
 ```
 
 Use absolute paths. `REMIND_RAG_ROOT` is the checkout the server answers for (default: the folder the index was built
-from); it is compared with the commit stored in the index.
+from); it is compared with the commit stored in the index. With `REMIND_RAG_MODELS` set, the line the build prints
+passes it on (`-e REMIND_RAG_MODELS=<shared dir>`).
 `REMIND_RAG_DB` pins the stable name `remind-bge.db`, which always holds the current index; older builds are kept as
 `remind-bge-vN.db`. Without it, the server takes the newest complete `remind-bge*.db` by modification time, which can
 be a draft build. Check with `claude mcp get remind-rag`, and with `/mcp` inside Claude Code (reconnect there after

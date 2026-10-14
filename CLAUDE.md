@@ -14,7 +14,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | Big-picture overview, glossary | `../HANDOFF-260924-Introducing_REMIND_RAG.md` |
 | Structure diagram, commands | `README.md` |
 | Code | `src/remind_rag/`: `chunkers.py` (GAMS/R/MD splitting), `enrich.py` (headers), `index.py` (build + parser checks), `search.py` (hybrid ranking, default status), `usage.py` (roles, if-guards, switch-condition evaluation), `links.py` (statements for `get_links`), `server.py` (MCP tools), `checkout.py` (index commit vs served checkout); sweeps over REMIND: `preconditions.py` (abort preconditions), `doccheck.py` (names, defaults, file pointers in prose) |
-| Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output |
+| Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output; `test_reference_output.py`: 15 fixed calls byte for byte against `tests/reference/` (refactoring safety net; regenerate with `--update` only for deliberate changes); `test_gams.py`: pure GAMS helpers, no index |
 | Evaluations | `eval/retrieval_eval.py` (local, free), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |
 
@@ -26,13 +26,14 @@ uv run pytest tests                                      # tool-output checks ag
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
 uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
 uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # uses/FTS only, seconds
+uv run python -m remind_rag.embeddings download          # fill the model folder (REMIND_RAG_MODELS or data/models)
 ```
 
 ## Conventions
 
 - **Keep measured states reproducible.** Each index state gets a version: build into `data/remind-bge-vN.db` (next
   free N; `--no-embed` rebuilds go into a copy), verify, then copy it to `data/remind-bge.db`, which the MCP
-  registration pins. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content).
+  registration pins. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content); v6 = git-tracked files only; v7 = token cut (worse, unused); v8 = v6 + switch declarations counted as declared (#51).
 - **Parser changes:** the build must end with `parser checks: 0 warning(s)`, and `retrieval_eval.py` must not drop.
 - **Tool-output changes:** add or adjust a test in `tests/test_tool_output.py` that shows the information is present.
 - **Evaluation isolation:** answerer runs use `claude -p --setting-sources user` (no project CLAUDE.md, this file
