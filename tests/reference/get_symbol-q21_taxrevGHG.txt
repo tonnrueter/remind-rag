@@ -1,0 +1,24 @@
+## Declarations
+- equation q21_taxrevGHG(ttot,all_regi) "calculation of tax on greenhouse gas emissions"  [21_tax/on] modules/21_tax/on/declarations.gms:161
+## Equation definition
+Generated for (domain and $-condition): q21_taxrevGHG(t,regi)$(t.val ge max(2010,cm_startyear))
+modules/21_tax/on/equations.gms:74-81  (equation)
+» realization on: DEFAULT
+» switch tests in this code (with default values): cm_multigasscen ne 3  (default cm_multigasscen = 3) → false
+Module 21 tax, realization on, equations (modules/21_tax/on/equations.gms)
+Equation q21_taxrevGHG: calculation of tax on greenhouse gas emissions
+```
+***---------------------------------------------------------------------------
+*'  Calculation of greenhouse gas taxes: tax rate (combination of 4 components) times ghg emissions
+*'  Documentation of overall tax approach is above at q21_taxrev.
+***---------------------------------------------------------------------------
+q21_taxrevGHG(t,regi)$(t.val ge max(2010,cm_startyear))..
+v21_taxrevGHG(t,regi) =e= pm_taxCO2eqSum(t,regi) * (vm_co2eq(t,regi) - vm_emiMacSector(t,regi,"co2luc")$(cm_multigasscen ne 3))
+                           - pm_taxrevGHG0(t,regi)
+;
+```
+## Uses (2 lines)
+### Declared (1 lines: 1 ✓; 21_tax)
+- modules/21_tax/on/declarations.gms:161 [21_tax/on/declarations] ✓ default realization  q21_taxrevGHG(ttot,all_regi)                                        "calculation of tax on greenhouse gas emissions"
+### Used in equations (1 lines: 1 ✓; 21_tax)
+- modules/21_tax/on/equations.gms:78 [21_tax/on/equations, in q21_taxrevGHG] ✓ default realization  q21_taxrevGHG(t,regi)$(t.val ge max(2010,cm_startyear))..

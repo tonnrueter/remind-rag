@@ -1,0 +1,27 @@
+## cm_emiscen  default: 9  allowed (regexp): 0|1|4|6|9|10  [main.gms:535]
+```
+parameter
+  cm_emiscen                "policy scenario choice"
+;
+  cm_emiscen        = 9;               !! def = 9  !!  regexp = 0|1|4|6|9|10
+*' *  (0): no global budget. Policy may still be prescribed by 41_emicaprei module.
+*' *  (1): BAU
+*' *  (4): emission time path
+*' *  (6): budget
+*' *  (9): tax scenario (requires running module 21_tax "on"), tax level controlled by module 45_carbonprice, other GHG etc. controlled by cm_rcp_scen
+*' *  (10): used for cost-benefit analysis
+*' *JeS* WARNING: data for cm_emiscen 4 only exists for cm_multigasscen 2 bau scenarios and for cm_multigasscen 1
+```
+## Referenced in (55 lines: 15 ✓, 1 ?, 39 ⚠)
+- per file: modules/02_welfare/ineqLognormal/datainput.gms 9 ⚠, core/bounds.gms 3 (2 ✓, 1 ⚠), modules/80_optimization/nash/bounds.gms 3 (2 ✓, 1 ⚠), modules/80_optimization/nash/preloop.gms 3 (1 ✓, 1 ?, 1 ⚠), core/datainput.gms 2 ⚠, core/postsolve.gms 2 ⚠, +23 more files
+- core/bounds.gms:354 ✓ runs by default  if(not cm_emiscen = 1, !! cm_emiscen 1 = BAU
+- core/bounds.gms:494 ✓ runs by default  if(cm_emiscen > 1,
+- core/equations.gms:847 ✓ runs by default  q_budgetCO2eqGlob$(cm_emiscen=6)..
+- modules/24_trade/standard/bounds.gms:18 ✓ default realization  if (cm_emiscen = 1 or cm_emiscen = 9,
+- modules/80_optimization/nash/bounds.gms:20 ✓ default realization  vm_Xport.fx(ttot,regi,"perm")$(cm_emiscen eq 6) = 0;
+- modules/80_optimization/nash/bounds.gms:21 ✓ default realization  vm_Mport.fx(ttot,regi,"perm")$(cm_emiscen eq 6) = 0 ;
+- modules/80_optimization/nash/equations.gms:47 ✓ default realization  q80_budgetPermRestr(regi)$(cm_emiscen=6 OR cm_emiscen = 4) ..
+- modules/80_optimization/nash/preloop.gms:73 ✓ default realization  if((cm_emiscen eq 1) or (cm_emiscen eq 9), !! if there is no period trade, set the price to zero.
+- standalone/MOFEX/MOFEX.gms:126 ✓ runs by default  cm_emiscen "policy scenario choice"
+- standalone/MOFEX/MOFEX.gms:234 ✓ runs by default  cm_emiscen = 1; !! def = 1
+- lines: get_symbol("cm_emiscen", role="read"[, module="…"]) (also role="assigned")

@@ -1,0 +1,63 @@
+# Links of vm_cap — positive variable "net total capacities [TW] for energy conversion technologies, [GtC] for CCS chain in ccs2te (pipelines/injection)" [declared in core]
+One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · [module] = declared outside the statement's module.
+## Computed from (statements assigning vm_cap) (100 statements: 66 run by default, 2 depend on settings, 32 not in a default run)
+- core/bounds.gms:33 ✓ runs by default  constant or set-based (no symbol inputs)
+- core/bounds.gms:49 ✓ runs by default  constant or set-based (no symbol inputs)
+- core/bounds.gms:127 ✓ runs by default  from pm_eta_conv, pm_gdp
+- core/bounds.gms:129 ✓ runs by default  from pm_eta_conv, pm_gdp
+- core/bounds.gms:131 ✓ runs by default  from pm_eta_conv, pm_gdp
+- core/bounds.gms:134 ✓ runs by default  from sm_EJ_2_TWa, pm_gdp
+- core/bounds.gms:137 ✓ runs by default  from sm_EJ_2_TWa, pm_gdp
+- core/bounds.gms:138 ✓ runs by default  from sm_EJ_2_TWa, pm_gdp
+- core/bounds.gms:152 ✓ runs by default  constant or set-based (no symbol inputs)
+- core/bounds.gms:164 ✓ runs by default  constant or set-based (no symbol inputs)
+- core/bounds.gms:224 ⚠ not in a default run  constant or set-based (no symbol inputs)
+    ⚠ inside if cm_nucscen = 5 → inactive by default
+- core/bounds.gms:376 ⚠ not in a default run  constant or set-based (no symbol inputs)
+    ⚠ inside if cm_emiscen = 1 → inactive by default
+- core/bounds.gms:483 ⚠ not in a default run  constant or set-based (no symbol inputs); :484 constant or set-based (no symbol inputs)
+    ⚠ $ifthen %c_SSP_forcing_adjust% == "forcing_SSP1" → inactive by default
+- ... 86 more (40_techpol 29, core 24, 47_regipol 20, 39_carbonUtilization 6, 33_carbonRemoval 4, 32_power 2, 37_industry 1): get_symbol("vm_cap", role=…, module=…) lists them
+## Feeds into (statements reading vm_cap and assigning another symbol) (1 statements: 1 run by default)
+- modules/70_water/heat/output.gms:29 ✓ default realization  → p70_cap_vintages_share
+## In equations (other symbols in the same equation) (31 equations: 21 run by default, 10 not in a default run)
+- q32_elh2VREcapfromTestor  modules/32_power/IntC/equations.gms ✓ default realization
+    variables: -
+    parameters / switches: p32_storageCap
+- q32_h2turbVREcapfromTestor  modules/32_power/IntC/equations.gms ✓ default realization
+    variables: -
+    parameters / switches: p32_storageCap
+- q32_h2turbVREcapfromTestorUp  modules/32_power/IntC/equations.gms ✓ default realization
+    variables: -
+    parameters / switches: p32_storageCap
+- q32_limitCapTeGrid  modules/32_power/IntC/equations.gms ✓ default realization
+    variables: vm_prodSe [core]
+    parameters / switches: p32_grid_factor
+- q33_EW_capconst  modules/33_carbonRemoval/portfolio/equations.gms ✓ default realization
+    variables: v33_EW_onfield, vm_capFac [core]
+    parameters / switches: -
+- q33_capconst  modules/33_carbonRemoval/portfolio/equations.gms ✓ default realization
+    variables: vm_emiCdrTeDetail, vm_capFac [core]
+    parameters / switches: -
+- q40_ElecBioBound  modules/40_techpol/NPi2025/equations.gms ✓ default realization
+    variables: -
+    parameters / switches: p40_ElecBioBound
+- q40_windBound  modules/40_techpol/NPi2025/equations.gms ✓ default realization
+    variables: -
+    parameters / switches: p40_TechBound
+- q_PE_histCap  core/equations.gms ✓ runs by default
+    variables: -
+    parameters / switches: p_PE_histCap
+- q_PE_histCap_NGCC_2020_up  core/equations.gms ✓ runs by default
+    variables: -
+    parameters / switches: p_PE_histCap
+- q40_ElCap_RenShare  modules/40_techpol/NDC/equations.gms ⚠ not in a default run
+    variables: -
+    parameters / switches: p40_ElCap_RenShare
+    ⚠ non-default realization (default: NPi2025)
+- q40_NewRenBound  modules/40_techpol/CombLowCandCoalPO/equations.gms ⚠ not in a default run
+    variables: -
+    parameters / switches: p40_NewRenBound
+    ⚠ non-default realization (default: NPi2025)
+- ... 11 more (core 11): get_symbol("vm_cap", role=…, module=…) lists them
+## Other reads: 9 statements without an assignment (conditions, display, output; 40_techpol, core); see get_symbol

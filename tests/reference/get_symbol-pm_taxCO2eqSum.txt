@@ -1,0 +1,40 @@
+## Declarations
+- parameter pm_taxCO2eqSum(ttot,all_regi) "Total CO2 price including general trajectory (pm_taxCO2eq), regional markup (pm_taxCO2eqRegi) and social cost of carbon (pm_taxCO2eqSCC) [T$/GtC]. Multiply by 272 to convert to $/tCO2."  [46_carbonpriceRegi/netZero] modules/46_carbonpriceRegi/netZero/declarations.gms:23  — module switched off by default (none)
+- parameter pm_taxCO2eqSum(ttot,all_regi) "sum of pm_taxCO2eq, pm_taxCO2eqRegi, pm_taxCO2eqSCC [T$/GtC]. To get $/tCO2, multiply with 272 = 1 / sm_DptCO2_2_TDpGtC"  [46_carbonpriceRegi/none] modules/46_carbonpriceRegi/none/declarations.gms:11
+## Module interface (gms::codeCheck)
+- declared in (interface owner): 46_carbonpriceRegi
+- used by: 21_tax, 33_carbonRemoval, 47_regipol, core
+## Deliberately not used in (not_used.txt)
+- 21_tax/off: questionnare
+- 47_regipol/none: questionnaire
+## Uses (41 lines)
+### Declared (2 lines: 1 ✓, 1 ⚠; 46_carbonpriceRegi)
+### Assigned / fixed / loaded (13 lines: 3 ✓, 10 ⚠; 47_regipol, core)
+- per file: modules/47_regipol/regiCarbonPrice/postsolve.gms 5 ⚠, core/postsolve.gms 3 ⚠, core/presolve.gms 2 (1 ✓, 1 ⚠), core/datainput.gms 1 ✓, core/preloop.gms 1 ✓, modules/47_regipol/regiCarbonPrice/presolve.gms 1 ⚠
+- core/datainput.gms:13 [core/datainput] ✓ runs by default  pm_taxCO2eqSum(ttot,regi) = 0;
+- core/preloop.gms:44 [core/preloop] ✓ runs by default  pm_taxCO2eqSum(t,regi) = 0;
+- core/presolve.gms:10 [core/presolve] ✓ runs by default  pm_taxCO2eqSum(ttot,regi) = pm_taxCO2eq(ttot,regi) + pm_taxCO2eqRegi(ttot,regi) + pm_taxCO2eqSCC(ttot,regi);
+- core/postsolve.gms:51 [core/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi) = abs((abs(q_co2eq.m(ttot,regi)) / pm_ts(ttot)) / (pm_pvp(ttot,"good") + sm_eps));
+    ⚠ $ifthen %optimization% == 'negishi' → inactive by default
+    ⚠ inside if (cm_emiscen eq 6) → inactive by default
+- core/postsolve.gms:53 [core/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi) = abs( abs(q_co2eq.m(ttot,regi)) / (abs(qm_budget.m(ttot,regi))+ sm_eps) );
+    ⚠ inside if (cm_emiscen eq 6) → inactive by default
+- core/postsolve.gms:56 [core/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi)$(ttot.val < 2025) = pm_taxCO2eq(ttot,regi);
+    ⚠ inside if not ((cm_emiscen eq 6)) and ((cm_emiscen eq 1)) → inactive by default
+- core/presolve.gms:15 [core/presolve] ⚠ not in a default run  pm_taxCO2eqSum("2030",regi) = min(
+    ⚠ $ifthen not "%cm_CO2PriceLimit%" == "off" → inactive by default
+- modules/47_regipol/regiCarbonPrice/postsolve.gms:151 [47_regipol/regiCarbonPrice/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(t,regi) = 0;
+    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default
+- modules/47_regipol/regiCarbonPrice/postsolve.gms:962 [47_regipol/regiCarbonPrice/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi)$(regi_group(ext_regi,regi) and (ttot.val ge cm_startyear)) = 0;  (same reason: also line 976)
+    ⚠ $ifthen not "%cm_regiExoPrice%" == "off" → inactive by default
+- modules/47_regipol/regiCarbonPrice/postsolve.gms:986 [47_regipol/regiCarbonPrice/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi)$(ttot.val ge cm_startyear) = 0;  (same reason: also line 1001)
+    ⚠ $ifthen not "%cm_regiExoPrice_fromFile%" == "off" → inactive by default
+- modules/47_regipol/regiCarbonPrice/presolve.gms:24 [47_regipol/regiCarbonPrice/presolve] ⚠ not in a default run  pm_taxCO2eqSum(t,regi) = 0;
+    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default
+### Used in equations (7 lines: 7 ✓; 21_tax, 33_carbonRemoval)
+- per file: modules/21_tax/on/equations.gms 6 ✓, modules/33_carbonRemoval/portfolio/equations.gms 1 ✓
+- equations: q21_taxrevGHG, q21_taxrevCO2Sector, q21_taxrevCO2luc, q21_taxrevImport, q21_taxrevCDR, q33_carbonRemovalspending
+- lines: get_symbol("pm_taxCO2eqSum", role="equation"[, module="…"])
+### Read (19 lines: 14 ✓, 5 ⚠; 21_tax, 46_carbonpriceRegi, 47_regipol, core)
+- per file: modules/21_tax/on/presolve.gms 7 ✓, modules/21_tax/on/postsolve.gms 6 ✓, modules/47_regipol/regiCarbonPrice/postsolve.gms 3 ⚠, core/presolve.gms 2 (1 ✓, 1 ⚠), modules/46_carbonpriceRegi/netZero/postsolve.gms 1 ⚠
+- lines: get_symbol("pm_taxCO2eqSum", role="read"[, module="…"])

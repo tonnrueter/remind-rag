@@ -1,0 +1,77 @@
+[1] modules/80_optimization/nash/postsolve.gms:616-621  (gams_block)
+» realization nash: DEFAULT
+» compiled only if not "%internalizeDamages%" == "off": INACTIVE by default
+Module 80 optimization, realization nash, postsolve (modules/80_optimization/nash/postsolve.gms)
+Only compiled if: not "%internalizeDamages%" == "off"
+```
+	if(sameas(convMessage80,"damage"),
+	   display "#### 11) The damage iteration did not converge.";
+	   display "#### Check out below the values for pm_gmt_conv and pm_sccConvergenceMaxDeviation."
+ 	   display "#### They should be below 0.05."
+	   display pm_gmt_conv, pm_sccConvergenceMaxDeviation;
+	);
+```
+
+[2] tutorials/12_Calibrating_CES_Parameters.md:252-276  (md_section)
+tutorials/12_Calibrating_CES_Parameters.md
+Documentation section: Calibrating CES Parameters > Problems > Calibration Convergence Errors
+```
+### Calibration Convergence Errors
+
+The CES calibration can fail to converge towards the calibration targets.  In
+that case
+
+- Check the convergence trend.  
+  If subsequent iterations show quantities closer to the calibration target,
+  more calibration iterations might be necessary.  Start the calibration again,
+  using the `fulldata.gdx` as input to reuse the achieved convergence, and
+  possibly increase the number of calibration iterations
+  (`c_CES_calibration_iterations`).
+- Check production factor prices.  
+… (13 more lines, tutorials/12_Calibrating_CES_Parameters.md:264–276)
+```
+
+[3] modules/02_welfare/ineqLognormal/equations.gms:259-263  (gams_block)
+» realization ineqLognormal: NOT DEFAULT (default: utilitarian; selected by $welfare)
+Module 02 welfare, realization ineqLognormal, equations (modules/02_welfare/ineqLognormal/equations.gms)
+```
+***---------------------------------------------------------------------------
+*' Adding other boundaries to prevent model from failing
+***---------------------------------------------------------------------------
+
+*** For tests (maybe not needed anymore)
+```
+
+[4] modules/80_optimization/nash/postsolve.gms:649-686  (gams_block)
+» realization nash: DEFAULT
+Module 80 optimization, realization nash, postsolve (modules/80_optimization/nash/postsolve.gms)
+```
+***end with failure message if max number of iterations is reached w/o convergence:
+if( (s80_bool eq 0) and (iteration.val eq cm_iteration_max),     !! reached max number of iteration, still no convergence
+     OPTION decimals = 3;
+     display "################################################################################################";
+     display "####################################  Nash Solution Report  ####################################";
+     display "################################################################################################";
+     display "####  !! Nash did NOT converge within the maximum number of iterations allowed !!"
+	 display "#### The reasons for failing to successfully converge are:"
+	 loop(convMessage80$(p80_messageShow(convMessage80)),
+	     if(sameas(convMessage80, "infes"),
+		 display "####";
+		 display "#### 1.) Infeasibilities found in at least some regions in the last iteration. Plase check parameter p80_repy for details. ";
+… (26 more lines, modules/80_optimization/nash/postsolve.gms:661–686)
+```
+
+[5] tutorials/04_RunningREMINDandMAgPIE.md:176-184  (md_section)
+tutorials/04_RunningREMINDandMAgPIE.md
+Documentation section: Check the convergence
+```
+# Check the convergence
+
+There is no automatic abort criterion for the coupling iterations. The number of coupling iterations is given by the user (`c_magpieIter` in `main.gms`) and will be performed regardless of the quality of convergence. The convergence can be checked, however, by tracking the changes of crucial coupling variables (such as bioenergy demand and prices, GHG emissions and prices) across coupling iterations. After the run finished, a pdf showing these changes is produced automatically that can be found in the common `output` folder of REMIND. If you want to create this pdf for one or more scenarios specifically please provide the names of these runs as follows:
+
+```bash
+Rscript output.R
+```
+- choose `single` and then `plotRemMagNash` to treat each run individually and produce one pdf per run
+- or choose `comparison` and then `plotRemMagNash` if you want to plot all coupling iterations of a run and all runs that continued it into one single pdf. See `continueFromHere` above.
+```

@@ -1,0 +1,76 @@
+[1] core/bounds.gms:435-443  (gams_block)
+» switch tests in this code (with default values): not "%c_tech_earlyreti_rate%" == "off"  (default c_tech_earlyreti_rate = off) → false
+REMIND core, bounds (core/bounds.gms)
+```
+*' Early Retirement
+*' Early retirement of capacities is not possible as long as vm_capEarlyReti is fixed to zero.
+*' If early retirement should be activated, vm_capEarlyReti is allowed to increase up to one.
+*' One means that 100% of standing capacity of this technology is retired and does not produce output in this time step.
+*' allow early retirement only for technologies in teEarlyReti
+vm_capEarlyReti.up(t,regi,te)$( NOT(teEarlyReti(te))) = 0;
+vm_capEarlyReti.up(t,regi,teEarlyReti) = 1;
+
+$ifthen.tech_earlyreti not "%c_tech_earlyreti_rate%" == "off"
+```
+
+[2] core/equations.gms:968-974  (equation)
+REMIND core, equations (core/equations.gms)
+Equation q_limitCapEarlyReti: constraint to avoid reactivation of retired capacities
+```
+***---------------------------------------------------------------------------
+*' The use of early retirement is restricted by the following equations:
+***---------------------------------------------------------------------------
+q_limitCapEarlyReti(ttot,regi,te)$(ttot.val le 2100 AND pm_ttot_val(ttot) ge max(2010, cm_startyear)).. !! 2000 doesn't have capacity, so for cm_startyear = 2005 the equation should not be applied
+        vm_capEarlyReti(ttot,regi,te)
+        =g=
+        vm_capEarlyReti(ttot-1,regi,te);
+```
+
+[3] core/equations.gms:976-983  (equation)
+REMIND core, equations (core/equations.gms)
+Equation q_smoothphaseoutCapEarlyReti: constraint to limit phase-out speed of early retirement from one time step to another
+```
+q_smoothphaseoutCapEarlyReti(ttot,regi,te)$(ttot.val le 2100 AND pm_ttot_val(ttot) ge max(2010, cm_startyear)).. !! 2000 doesn't have capacity, so for cm_startyear = 2005 the equation should not be applied
+        vm_capEarlyReti(ttot,regi,te)
+        =l=
+        vm_capEarlyReti(ttot-1,regi,te) +
+*** Region- and tech-specific max early retirement rates, e.g. more retirement possible for coal power plants in CHA, EUR, REF and USA to account for relatively old fleet or short historical lifespans
+        ( pm_ttot_val(ttot) - pm_ttot_val(ttot-1) ) *
+        ( pm_regiEarlyRetiRate(ttot,regi,te) + 0.2$( (ttot.val eq 2010) AND sameas(te,"pc") ) ) !! for some (currently unclear) reason, pc needs some extra flexibility in 2010
+    ;
+```
+
+[4] core/datainput.gms:775-790  (gams_block)
+REMIND core, datainput (core/datainput.gms)
+```
+*** increase default early retirement rates by 2%/yr for EU subregions
+  loop(regi$regi_group("EUR_regi",regi),
+    pm_regiEarlyRetiRate(t,regi,teEarlyReti) = pm_regiEarlyRetiRate(t,regi,teEarlyReti) + 0.02
+  );
+);
+
+
+*** Technology-specific adaptations of maximum allowed annual early retirement rates
+*** increase early retirement for technologies that are old and should be phased out faster
+pm_regiEarlyRetiRate(t,regi,"pc")      = 1.2 * pm_regiEarlyRetiRate(t,regi,"pc");       !! standard coal power plants, pc, are a relatively old technology that should be allowed to retire faster
+*** reduce early retirement for technologies with additional characteristics that are difficult to represent in REMIND, eg. industries built around heating/CHP plants, or flexibility from ngt plants
+pm_regiEarlyRetiRate(t,regi,"ngt")     = 0.3 * pm_regiEarlyRetiRate(t,regi,"ngt");      !! ngt should only be phased out very slowly, as they provide flexibility - which REMIND is not too good at capturing endogeneously
+… (4 more lines, core/datainput.gms:787–790)
+```
+
+[5] core/equations.gms:307-317  (equation)
+REMIND core, equations (core/equations.gms)
+Equation q_cap: calculate available capacities (capacity motion equation) by adding up past capacity additions weighted by the respective technical depreciation parameter
+```
+q_cap(ttot,regi,te2rlf(te,rlf))$(ttot.val ge cm_startyear)..
+  vm_cap(ttot,regi,te,rlf)
+  =e=
+  (1 - vm_capEarlyReti(ttot,regi,te)) !! early retirement for some technologies
+  *
+  sum(opTimeYr2te(te,opTimeYr) $ (tsu2opTimeYr(ttot,opTimeYr) AND (opTimeYr.val ge 1)),
+      pm_ts(ttot - (pm_tsu2opTimeYr(ttot,opTimeYr) - 1))
+    * pm_omeg(regi,opTimeYr+1,te)
+    * vm_deltaCap(ttot - (pm_tsu2opTimeYr(ttot,opTimeYr) - 1),regi,te,rlf)
+  )
+;
+```

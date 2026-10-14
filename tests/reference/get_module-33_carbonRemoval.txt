@@ -1,0 +1,28 @@
+# 33_carbonRemoval  (default realization in main.gms: portfolio)
+
+## module  [modules/33_carbonRemoval/module.gms:9]
+The 33_carbonRemoval module adds further options to remove CO2 from the atmosphere beyond BECCS and afforestation, which are calculated in the core. Currently, direct air carbon capture and storage (DACCS) and enhanced weathering of rocks (EW) are available, ocean alkalinization (OAE) implemented as ocean liming. All options can be switched on and off individually via the switches called cm_33[option abbreviation]. The module calculates capacities, emissions (including captured carbon), energy demand & supply, costs, and limitations associated with the different options.
+
+## realization portfolio  [DEFAULT]  [modules/33_carbonRemoval/portfolio/realization.gms:9]
+(DAC) Direct air capture uses heat and electricity to capture CO2 from the atmosphere, which can then either be used or stored. Modelled is a low-temperature solid adsorbent process based on the climeworks technology described in Beuttler et al. 2019. We assume 5.28 EJ/Gt C (* 12 Gt C/44 Gt CO2) = 1.44 GJ/tCO2 (*10^6 kJ / GJ * 1h/3600s) = 400 kWh/tCO2 electricity and 21.12 EJ/Gt C (* 12 Gt C/44 Gt CO2) = 5,76 GJ/tCO2 (*10^6 kJ / GJ * 1h/3600s) = 1600 kWh/tCO2 low-temperature heat demand. The heat can be provided via district heat, electricity, gas, or H2. If gas is used, the resulting CO2 is captured with a capture rate of 90%. (EW) Basalt is mined and ground to fine grain sizes (default 20 µm), and then spread on crop fields where it weathers in reaction with water and atmospheric CO2. Electricity is needed to grind the rocks and diesel is needed for spreading on crop fields. Transport…
+
+## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)
+### portfolio  [DEFAULT]
+- tests (run time, if / $()): cm_33_BCpriceForm (1), cm_33_OAE_limit_EEZ (0), cm_33_OAE_scen (1), cm_33DAC (1), cm_33EW (0), cm_33OAE (0)
+- reads: cm_33_EW_maxShareOfCropland (GLO 0.5), cm_33_EW_rockRemPot (0.3), cm_33_EW_shortTermLimit (0.005), cm_33_EW_upScalingRateLimit (0.2), cm_33_GDP_netNegCDR_maxShare (GLO 1), cm_33_maxFeShare (0.1), cm_33_OAE_eff (1.2), cm_33_OAE_startyr (2035), cm_frac_NetNegEmi (0.5), cm_startyear (2005)
+- in practice: 577 of 577 scenario configs select it (incl. those that leave the module switch empty); they set cm_startyear = 2025 (252), 2030 (103), 2005 (50); cm_frac_NetNegEmi = 0 (28), 0.5 (25), 0.75 (4); cm_33EW = 1 (37), 0 (6); cm_33OAE = 0 (35), 1 (8); cm_33_OAE_limit_EEZ = 5000 (8); cm_33_maxFeShare = 0.2 (6)
+
+## Interfaces: provides (outputs), 6
+- sm_capture_rate_cdrmodule -> used by core
+- vm_EW_transport_costs -> used by core
+- vm_biocharRevenue -> used by 01_macro
+- vm_co2capture_cdr -> used by core
+- vm_co2emi_cdrFE_beforeCapture -> used by core
+- vm_emiCdrTeDetail -> used by 47_regipol, core
+
+## Interfaces: consumes (inputs), 36
+- from 01_macro: vm_cesIO
+- from 21_tax: vm_emiAllco2neg
+- from 46_carbonpriceRegi: pm_taxCO2eqSum
+- from core: pm_dt, pm_emifac, pm_gdp_gdx, pm_ts, pm_ttot_val, sm_D2015_2_D2017, sm_EJ_2_TWa, sm_c_2_co2, sm_eps, sm_giga_2_non, sm_tBC_2_TWa, sm_trillion_2_non, vm_cap, vm_capFac, vm_demFeSector_afterTax, vm_demSeOth, vm_emiCdr, vm_prodFe, vm_prodSe
+- switches read: cm_33DAC, cm_33EW, cm_33OAE, cm_33_BCpriceForm, cm_33_EW_rockRemPot, cm_33_EW_shortTermLimit, cm_33_EW_upScalingRateLimit, cm_33_OAE_eff, cm_33_OAE_limit_EEZ, cm_33_OAE_scen, cm_33_OAE_startyr, cm_33_maxFeShare, cm_frac_NetNegEmi, cm_startyear

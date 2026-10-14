@@ -1,0 +1,88 @@
+[1] modules/02_welfare/ineqLognormal/equations.gms:152-158  (equation)
+» realization ineqLognormal: NOT DEFAULT (default: utilitarian; selected by $welfare)
+» switch tests in this code (with default values): cm_emiscen ne 1  (default cm_emiscen = 9) → true
+Module 02 welfare, realization ineqLognormal, equations (modules/02_welfare/ineqLognormal/equations.gms)
+Equation q02_taxrev_Add: tax revenue w.r.t. reference run
+```
+*** Similarly to energy expenditure, we define the additional revenues compared to the baseline
+q02_taxrev_Add(ttot,regi)$(ttot.val ge cm_startyear)..
+    v02_taxrev_Add(ttot,regi)
+  =e=
+    ((pm_taxCO2eq(ttot,regi) + pm_taxCO2eqRegi(ttot,regi) + pm_taxCO2eqSCC(ttot,regi))*v02_emitaxredistr(ttot,regi)
+    -p02_taxrev_redistr0_ref(ttot,regi))$(cm_emiscen ne 1)
+;
+```
+
+[2] modules/45_carbonprice/NPi2025/datainput.gms:9-27  (gams_block)
+» realization NPi2025: DEFAULT
+Module 45 carbonprice, realization NPi2025, datainput (modules/45_carbonprice/NPi2025/datainput.gms)
+```
+***----------------------------
+*** CO2 Tax level growing exponentially from 2025 value taken from input data
+***----------------------------
+
+*** for years up to 2025 take CO2 price defined by fm_taxCO2eqHist 
+*** fm_taxCO2eqHist reflects historical carbon prices and
+*** assumptions on current aggregate effect of other policies
+pm_taxCO2eq(ttot,regi)$(ttot.val le 2025) = fm_taxCO2eqHist(ttot,regi) * sm_DptCO2_2_TDpGtC;
+
+*** for years after 2025, constant carbon prices (2025-2100)
+!! In mid to long-term the REMIND current policy scenario is more optimistic than other projections like UNEP or CAT
+!! Therefore, a constant carbon price beyond 2025 represents more realistic trajectories for the NPi scenario to this date (source: IEA Current Policies)
+… (7 more lines, modules/45_carbonprice/NPi2025/datainput.gms:21–27)
+```
+
+[3] modules/45_carbonprice/functionalFormRegi/datainput.gms:39-60  (gams_block)
+» realization functionalFormRegi: NOT DEFAULT (default: NPi2025; selected by $carbonprice)
+» switch tests in this code (with default values): "%cm_taxCO2_functionalForm%" == "exponential"  (default cm_taxCO2_functionalForm = linear) → false
+Module 45 carbonprice, realization functionalFormRegi, datainput (modules/45_carbonprice/functionalFormRegi/datainput.gms)
+```
+$endif.peak
+
+***----------------------------------------------------------------------------------
+*** ---- Derive the starting co2 price path and shape
+
+*** Read pm_taxCO2eq from the input_ref and the specified input file
+Execute_Loadpoint 'input_ref' p45_taxCO2eq_path_gdx_ref = pm_taxCO2eq;
+Execute_Loadpoint 'input' p45_taxCO2eq_path_gdx_input = pm_taxCO2eq;
+
+display p45_taxCO2eq_path_gdx_ref;
+
+*** Convert tax values from $/t CO2eq to T$/GtC  
+… (10 more lines, modules/45_carbonprice/functionalFormRegi/datainput.gms:51–60)
+```
+
+[4] modules/33_carbonRemoval/portfolio/equations.gms:217-224  (equation)
+» realization portfolio: DEFAULT
+Module 33 carbonRemoval (carbon removal), realization portfolio, equations (modules/33_carbonRemoval/portfolio/equations.gms)
+Equation q33_biocharRevenue: calculates revenue from biochar use, biochar-price x quantity
+```
+***---------------------------------------------------------------------------
+*' Revenue from Biochar 
+***---------------------------------------------------------------------------
+q33_biocharRevenue(t, regi)..
+    vm_biocharRevenue(t, regi)
+    =e= 
+    p33_BiocharPrice(t) * vm_demSeOth(t,regi,"sebiochar","biocharuse")
+;
+```
+
+[5] modules/45_carbonprice/expoLinear/datainput.gms:9-31  (gams_block)
+» realization expoLinear: NOT DEFAULT (default: NPi2025; selected by $carbonprice)
+» switch tests in this code (with default values): cm_iterative_target_adj ne 0  (default cm_iterative_target_adj = 0) → false; cm_taxCO2_startyear le 0  (default cm_taxCO2_startyear = -1) → true; cm_taxCO2_startyear gt 0  (default cm_taxCO2_startyear = -1) → false
+Module 45 carbonprice, realization expoLinear, datainput (modules/45_carbonprice/expoLinear/datainput.gms)
+```
+*** Carbon price increases exponentially with rate given by cm_taxCO2_expGrowth (default = 4.5%) %) until cm_expoLinear_yearStart (defaults to 2060) 
+*** and then transitions into linear growth (with slope given by last timestep before  cm_expoLinear_yearStart).
+*** Not compatible with iterative adjustment of CO2 tax [i.e. requires cm_iterative_target_adj = 0]
+
+*** Check that cm_iterative_target_adj is equal to 0
+if( cm_iterative_target_adj ne 0,
+  abort "The realization 45_carbonprice/expoLinear is only compatible with cm_iterative_target_adj = 0. Please adjust config file accordingly"
+);
+
+if(cm_taxCO2_startyear le 0,
+  abort "please choose a valid cm_taxCO2_startyear"
+elseif cm_taxCO2_startyear gt 0,
+… (11 more lines, modules/45_carbonprice/expoLinear/datainput.gms:21–31)
+```

@@ -1,0 +1,39 @@
+# 45_carbonprice  (default realization in main.gms: NPi2025)
+
+## module  [modules/45_carbonprice/module.gms:9]
+The carbonprice module sets or adjusts carbon price trajectories between iterations s.t. the desired climate policy targets are met. Carbon price trajectories either (a) follow a prescribed funtional form (linear/exponential), (b) reflect NPi or NDC targets, or (c) are set exogenously. The carbon price is the main indicator to reflect the change in climate policy ambition over time. Carbon prices are potentially defined by three modules: - 45_carbonprice: define the carbon price necessary to reach global emission targets following specific price trajectories. - 46_carbonpriceRegi: add a markup pm_taxCO2eqRegi to 45_carbonprice estimations to reach specific NDC or net zero targets - 47_regip…
+
+## realization NPi2025  [DEFAULT]  [modules/45_carbonprice/NPi2025/realization.gms:9]
+This realization uses the carbon prices from the input (/p/projects/rd3mod/inputdata/sources/ExpertGuess) data up to 2025 (and for EUR, up to 2030) and thereafter assumes a linear increase to 20 USD in the period from 2025 to 2100.
+
+## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)
+### NPi2025  [DEFAULT]
+- in practice: 191 of 577 scenario configs select it (incl. those that leave the module switch empty)
+
+## Alternatives (one in full: get_module("45_carbonprice", realization="..."))
+- realization exogenous  [not default]: This realization implements carbon price trajectories from an exogenous file (p45_tau_co2_tax.inc). · 3 of 577 configs
+- realization exogenousExpo  [not default]: This realization implements an exponential increase in carbon price from the tax level before cm_startyear. · 0 of 577 configs
+- realization expoLinear  [not default]: The exponential price path goes back to the “Hotelling rule”: a price path that rises exponentially with the discount rate is economically … · aborts under the defaults unless cm_taxCO2_startyear is changed · 0 of 577 configs
+- realization functionalForm  [not default]: Carbon price trajectory follows a prescribed functional form (linear/exponential) - either until peak year or until end-of-century - and ca… · aborts under the defaults unless cm_taxCO2_functionalForm, cm_taxCO2_peakBudgYr, cm_taxCO2_startyear are changed (set by 316 of 316 selecting configs) · 316 of 577 configs
+- realization functionalFormRegi  [not default]: Carbon price trajectory follows a prescribed functional form (linear/exponential) - either until peak year or until end-of-century. · aborts under the defaults unless cm_iterative_target_adj, cm_taxCO2_functionalForm, cm_taxCO2_peakBudgYr, cm_taxCO2_startyear are changed · 0 of 577 configs
+- realization NDC  [not default]: This realization implements a carbon price trajectory consistent with the NDC targets (up to 2030) and a trajectory of comparable ambition … · has limitations · 20 of 577 configs
+- realization none  [not default]: This realization is for runs without carbon prices. · 9 of 577 configs
+- realization NPi  [not default]: This realization takes the carbon prices until 2020 from the input data and implements as convergence scheme post 2020: parabolic convergen… · 38 of 577 configs
+- realization NPi2025expo  [not default]: This realization takes the carbon prices until 2025 from the input data (for EUR until 2030) and implements an exponentially growing path a… · 0 of 577 configs
+- realization temperatureNotToExceed  [not default]: This realization chooses a carbon price trajectory consistent with a (non-overshoot) temperature target by staying within a peak budget of … · ⚠ CAN NEVER BE MET: aborts if not %climate% == "magicc" (15_climate has no realization 'magicc' (available: magicc7_ar6, off)) · aborts under the defaults unless cm_magicc_temperatureImpulseResponse is changed · 0 of 577 configs
+
+## Interfaces: provides (outputs), 6
+- pm_NDCEmiTargetDeviation -> used by 80_optimization
+- pm_NDCTargetNotReached_iter -> used by 80_optimization
+- pm_budgetDeviation -> used by 80_optimization
+- pm_factorRescale_taxCO2Regi_Funneled2 -> used by 80_optimization
+- pm_regionalBudget_absDevTol -> used by 80_optimization
+- sm_peakbudget_diff -> used by 80_optimization
+
+## Interfaces: consumes (inputs), 48
+- from 01_macro: pm_consPC
+- from 02_welfare: pm_prtp
+- from 15_climate: pm_globalMeanTemperature, pm_temperatureImpulseResponseCO2
+- from 51_internalizeDamages: pm_GDPGross
+- from core: fm_taxCO2eqHist, pm_CO2PriceLimit, pm_actualbudgetco2, pm_actualbudgetco2eqRegi, pm_budgetCO2eq, pm_dt, pm_gdp, pm_macSwitch, pm_pop, pm_shPPPMER, pm_taxCO2eq, pm_taxCO2eq_anchor_iterationdiff, pm_taxCO2eq_iter, pm_ttot_2_tall, pm_ttot_val, sm_D2005_2_D2017, sm_DptCO2_2_TDpGtC, sm_MtCO2_2_GtC, sm_budgetCO2eqGlob, sm_c_2_co2, sm_globalBudget_absDev, vm_emiAll, vm_emiCdrNovel, vm_emiGHG_exclLULUCF_exclBunkers
+- switches read: cm_CPslopeAdjustment, cm_budgetCO2_absDevTol, cm_budgetCO2from2020, cm_carbonprice_temperatureLimit, cm_emiscen, cm_expoLinear_yearStart, cm_iteration_max, cm_iterative_target_adj, cm_peakBudgYr, cm_startyear, cm_taxCO2_IncAfterPeakBudgYr, cm_taxCO2_Shape, cm_taxCO2_expGrowth, cm_taxCO2_interpolation, cm_taxCO2_lowerBound_path_gdx_ref, cm_taxCO2_peakBudgYr, cm_taxCO2_regiDiff, cm_taxCO2_startyear, cm_useInputGdxForCarbonPrice

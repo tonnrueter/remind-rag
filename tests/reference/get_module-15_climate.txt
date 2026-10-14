@@ -1,0 +1,27 @@
+# 15_climate  (default realization in main.gms: off)
+
+## module  [modules/15_climate/module.gms:9]
+The 15_climate module takes emissions and simulates the resulting climate variables (forcings, global mean temperature) using the MAGICC climate emulator. It may also be used within the optimization or between iterations in order to internalize climate damages or adjust the carbon price to meet a desired climate target
+
+## realization off  [DEFAULT]  [modules/15_climate/off/realization.gms:9]
+(no description)
+
+## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)
+### all realizations (module-level files)
+- used by every realization: cm_multigasscen (3), cm_rcp_scen (rcp45)
+### off  [DEFAULT]
+- in practice: 574 of 577 scenario configs select it (incl. those that leave the module switch empty)
+
+## Alternatives (one in full: get_module("15_climate", realization="..."))
+- realization magicc7_ar6  [not default]: In this realization, concentration, forcing, and temperature values are calculated using a version of the MAGICC climate emulator. · 3 of 577 configs
+
+## Interfaces: provides (outputs), 4
+- pm_globalMeanTemperature -> used by 16_downscaleTemperature, 45_carbonprice, 50_damages
+- pm_globalMeanTemperatureZeroed1900 -> used by 50_damages
+- pm_gmt_conv -> used by 80_optimization
+- pm_temperatureImpulseResponseCO2 -> used by 45_carbonprice, 50_damages, 51_internalizeDamages
+
+## Interfaces: consumes (inputs), 6
+- from 41_emicapregi: pm_emicapglob
+- from core: pm_taxCO2eq
+- switches read: cm_emiscen, cm_iterative_target_adj, cm_multigasscen, cm_startyear
