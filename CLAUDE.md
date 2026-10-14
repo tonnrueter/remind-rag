@@ -22,7 +22,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 
 ```powershell
 $env:UV_SYSTEM_CERTS = 1                                 # PIK network intercepts TLS (uv; UV_NATIVE_TLS is deprecated)
-uv run pytest tests                                      # tool-output checks against the newest index
+uv run pytest tests                                      # tool-output checks against data/remind-bge.db (or REMIND_RAG_DB)
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
 uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
 uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # uses/FTS only, seconds

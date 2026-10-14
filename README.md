@@ -135,8 +135,8 @@ Options:
   REMIND commit it was built from; the server tells Claude when the checkout it serves is at another commit.
 
 The build ends by printing the `claude mcp add` line with this machine's paths. Without `REMIND_RAG_DB`, the server
-takes the newest complete `remind-bge*.db` in `data/`, else `remind-jina*.db`. Superseded indexes are kept with a
-`-vN` suffix (e.g. `remind-bge-v0.db` = the v0.0.1 index).
+uses `data/remind-bge.db`. Superseded indexes are kept with a `-vN` suffix (e.g. `remind-bge-v0.db` = the v0.0.1
+index).
 
 ## Use from Claude Code
 
@@ -152,8 +152,7 @@ Use absolute paths. `REMIND_RAG_ROOT` is the checkout the server answers for (de
 from); it is compared with the commit stored in the index. With `REMIND_RAG_MODELS` set, the line the build prints
 passes it on (`-e REMIND_RAG_MODELS=<shared dir>`).
 `REMIND_RAG_DB` pins the stable name `remind-bge.db`, which always holds the current index; older builds are kept as
-`remind-bge-vN.db`. Without it, the server takes the newest complete `remind-bge*.db` by modification time, which can
-be a draft build. Check with `claude mcp get remind-rag`, and with `/mcp` inside Claude Code (reconnect there after
+`remind-bge-vN.db`; without it, the server uses the same file. Check with `claude mcp get remind-rag`, and with `/mcp` inside Claude Code (reconnect there after
 a rebuild). Tools:
 
 | tool | use for |

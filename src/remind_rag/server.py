@@ -1,7 +1,7 @@
 """MCP server (stdio) exposing the REMIND index to Claude Code / opencode.
 
     uv run --directory <rag> python -m remind_rag.server
-    env REMIND_RAG_DB selects the index (default: newest complete data/remind-bge*.db, else remind-jina*.db)
+    env REMIND_RAG_DB selects the index (default: the pinned data/remind-bge.db)
     env REMIND_RAG_ROOT names the REMIND checkout it is served for (default: the one the index was built from)
 """
 
@@ -24,26 +24,12 @@ from .steering import steering
 DATA = Path(__file__).resolve().parents[2] / "data"
 
 
-def _complete(db_path: Path) -> bool:
-    """meta is written last, so an index still being built has no 'built_at' row yet."""
-    import sqlite3
-
-    try:
-        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as db:
-            return db.execute("SELECT 1 FROM meta WHERE key = 'built_at'").fetchone() is not None
-    except sqlite3.Error:
-        return False
-
-
 def _default_db() -> Path:
-    if env := os.environ.get("REMIND_RAG_DB"):
-        return Path(env)
-    # newest complete index, bge before jina (bge won the retrieval eval); older versions keep a -vN suffix
-    for model in ("bge", "jina"):
-        for path in sorted(DATA.glob(f"remind-{model}*.db"), key=lambda p: p.stat().st_mtime, reverse=True):
-            if _complete(path):
-                return path
-    raise FileNotFoundError("no index found; run: uv run python -m remind_rag.index --root <remind>")
+    """REMIND_RAG_DB, else the pinned data/remind-bge.db. Never "the newest file": that can be a draft build."""
+    path = Path(os.environ.get("REMIND_RAG_DB") or DATA / "remind-bge.db")
+    if not path.exists():
+        raise FileNotFoundError(f"no index at {path}; build one: uv run python -m remind_rag.index --root <remind>")
+    return path
 
 
 idx = Index(_default_db())

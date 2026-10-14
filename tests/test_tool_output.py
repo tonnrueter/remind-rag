@@ -1,7 +1,7 @@
 """Tool-output checks: each test replays a failure from audit round 02 (eval/rounds/round-02.md) and asserts
 that the MCP tools now return the information whose absence led to it. No LLM involved.
 
-    uv run pytest tests            (uses the newest data/remind-bge*.db, or REMIND_RAG_DB)
+    uv run pytest tests            (uses data/remind-bge.db, or REMIND_RAG_DB)
 """
 
 from __future__ import annotations
