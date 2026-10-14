@@ -298,6 +298,8 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
         "embed_rule": rule,
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
+    if sha := embeddings.fingerprint(model):  # absent when every vector was reused and the model isn't here
+        stats["model_sha256"] = sha
     db.executemany("INSERT INTO meta VALUES (?, ?)", [(k, str(v)) for k, v in stats.items()])
     db.commit()
     db.execute("VACUUM")
@@ -309,9 +311,11 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
 def registration(root: Path, db_path: Path) -> str:
     """The `claude mcp add` line for this machine's paths (run it in the REMIND checkout)."""
     rag = DEFAULT_DB_DIR.parent
+    models = f"-e {embeddings.MODELS_ENV}={embeddings.models_dir().resolve().as_posix()} " \
+        if os.environ.get(embeddings.MODELS_ENV) else ""
     return (f"register (run in {root.resolve()}):\n  claude mcp add remind-rag --scope local "
             f"-e REMIND_RAG_DB={db_path.resolve().as_posix()} -e REMIND_RAG_ROOT={root.resolve().as_posix()} "
-            f"-- uv run --offline --directory {rag.as_posix()} python -m remind_rag.server")
+            f"{models}-- uv run --offline --directory {rag.as_posix()} python -m remind_rag.server")
 
 
 def main() -> None:

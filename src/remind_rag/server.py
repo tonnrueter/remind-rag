@@ -15,7 +15,7 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
-from . import checkout
+from . import checkout, embeddings
 from .search import Index, _module_match
 from .usage import STR_TEST_RE, TEST_RE, switch_tests
 
@@ -48,6 +48,7 @@ idx = Index(_default_db())
 _root = checkout.served_root(idx.meta)
 _where = f"the REMIND checkout at {_root}" if _root else "the REMIND checkout you are working in"
 _stale = checkout.staleness(idx.meta, _root)
+_model = embeddings.mismatch(idx.meta)
 
 server = MCPServer(
     name="remind-rag",
@@ -55,6 +56,7 @@ server = MCPServer(
         "Search index over the REMIND model source (GAMS core/modules, main.gms switches, scenario configs, "
         f"R scripts, tutorials). Paths are relative to {_where}. "
         + (_stale + " " if _stale else "")
+        + (_model + " " if _model else "")
         + "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which modules provide / "
         "consume them, get_switch for cm_*/c_* switches and module selections, get_module for a module's "
         "realizations, interfaces and limitations, get_scenario for a scenario's settings, and search for "
