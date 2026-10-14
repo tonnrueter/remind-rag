@@ -36,6 +36,11 @@ def rank(tags: list[str]) -> int:
     return 1 if tags else 0
 
 
+def switch_defaults(db: sqlite3.Connection) -> dict[str, str]:
+    """Switch values of a default run as assigned in main.gms, quotes dropped (`""` → empty)."""
+    return {r["name"]: (r["value"] or "").strip().strip("\"'") for r in db.execute("SELECT name, value FROM switches")}
+
+
 def _inactive(verdict: str) -> str:
     return verdict.replace(": INACTIVE by default", " → inactive by default")
 
@@ -50,8 +55,7 @@ class DefaultRun:
     @property
     def defaults(self) -> dict[str, str]:
         if self._defaults is None:
-            self._defaults = {r["name"]: (r["value"] or "").strip().strip("\"'")
-                              for r in self.db.execute("SELECT name, value FROM switches")}
+            self._defaults = switch_defaults(self.db)
         return self._defaults
 
     # ---------------------------------------------------------------- modules and conditions

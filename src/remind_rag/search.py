@@ -11,6 +11,7 @@ import numpy as np
 
 from . import embeddings, store
 from .scenarios import eval_condition
+from .status import switch_defaults
 
 RRF_K = 60
 STOPWORDS = set(
@@ -120,7 +121,7 @@ class Index:
             (scenario,)).fetchone()
         if row is None:
             return None
-        values = {r["name"]: (r["value"] or "") for r in self.db.execute("SELECT name, value FROM switches")}
+        values = switch_defaults(self.db)
         values.update(json.loads(row["settings"]))
         return values, row
 

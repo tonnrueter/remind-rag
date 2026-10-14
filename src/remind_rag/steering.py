@@ -38,9 +38,8 @@ class Steering:
 
 
 def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
-    values = {r["name"].lower(): (r["value"] or "").strip().strip("\"'")
-              for r in db.execute("SELECT name, value FROM switches")}
-    canon = {r["name"].lower(): r["name"] for r in db.execute("SELECT name FROM switches")}
+    values = {k.lower(): v for k, v in run.defaults.items()}
+    canon = {k.lower(): k for k in run.defaults}
     sel = mod.partition("_")[2].lower()
     reals = [r[0] for r in db.execute("SELECT DISTINCT realization FROM chunks WHERE module = ? AND "
                                       "realization IS NOT NULL ORDER BY realization COLLATE NOCASE", (mod,))]
