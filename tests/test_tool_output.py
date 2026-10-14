@@ -289,3 +289,29 @@ def test_symbol_use_lines_carry_status():
     assigned = section(server.get_symbol("pm_taxCO2eqSum", max_uses=60), "Assigned")
     assert "core/presolve.gms:10 [core/presolve] ✓ runs by default" in assigned
     assert "core/postsolve.gms:51 [core/postsolve] ⚠ not in a default run" in assigned
+
+
+# ------------------------------------------------------------------ #50: switch tests come from code only
+
+DEFAULTS = {"cm_startyear": "2005", "cm_emiscen": "9", "carbonprice": "functionalForm"}
+
+
+@pytest.mark.parametrize("text, expected", [
+    # prose in comments and messages is not a test
+    ("q_x(t)$(t.val ge 2010).. !! for cm_startyear = 2005 the equation should not be applied\n v_x(t) =g= 0;", []),
+    ("*** requires cm_emiscen = 1\np_x = 1;", []),
+    ("$ontext\nif(cm_emiscen eq 1, p_x = 1);\n$offtext\np_y = 2;", []),
+    ('if(cm_emiscen ne 9, abort "only compatible with cm_startyear = 2005");', ["cm_emiscen ne 9"]),
+    # code tests stay, including string tests and `!!` inside a string
+    ("if(cm_emiscen eq 9, p_x = 1); !! default", ["cm_emiscen eq 9"]),
+    ('$ifthen "%carbonprice%" == "functionalForm"', ['"%carbonprice%" == "functionalForm"']),
+    ('p_x$(cm_startyear gt 2005) = 1; p_s = "a !! b";', ["cm_startyear gt 2005"]),
+])
+def test_switch_tests_ignore_comments_and_messages(text, expected):
+    assert [t.split("  (default")[0] for t, _ in usage.switch_tests(text, DEFAULTS)] == expected
+
+
+def test_search_shows_no_switch_test_from_a_comment():
+    # q_limitCapEarlyReti's `!!` comment mentions "cm_startyear = 2005"; its code tests no switch
+    out = server.search("q_limitCapEarlyReti", k=1)
+    assert "switch tests in this code" not in out

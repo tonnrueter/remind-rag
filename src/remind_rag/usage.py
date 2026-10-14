@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from .chunkers import _code_part, _is_comment
+from .chunkers import STRING_RE, _code_part, _is_comment
 
 # ------------------------------------------------------------------ roles
 
@@ -147,11 +147,39 @@ def _compare(a: str, op: str, b: str) -> bool | None:
     return {"==": x == y, "!=": x != y, ">=": x >= y, "<=": x <= y, ">": x > y, "<": x < y}[op]
 
 
+ONTEXT_RE = re.compile(r"\s*\$ontext\b", re.I)
+OFFTEXT_RE = re.compile(r"\s*\$offtext\b", re.I)
+
+
+def strip_comments(text: str) -> str:
+    """`text` without `*` comment lines, `$ontext` blocks and `!!` end-of-line comments. Unlike `_code_part`,
+    quoted strings stay: `"%carbonprice%" == "NDC"` is a test."""
+    out, in_text = [], False
+    for line in text.splitlines():
+        if in_text:
+            in_text = not OFFTEXT_RE.match(line)
+            continue
+        if ONTEXT_RE.match(line):
+            in_text = True
+            continue
+        if _is_comment(line):
+            continue
+        cut = STRING_RE.sub(lambda m: "x" * len(m.group()), line).find("!!")
+        out.append(line if cut < 0 else line[:cut])
+    return "\n".join(out)
+
+
 def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | None]]:
-    """Switch comparisons in `text` (`cm_emiscen eq 6`, `"%carbonprice%" == "NDC"`), each with its value
-    under the main.gms defaults (None: not decidable). Only names that are known switches count."""
+    """Switch comparisons in the code of `text` (`cm_emiscen eq 6`, `"%carbonprice%" == "NDC"`), each with its
+    value under the main.gms defaults (None: not decidable). Only names that are known switches count; comments
+    don't (`!! for cm_startyear = 2005 ...` is prose, not a test)."""
+    text = strip_comments(text)
+    # a match that starts inside a string is message text (abort "... requires cm_x = 0 ...")
+    in_string = [(s.start(), s.end()) for s in STRING_RE.finditer(text)]
     out: dict[str, bool | None] = {}
     for m in TEST_RE.finditer(text):
+        if any(a < m.start() < b for a, b in in_string):
+            continue
         name, op, val = m.group(1), OPS[m.group(2).lower()], m.group(3)
         key = next((k for k in defaults if k.lower() == name.lower()), None)
         if key is None:
