@@ -19,6 +19,7 @@ import re
 from collections import Counter, defaultdict
 
 from . import server
+from .status import DefaultRun, rank
 
 PREFIXES = ("vm_", "pm_", "qm_", "fm_")
 # phases that run between solves (Nash iterations) or once before them; 'equations' is inside the optimization
@@ -26,6 +27,7 @@ BETWEEN = {"presolve", "postsolve", "loop", "solve"}
 ONCE = {"datainput", "preloop", "bounds", "sets_calculations", None, "module"}
 
 idx = server.idx
+default_run = DefaultRun(idx.db)
 
 
 def _owners() -> dict[str, str]:
@@ -48,7 +50,7 @@ def collect() -> dict:
         if u["role"] == "assigned" and _start_value(u["name"], u["snippet"]):
             continue
         uses.append((u["name"], owners[u["name"]], u["module"], u["role"], u["phase"],
-                     server._rank(server._use_tags(u))))
+                     rank(default_run.use_tags(u))))
     return {"owners": owners, "uses": uses, "commit": idx.meta.get("remind_commit", "?"),
             "branch": idx.meta.get("remind_branch", "?"), "built_at": idx.meta.get("built_at", "?")}
 
@@ -180,7 +182,7 @@ def report(data: dict) -> str:
     out.append("\n## Per module (default run): default realization; symbols it owns -> modules using them; "
                "symbols it writes but does not own")
     for m in rows:
-        real = "-" if m == "core" else idx.default_realization(m)
+        real = "-" if m == "core" else default_run.default_realization(m)
         owned = [f"{s['name']}->{s['users']}" for s in d["symbols"] if s["owner"] == m][:6]
         written = sorted(n for n, ws in d["writers"].items() if m in ws)
         out.append(f"- {m} [{real}] owns: {', '.join(owned) or '-'}; writes: {', '.join(written) or '-'}")

@@ -17,7 +17,8 @@ from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings
 from .search import Index, _module_match
-from .usage import STR_TEST_RE, TEST_RE, switch_tests
+from .status import DefaultRun, detail, equation_domain, rank
+from .usage import STR_TEST_RE, TEST_RE
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 
@@ -45,6 +46,7 @@ def _default_db() -> Path:
 
 
 idx = Index(_default_db())
+default_run = DefaultRun(idx.db)
 _root = checkout.served_root(idx.meta)
 _where = f"the REMIND checkout at {_root}" if _root else "the REMIND checkout you are working in"
 _stale = checkout.staleness(idx.meta, _root)
@@ -90,7 +92,7 @@ def _fmt_chunk(r, rank: int | None = None, cut: int | None = None) -> str:
     to the rest. The header's 'Uses:' line (symbol descriptions, there for the embedding) is left out."""
     where = f"{r['path']}:{r['line_start']}-{r['line_end']}"
     head = f"[{rank}] {where}" if rank else where
-    status = "".join(f"\n» {s}" for s in idx.default_status(r))
+    status = "".join(f"\n» {s}" for s in default_run.chunk_status(r))
     header = "\n".join(x for x in r["header"].splitlines() if not x.startswith("Uses:"))
     lines = r["text"].splitlines()
     text = r["text"]
@@ -100,64 +102,10 @@ def _fmt_chunk(r, rank: int | None = None, cut: int | None = None) -> str:
     return f"{head}  ({r['kind']}){status}\n{header}\n```\n{text}\n```"
 
 
-def _equation_head(text: str, name: str) -> str | None:
-    """`q(t,regi)$(cond)` part of an equation definition, comments dropped, whitespace collapsed."""
-    code = "\n".join(line for line in text.splitlines() if not line.startswith("*"))
-    i = code.lower().find(name.lower())
-    j = code.find("..", i)
-    return " ".join(code[i:j].split()) if i >= 0 and j > i else None
-
-
 SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
 
 ROLE_LABELS = {"declared": "Declared", "assigned": "Assigned / fixed / loaded",
                "equation": "Used in equations", "read": "Read"}
-
-
-def _use_tags(u) -> list[str]:
-    """Why a use line may not run in a default configuration."""
-    tags = []
-    s = idx.realization_status(u["module"], u["realization"])
-    if s and "NOT DEFAULT" in s:
-        default = idx.default_realization(u["module"])
-        tags.append(f"module switched off by default ({default})" if idx.module_off_by_default(u["module"])
-                    else f"non-default realization (default: {default})")
-    for c in json.loads(u["conditions"] or "[]"):
-        if (v := idx.condition_status(c, "$ifthen")) and "INACTIVE" in v:
-            tags.append(v.replace(": INACTIVE by default", " → inactive by default"))
-    for g in json.loads(u["guards"] or "[]"):
-        v = idx.condition_status(g, "inside if")
-        if "INACTIVE" in v:
-            tags.append(v.replace(": INACTIVE by default", " → inactive by default"))
-        elif "depends" in v and any(t for t, _ in switch_tests(g, idx.defaults)):
-            tags.append(v)
-    return tags
-
-
-def _off(tag: str) -> bool:
-    return tag.endswith("inactive by default") or tag.startswith(("non-default realization", "module switched off"))
-
-
-def _detail(tags: list[str]) -> str:
-    """Reasons under an entry: ⚠ for what keeps it out of a default run, ? for conditions that depend on settings."""
-    return "".join(f"\n    {'⚠' if _off(t) else '?'} {t}" for t in tags)
-
-
-def _rank(tags: list[str]) -> int:
-    """0 runs by default, 1 depends on settings, 2 not in a default run (sort order of links)."""
-    return 2 if any(_off(t) for t in tags) else 1 if tags else 0
-
-
-def _mark(u, tags: list[str]) -> str:
-    """Default status for the first line of an entry, positive as well as negative: a missing ⚠ alone was read
-    as 'unknown' (33_carbonRemoval/portfolio, the default, was called an alternative in a smoke test)."""
-    if any(_off(t) for t in tags):
-        return "⚠ not in a default run"
-    if tags:
-        return "? depends on settings"
-    if u["realization"] and idx.default_realization(u["module"]):
-        return "✓ default realization"
-    return "✓ runs by default"
 
 
 @server.tool()
@@ -201,7 +149,7 @@ def _use_line(u, tags: list[str], also: list[int] | None = None, snippet: int | 
         ctx += f", in {u['context']}"
     text = _short(u["snippet"], snippet) if snippet else u["snippet"]
     more = f"  (same reason: also line{'s' if len(also) > 1 else ''} {', '.join(map(str, also))})" if also else ""
-    return f"- {u['path']}:{u['line']} [{ctx}] {_mark(u, tags)}  {text}{more}" + _detail(tags)
+    return f"- {u['path']}:{u['line']} [{ctx}] {default_run.mark(u, tags)}  {text}{more}" + detail(tags)
 
 
 def _grouped(tagged: list) -> list[str]:
@@ -217,7 +165,7 @@ def _per_file(tagged: list, limit: int = 6) -> str:
     the file runs (audit 2026-10-01: '70_water/heat/output.gms 1' without a mark left the default unchecked)."""
     marks: dict[str, Counter] = defaultdict(Counter)
     for u, t in tagged:
-        marks[u["path"]][_mark(u, t).split(" ")[0]] += 1
+        marks[u["path"]][default_run.mark(u, t).split(" ")[0]] += 1
     files = sorted(marks, key=lambda p: -sum(marks[p].values()))
 
     def status(c: Counter) -> str:
@@ -250,7 +198,7 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
         page = us[offset:offset + max_uses]
         out = [f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
                + (f" in {module}" if module else "") + f", {offset + 1}–{offset + len(page)} of {len(us)}"]
-        out += [_use_line(u, _use_tags(u)) for u in page]
+        out += [_use_line(u, default_run.use_tags(u)) for u in page]
         if offset + len(page) < len(us):
             out.append(f"- … next page: offset={offset + len(page)}")
         return "\n".join(out)
@@ -269,9 +217,9 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             reals = [d["realization"] for d in ds if d["realization"]]
             loc = (mod or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
                                           else f"/{reals[0]}" if reals else "")
-            default = idx.default_realization(mod)
+            default = default_run.default_realization(mod)
             note = ("" if not (reals and default and default.lower() not in {x.lower() for x in reals})
-                    else f"  — module switched off by default ({default})" if idx.module_off_by_default(mod)
+                    else f"  — module switched off by default ({default})" if default_run.module_off_by_default(mod)
                     else f"  — only in non-default realizations (default: {default})")
             out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
                        + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "") + note)
@@ -293,7 +241,7 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
                 out.append(f"- also: {', '.join(r['module'] + '/' + r['realization'] for r in skipped[5:])}")
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
-        head = _equation_head(r["text"], r["name"])
+        head = equation_domain(r["text"], r["name"])
         out.append("## Equation definition\n"
                    + (f"Generated for (domain and $-condition): {head}\n" if head else "") + _fmt_chunk(r, cut=60))
     if uses:
@@ -307,8 +255,8 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             us = groups.get(r, [])
             if not us:
                 continue
-            tagged = [(u, _use_tags(u)) for u in us]
-            marks = Counter(_mark(u, t).split(" ")[0] for u, t in tagged)
+            tagged = [(u, default_run.use_tags(u)) for u in us]
+            marks = Counter(default_run.mark(u, t).split(" ")[0] for u, t in tagged)
             split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
             mods = sorted({u["module"] or u["path"] for u in us})
             out.append(f"### {ROLE_LABELS[r]} ({len(us)} lines: {split}; {', '.join(mods)})")
@@ -356,7 +304,7 @@ def _decl_module(name: str) -> str:
 
 def _kind(name: str) -> str:
     _decl_module(name)
-    return _KINDS.get(name.lower(), "switch" if name.lower() in {k.lower() for k in idx.defaults} else "")
+    return _KINDS.get(name.lower(), "switch" if name.lower() in {k.lower() for k in default_run.defaults} else "")
 
 
 def _names(names: list[str], home: str | None, limit: int = 12) -> str:
@@ -370,20 +318,6 @@ def _names(names: list[str], home: str | None, limit: int = 12) -> str:
 
 def _loc(u) -> str:
     return "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
-
-
-def _equation_status(path: str, equation: str) -> list[str]:
-    """Whether the equation's domain $-condition holds in a default run."""
-    row = idx.db.execute("SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE",
-                         (path, equation)).fetchone()
-    head = _equation_head(row["text"], equation) if row else None
-    if not head or "$" not in head:
-        return []
-    cond = head[head.index("$") + 1:]
-    if not switch_tests(cond, idx.defaults):
-        return []
-    v = idx.condition_status(cond, "generated only if")
-    return [] if v.endswith(": active by default") else [v.replace(": INACTIVE by default", " → inactive by default")]
 
 
 @server.tool()
@@ -418,14 +352,14 @@ def get_links(name: str, max_links: int = 10) -> str:
 
     # an equation: its members
     for r in eq_chunks:
-        tags = _use_tags({"module": r["module"], "realization": r["realization"], "conditions": r["conditions"],
-                          "guards": "[]"}) + _equation_status(r["path"], r["name"])
+        tags = default_run.use_tags({"module": r["module"], "realization": r["realization"], "conditions": r["conditions"],
+                          "guards": "[]"}) + default_run.equation_status(r["path"], r["name"])
         members = equation_members(idx.db, r["path"], r["name"])
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
         out.append(f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
-                   f" {_mark(r, tags)}"
-                   + _detail(tags)
+                   f" {default_run.mark(r, tags)}"
+                   + detail(tags)
                    + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
                    + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}")
 
@@ -440,14 +374,14 @@ def get_links(name: str, max_links: int = 10) -> str:
         if not st or (st.path, st.start) in seen:
             continue
         seen.add((st.path, st.start))
-        tags = _use_tags(u)
+        tags = default_run.use_tags(u)
         if u["role"] == "assigned" or name in st.assigned:
             inputs = [n for n in st.names_from(u["line"]) if n.lower() != name.lower() and n not in st.assigned]
             src = "loaded from a GDX file" if is_load(st) else (
                 "from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
-            computed.append((_rank(tags), u["path"], st.start, _mark(u, tags), src, tags))
+            computed.append((rank(tags), u["path"], st.start, default_run.mark(u, tags), src, tags))
         elif targets := [n for n in st.names if n in st.assigned and n.lower() != name.lower()]:
-            feeds.append((_rank(tags), u["path"], st.start, _mark(u, tags), f"→ {_names(targets, u['module'])}", tags))
+            feeds.append((rank(tags), u["path"], st.start, default_run.mark(u, tags), f"→ {_names(targets, u['module'])}", tags))
         else:
             reads.append(u)
 
@@ -475,12 +409,12 @@ def get_links(name: str, max_links: int = 10) -> str:
         for g in active + off:
             rank, path, line, mark, text, tags = g[0]
             if path is None:
-                out.append(f"- {text}" + _detail(tags))
+                out.append(f"- {text}" + detail(tags))
                 continue
             more = "".join(f"; :{x[2]} {x[4]}" for x in g[1:])
             if rank == 2:  # not in a default run: the further lines' details may be cut
                 more = _short(more, 200)
-            out.append(f"- {path}:{line} {mark}  {text}{more}" + _detail(tags))
+            out.append(f"- {path}:{line} {mark}  {text}{more}" + detail(tags))
         hidden = [it for g in entries if g not in active and g not in off for it in g]
         if hidden:
             mods = Counter((it[1] or "").split("/")[1] if (it[1] or "").startswith("modules/") else "core"
@@ -493,13 +427,13 @@ def get_links(name: str, max_links: int = 10) -> str:
 
     eq_items = []
     for (path, eq), u in equations.items():
-        tags = _use_tags(u) + _equation_status(path, eq)
+        tags = default_run.use_tags(u) + default_run.equation_status(path, eq)
         members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
-        text = (f"{eq}  {path} {_mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
+        text = (f"{eq}  {path} {default_run.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
                 f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}")
-        eq_items.append((_rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
+        eq_items.append((rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
     section("In equations (other symbols in the same equation)", eq_items, "equations")
 
     if reads:
@@ -532,15 +466,15 @@ def get_switch(name: str) -> str:
         "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path != 'main.gms' ORDER BY path, line", (name,)
     ).fetchall()
     if uses:
-        tagged = [(u, _use_tags(u)) for u in uses]
-        marks = Counter(_mark(u, t).split(" ")[0] for u, t in tagged)
+        tagged = [(u, default_run.use_tags(u)) for u in uses]
+        marks = Counter(default_run.mark(u, t).split(" ")[0] for u, t in tagged)
         split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
         out.append(f"## Referenced in ({len(uses)} lines: {split})")
         if len(uses) > SWITCH_REFS_LISTED:
             out.append(f"- per file: {_per_file(tagged)}")
         # code that runs by default first: that is what the default value actually steers
-        shown = sorted(tagged, key=lambda x: _rank(x[1]))[:SWITCH_REFS_LISTED]
-        out += [f"- {u['path']}:{u['line']} {_mark(u, t)}  {_short(u['snippet'], 110)}" for u, t in shown]
+        shown = sorted(tagged, key=lambda x: rank(x[1]))[:SWITCH_REFS_LISTED]
+        out += [f"- {u['path']}:{u['line']} {default_run.mark(u, t)}  {_short(u['snippet'], 110)}" for u, t in shown]
         if len(uses) > SWITCH_REFS_LISTED:
             out.append(f'- lines: get_symbol("{sws[0]["name"]}", role="read"[, module="…"]) (also role="assigned")')
     return "\n".join(out)
@@ -620,7 +554,7 @@ def _steering(mod: str) -> dict:
                                 "ORDER BY path, line", (mod,)):
             pre[p["realization"]].append(p)
     scens = [json.loads(r[0]) for r in idx.db.execute("SELECT settings FROM scenarios")]
-    default = idx.default_realization(mod) or ""
+    default = default_run.default_realization(mod) or ""
     chosen = {real: [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower()
                      == real.lower()] for real in reals}
 
@@ -764,7 +698,7 @@ def get_module(module: str, realization: str | None = None) -> str:
     if not rows and not is_core:
         return f"Module {module!r} not found."
     mod = "core" if is_core else rows[0]["module"]
-    default = idx.default_realization(mod) or ""
+    default = default_run.default_realization(mod) or ""
     docs: dict[str | None, list] = defaultdict(list)
     limits: dict[str | None, list] = defaultdict(list)
     for r in rows:
