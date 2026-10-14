@@ -1,16 +1,19 @@
-"""Safety net for refactoring (#40): the output of a fixed set of tool calls (the 15 of eval/output_size.py) must
-stay byte for byte as recorded in tests/reference/. A deliberate output change regenerates the files in the same
+"""Safety net for refactoring (#40): the output of a fixed set of tool calls (the 15 of eval/output_size.py), and
+what Claude reads before calling any tool (server instructions, tool descriptions and parameters), must stay byte
+for byte as recorded in tests/reference/. A deliberate output change regenerates the files in the same
 commit, and the commit message says why:
 
     uv run python tests/test_reference_output.py --update
 
-Recorded with index v8 (2026-10-14); a rebuild that changes tool output shows up here too.
+Recorded with index v8 (2026-10-14), unchanged on v9; a rebuild that changes tool output shows up here too.
 """
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import importlib.util
+import json
 import re
 import sys
 from pathlib import Path
@@ -36,13 +39,21 @@ def call(tool: str, arg: str) -> str:
     return getattr(server, tool)(arg)
 
 
-@pytest.mark.parametrize("tool, arg", CALLS)
-def test_output_unchanged(tool, arg):
-    path = reference_file(tool, arg)
-    assert path.exists(), (
-        f"no reference for {tool}({arg!r}); run: uv run python tests/test_reference_output.py --update"
-    )
-    expected, actual = path.read_text(encoding="utf-8"), call(tool, arg)
+def described() -> dict[str, str]:
+    """What a client reads at connection time: the instructions, and per tool its description and parameters."""
+    tools = [
+        {"name": t.name, "description": t.description, "parameters": t.input_schema}
+        for t in asyncio.run(server.server.list_tools())
+    ]
+    return {
+        "server-instructions.txt": server.server.instructions,
+        "server-tools.json": json.dumps(tools, indent=1, ensure_ascii=False) + "\n",
+    }
+
+
+def compare(path: Path, actual: str, what: str) -> None:
+    assert path.exists(), f"no reference for {what}; run: uv run python tests/test_reference_output.py --update"
+    expected = path.read_text(encoding="utf-8")
     if actual != expected:
         diff = "".join(
             difflib.unified_diff(
@@ -50,9 +61,18 @@ def test_output_unchanged(tool, arg):
             )
         )
         pytest.fail(
-            f"{tool}({arg!r}) changed; if on purpose: uv run python tests/test_reference_output.py "
-            f"--update\n{diff[:4000]}"
+            f"{what} changed; if on purpose: uv run python tests/test_reference_output.py --update\n{diff[:4000]}"
         )
+
+
+@pytest.mark.parametrize("tool, arg", CALLS)
+def test_output_unchanged(tool, arg):
+    compare(reference_file(tool, arg), call(tool, arg), f"{tool}({arg!r})")
+
+
+@pytest.mark.parametrize("name", ["server-instructions.txt", "server-tools.json"])
+def test_descriptions_unchanged(name):
+    compare(REFERENCE / name, described()[name], name)
 
 
 if __name__ == "__main__":
@@ -61,4 +81,6 @@ if __name__ == "__main__":
     REFERENCE.mkdir(exist_ok=True)
     for tool, arg in CALLS:
         reference_file(tool, arg).write_text(call(tool, arg), encoding="utf-8", newline="\n")
-    print(f"wrote {len(CALLS)} files to {REFERENCE} (index: {store.default_db()})")
+    for name, text in described().items():
+        (REFERENCE / name).write_text(text, encoding="utf-8", newline="\n")
+    print(f"wrote {len(CALLS) + 2} files to {REFERENCE} (index: {store.default_db()})")

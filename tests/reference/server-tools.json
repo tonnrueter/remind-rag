@@ -1,0 +1,237 @@
+[
+ {
+  "name": "search",
+  "description": "Hybrid (keyword + semantic) search over REMIND code and docs.\n\nArgs:\n    query: natural-language question or identifiers.\n    k: number of chunks to return (default 5). Long chunks are cut after SEARCH_LINES lines with a\n        path:line range for the rest (read the file for it).\n    module: restrict to a module, e.g. \"33\", \"carbonRemoval\", \"33_carbonRemoval\" or \"core\".\n    realization: restrict to a realization, e.g. \"portfolio\", \"nash\".\n    kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,\n        module_interface, limitations, scenario, gams_block, r_code, md_section.\n    phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,\n        bounds, postsolve, ...\n    scenario: a scenario name from config/scenario_config*.csv (e.g. \"SSP2-PkBudg1000\"). Drops\n        realizations the scenario does not select and ranks code compiled out by its switches low.\n        Only use it when the question is about that scenario.\n",
+  "parameters": {
+   "properties": {
+    "query": {
+     "title": "Query",
+     "type": "string"
+    },
+    "k": {
+     "default": 5,
+     "title": "K",
+     "type": "integer"
+    },
+    "module": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Module"
+    },
+    "realization": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Realization"
+    },
+    "kind": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kind"
+    },
+    "phase": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Phase"
+    },
+    "scenario": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scenario"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "title": "searchArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_symbol",
+  "description": "Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.\n\nReturns its declaration(s) with domain and description/unit, which module declares it and which modules\nconsume it (gms::codeCheck), the equation definition if it is an equation, and where it is used. Use sites\ncome as a summary per role (declared / assigned / equation / read) with counts per file and every use that\ndoes not run in a default run listed individually. For the lines themselves pass role=\"assigned\" (or\n\"equation\", \"read\", \"declared\"), optionally module=\"core\" / \"33\" and offset for the next page.\n",
+  "parameters": {
+   "properties": {
+    "name": {
+     "title": "Name",
+     "type": "string"
+    },
+    "role": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Role"
+    },
+    "module": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Module"
+    },
+    "offset": {
+     "default": 0,
+     "title": "Offset",
+     "type": "integer"
+    },
+    "max_uses": {
+     "default": 40,
+     "title": "Max Uses",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "title": "get_symbolArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_links",
+  "description": "Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are\ncomputed from it, and which other variables/parameters share an equation with it. Each link gives\npath:line, the declaring module of linked symbols when it differs, and whether the code runs in a\ndefault configuration. Call get_links again on a linked name for the next hop; use it to trace how an\neffect travels across modules (e.g. from a carbon price to land-use emissions).\n\nArgs:\n    name: exact GAMS symbol (vm_*, pm_*, p33_*, q_*, s_*, ...) or equation name.\n    max_links: maximum entries per section (default 10; links that don't run by default get at most half,\n        the rest is counted per module).\n",
+  "parameters": {
+   "properties": {
+    "name": {
+     "title": "Name",
+     "type": "string"
+    },
+    "max_links": {
+     "default": 10,
+     "title": "Max Links",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "title": "get_linksArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_switch",
+  "description": "Look up a configuration switch (cm_*, c_*, or a module selection like \"carbonprice\") in main.gms:\nits documentation, default and allowed values, plus config files / scripts that reference it.",
+  "parameters": {
+   "properties": {
+    "name": {
+     "title": "Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "title": "get_switchArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_module",
+  "description": "A module (name e.g. \"33\", \"carbonRemoval\", \"core\"): description, the default realization with the switches\nthat steer it, every alternative realization in one line (with verdicts such as \"aborts under the defaults\" or\n\"CAN NEVER BE MET\" and how many scenario configs select it), and its interfaces (names; descriptions via\nget_symbol). Pass realization=\"...\" for one realization in full: its description, limitations, abort\npreconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set.\n(module= is the old name of name=.)",
+  "parameters": {
+   "properties": {
+    "name": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Name"
+    },
+    "realization": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Realization"
+    },
+    "module": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Module"
+    }
+   },
+   "title": "get_moduleArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_scenario",
+  "description": "Settings of a scenario from config/scenario_config*.csv (after copyConfigFrom), and which switches\nand module realizations differ from the main.gms defaults.",
+  "parameters": {
+   "properties": {
+    "name": {
+     "title": "Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "title": "get_scenarioArguments",
+   "type": "object"
+  }
+ }
+]
