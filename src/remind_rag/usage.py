@@ -131,7 +131,7 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
 TEST_RE = re.compile(
     r"(?<![\w%])(c\w*?_\w+|s\d\d_\w+|sm_\w+)\s*(eq|ne|ge|le|gt|lt|<>|>=|<=|>|<|=)(?!=)\s*"
     r"(-?\d+(?:\.\d+)?|\"[^\"]*\"|'[^']*'|\w+)", re.I)
-STR_TEST_RE = re.compile(r"(not\s+)?\"?%(\w+)%\"?\s*(==|eq|ne|<>)\s*\"?([\w.\-]*)\"?", re.I)
+STR_TEST_RE = re.compile(r"(not\s+)?[\"']?%(\w+)%[\"']?\s*(==|eq|ne|<>)\s*[\"']?([\w.\-]*)[\"']?", re.I)
 OPS = {"eq": "==", "=": "==", "ne": "!=", "<>": "!=", "ge": ">=", ">=": ">=", "le": "<=", "<=": "<=",
        "gt": ">", ">": ">", "lt": "<", "<": "<", "==": "=="}
 

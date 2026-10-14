@@ -15,7 +15,7 @@ import pytest
 
 from remind_rag import server
 
-SYMBOL_BUDGET = 4_000
+SYMBOL_BUDGET = 4_500  # 4,000 until single-quoted $ifthen tests were decided (pm_taxCO2eqSum: 4,214)
 MODULE_BUDGET = 6_000
 SEARCH_BUDGET = 5_000
 

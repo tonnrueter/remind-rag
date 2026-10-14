@@ -311,6 +311,16 @@ def test_switch_tests_ignore_comments_and_messages(text, expected):
     assert [t.split("  (default")[0] for t, _ in usage.switch_tests(text, DEFAULTS)] == expected
 
 
+@pytest.mark.parametrize("cond, expected", [
+    ("%carbonprice% == 'functionalForm'", True),
+    ("not (%carbonprice% == 'NDC')", True),
+    ("'%carbonprice%' == 'NDC'", False),
+])
+def test_single_quoted_string_tests_are_decided(cond, expected):
+    # `$ifi not %damages% == 'DiceLike'` was read with an empty value and stayed undecided
+    assert usage.eval_expr(cond, DEFAULTS) is expected
+
+
 def test_search_shows_no_switch_test_from_a_comment():
     # q_limitCapEarlyReti's `!!` comment mentions "cm_startyear = 2005"; its code tests no switch
     out = server.search("q_limitCapEarlyReti", k=1)
