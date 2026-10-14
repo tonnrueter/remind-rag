@@ -9,18 +9,32 @@ from .status import DefaultRun, detail
 
 
 def short(text: str, n: int) -> str:
-    """Whitespace collapsed, cut to n characters with an ellipsis."""
+    r"""Whitespace collapsed, cut to at most n characters (the last one an ellipsis).
+
+    >>> short("vm_cap   capacity\n  of technologies", 15)
+    'vm_cap capacit…'
+    """
     text = " ".join(text.split())
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
 def first_sentence(text: str, n: int = 180) -> str:
+    """The first sentence, cut like short().
+
+    >>> first_sentence("Prices rise. Then they fall.")
+    'Prices rise.'
+    """
     m = re.match(r"(.+?[.!?])(\s|$)", text)
     return short(m.group(1) if m else text, n)
 
 
 def doc_text(text: str) -> str:
-    """The prose of a goxygen doc chunk: `*'` lines without the tags, no $include boilerplate or separator lines."""
+    r"""The prose of a goxygen doc chunk, joined to one line: `*'` lines without their @tags; code, @title,
+    @authors and separator lines dropped.
+
+    >>> doc_text("*' @title Carbon price\n*' @description The tax path.\n*' -----\np_x = 1;")
+    'The tax path.'
+    """
     keep = []
     for line in text.splitlines():
         s = line.strip()

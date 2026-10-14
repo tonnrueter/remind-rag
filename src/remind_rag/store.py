@@ -59,8 +59,13 @@ def connect(db_path: Path | str) -> sqlite3.Connection:
 
 
 def fts_title(header: str, kind: str, name: str | None) -> str:
-    """Keyword-search title: the header without the 'Uses:' line (which would make every equation
-    that merely uses a symbol outrank the symbol's declaration), plus the declared names."""
+    r"""Keyword-search title: the header without the 'Uses:' line (which would make every equation
+    that merely uses a symbol outrank the symbol's declaration), plus the declared names.
+
+    >>> print(fts_title("REMIND core, declarations\nUses: vm_cap (capacity)", "declaration", "vm_cap, vm_prodSe"))
+    REMIND core, declarations
+    Declares: vm_cap, vm_prodSe
+    """
     lines = [line for line in header.splitlines() if not line.startswith("Uses:")]
     if kind == "declaration" and name:
         lines.append("Declares: " + name)

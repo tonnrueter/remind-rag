@@ -12,7 +12,12 @@ OFF, DEPENDS, ON = "⚠ not in a default run", "? depends on settings", "✓ run
 
 
 def equation_domain(text: str, name: str) -> str | None:
-    """`q(t,regi)$(cond)` part of an equation definition, comments dropped, whitespace collapsed."""
+    r"""The `q(t,regi)$(cond)` part of an equation definition (before `..`), comments dropped, whitespace
+    collapsed; None if the name or `..` isn't found.
+
+    >>> equation_domain("* note\nq_x(t)$(t.val ge 2010)..\n  v_x(t) =g= 0;", "q_x")
+    'q_x(t)$(t.val ge 2010)'
+    """
     code = "\n".join(line for line in text.splitlines() if not line.startswith("*"))
     i = code.lower().find(name.lower())
     j = code.find("..", i)
@@ -30,7 +35,11 @@ def detail(tags: list[str]) -> str:
 
 
 def rank(tags: list[str]) -> int:
-    """0 runs by default, 1 depends on settings, 2 not in a default run (sort order of links)."""
+    """0 runs by default, 1 depends on settings, 2 not in a default run (sort order of links).
+
+    >>> rank([]), rank(["inside if cm_x eq 2: depends on non-default settings"]), rank(["non-default realization"])
+    (0, 1, 2)
+    """
     if any(off(t) for t in tags):
         return 2
     return 1 if tags else 0

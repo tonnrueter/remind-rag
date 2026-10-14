@@ -71,6 +71,14 @@ MOD_RE = re.compile(r"^modules/(\d\d_\w+)/(?:(\w+)/)?([\w.]+)$")
 
 
 def path_meta(path: str) -> dict:
+    """Module, realization and phase (the file name without extension) from a path relative to the REMIND root;
+    None for what doesn't apply.
+
+    >>> path_meta("modules/33_carbonRemoval/portfolio/equations.gms")
+    {'module': '33_carbonRemoval', 'realization': 'portfolio', 'phase': 'equations'}
+    >>> path_meta("core/bounds.gms")["module"], path_meta("main.gms")["module"]
+    ('core', None)
+    """
     m = MOD_RE.match(path)
     if m:
         module, realization, fname = m.groups()

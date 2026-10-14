@@ -1,5 +1,5 @@
-"""How a symbol is used on a line (role), which run-time `if(...)` blocks guard a line, and switch tests
-evaluated against the main.gms defaults. Used by the indexer (symbol_uses) and the MCP tools."""
+"""How a symbol is used on a line (role), and switch tests and conditions evaluated against switch values
+(the main.gms defaults, or a scenario's). Used by the indexer (symbol_uses), the tools and the sweeps."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from .gams import STRING_RE, code_part, strip_comments
 # ------------------------------------------------------------------ roles
 
 EQ_OPERATOR_RE = re.compile(r"=[elgnxcbELGNXCB]=")
+# a line that loads from a gdx file assigns every symbol on it
 LOAD_RE = re.compile(r"\bexecute_load(point)?\b|\$gdxin|\$load", re.I)
 FOR_OPEN_RE = re.compile(r"\bfor\s*\($", re.I)
 
@@ -26,8 +27,16 @@ def _skip_group(s: str, k: int) -> int:
 
 
 def role(line: str, name: str) -> str:
-    """'assigned' if the line assigns / fixes / loads `name`, else 'read'. Declarations and equation bodies
-    are classified by the caller from the chunk kinds."""
+    """'assigned' if the line assigns, fixes, bounds or loads `name`, else 'read'. Only one line is looked at;
+    declarations and equation bodies are classified by the caller (index.build_uses) from the chunk kinds.
+
+    >>> role("vm_cap.fx(t,regi,te) = 0;", "vm_cap"), role("p_x(t) = vm_cap.l(t);", "vm_cap")
+    ('assigned', 'read')
+    >>> role("if(cm_nucscen = 5,", "cm_nucscen")  # `=` inside if( is a comparison
+    'read'
+    >>> role("p_x(t)$(cm_startyear gt 2005) = 1;", "p_x")  # conditional assignment
+    'assigned'
+    """
     code = code_part(line)
     if LOAD_RE.search(code):
         return "assigned"
@@ -64,9 +73,6 @@ def role(line: str, name: str) -> str:
     return "read"
 
 
-# ------------------------------------------------------------------ run-time if-blocks
-
-
 # ------------------------------------------------------------------ switch tests
 
 TEST_RE = re.compile(
@@ -75,6 +81,7 @@ TEST_RE = re.compile(
     re.I,
 )
 STR_TEST_RE = re.compile(r"(not\s+)?[\"']?%(\w+)%[\"']?\s*(==|eq|ne|<>)\s*[\"']?([\w.\-]*)[\"']?", re.I)
+# operator spellings in GAMS (eq, =, ...) and $if (==) -> the Python comparison
 # fmt: off
 OPS = {"eq": "==", "=": "==", "ne": "!=", "<>": "!=", "ge": ">=", ">=": ">=", "le": "<=", "<=": "<=",
        "gt": ">", ">": ">", "lt": "<", "<": "<", "==": "=="}
@@ -82,6 +89,7 @@ OPS = {"eq": "==", "=": "==", "ne": "!=", "<>": "!=", "ge": ">=", ">=": ">=", "l
 
 
 def _compare(a: str, op: str, b: str) -> bool | None:
+    """a op b, numerically if both are numbers, else as case-blind strings (== / != only, else None)."""
     a, b = a.strip().strip("\"'"), b.strip().strip("\"'")
     try:
         x, y = float(a), float(b)
@@ -95,7 +103,11 @@ def _compare(a: str, op: str, b: str) -> bool | None:
 def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | None]]:
     """Switch comparisons in the code of `text` (`cm_emiscen eq 6`, `"%carbonprice%" == "NDC"`), each with its
     value under the main.gms defaults (None: not decidable). Only names that are known switches count; comments
-    don't (`!! for cm_startyear = 2005 ...` is prose, not a test)."""
+    and message strings don't (`!! for cm_startyear = 2005 ...` is prose, not a test). Each test once.
+
+    >>> switch_tests("if(cm_emiscen eq 6, p = 1); !! cm_emiscen = 1 is prose", {"cm_emiscen": "9"})
+    [('cm_emiscen eq 6  (default cm_emiscen = 9)', False)]
+    """
     text = strip_comments(text)
     # a match that starts inside a string is message text (abort "... requires cm_x = 0 ...")
     in_string = [(s.start(), s.end()) for s in STRING_RE.finditer(text)]
@@ -122,18 +134,20 @@ def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | 
     return list(out.items())
 
 
-def verdict(results: list[bool | None]) -> str:
-    if any(r is False for r in results):
-        return "false by default"
-    if results and all(r is True for r in results):
-        return "true by default"
-    return "depends on non-default values"
-
-
 def eval_expr(cond: str, defaults: dict[str, str]) -> bool | None:
-    """Value of a run-time or $ifthen condition under the main.gms defaults: switch tests are replaced by
-    their truth values, and the rest must be and/or/not/parentheses. None if anything else remains or the
-    result depends on a test that can't be decided."""
+    """Value of a run-time or $ifthen condition under the switch values in `defaults` (main.gms or a scenario):
+    True, False, or None when the switches alone don't decide it. Switch tests become their truth values;
+    everything else (indexed symbols, sameas(), other comparisons) becomes an unknown, and the result counts
+    only if it is the same for every combination of the unknowns (at most 6 of them).
+
+    >>> d = {"cm_emiscen": "9", "optimization": "nash"}
+    >>> eval_expr("cm_emiscen eq 9 and not (%optimization% == 'negishi')", d)
+    True
+    >>> eval_expr("cm_emiscen eq 6 and sameas(t, '2005')", d)  # false whatever t is
+    False
+    >>> eval_expr("cm_emiscen eq 9 and sameas(t, '2005')", d) is None  # depends on t
+    True
+    """
     tokens: list[bool | None] = []
 
     def sub(m: re.Match, string: bool) -> str:

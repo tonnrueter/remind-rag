@@ -22,16 +22,31 @@ WORD_RE = re.compile(r"[A-Za-z_]\w*")
 
 
 def is_comment(line: str) -> bool:
+    """A GAMS comment line: `*` in the first column (indented `*` is code, e.g. a multiplication).
+
+    >>> is_comment("* carbon price path"), is_comment("  * p_x")
+    (True, False)
+    """
     return line.startswith("*")
 
 
 def code_part(line: str) -> str:
-    """Line with strings and !! end-of-line comments removed (for ; and / detection)."""
+    """The line without quoted strings and without its `!!` end-of-line comment, for finding `;` and `/`.
+
+    >>> code_part('p_x = 1; !! "a;b" is not code')
+    'p_x = 1; '
+    >>> code_part('display "a;b";')
+    'display ;'
+    """
     return STRING_RE.sub("", line).split("!!", 1)[0]
 
 
 def stmt_end(lines: list[str], i: int) -> int:
-    """Index (exclusive) of the line terminating the statement starting at i."""
+    """Index one past the line whose `;` ends the statement starting at line i (len(lines) if none does).
+
+    >>> stmt_end(["p_x(t)", "* comment;", "  = 1", ";", "p_y = 2;"], 0)
+    4
+    """
     for j in range(i, len(lines)):
         if not is_comment(lines[j]) and ";" in code_part(lines[j]):
             return j + 1
@@ -39,7 +54,14 @@ def stmt_end(lines: list[str], i: int) -> int:
 
 
 def decl_start(line: str) -> re.Match | None:
-    """DECL_RE match if the line starts a declaration statement ("parameter", "positive variables", ...)."""
+    """The DECL_RE match if the line starts a declaration statement, else None. group(1) is the keyword
+    ("parameters", "positive variables", ...), group(2) the rest of the line.
+
+    >>> decl_start("positive variables vm_cap(t)").group(1)
+    'positive variables'
+    >>> decl_start("sets_x(t) = yes;") is None  # a name starting with "sets", not the keyword
+    True
+    """
     m = DECL_RE.match(line) if not is_comment(line) else None
     # "sets" etc. must be the statement keyword, not e.g. "set_x(t) = ..."
     if m and (not m.group(2) or m.group(2)[:1] in " \t\"'(" or not m.group(2).strip()):
@@ -48,8 +70,13 @@ def decl_start(line: str) -> re.Match | None:
 
 
 def line_conditions(lines: list[str]) -> list[tuple[str, ...]]:
-    """For every line, the stack of $ifthen/$elseif/$else conditions it is compiled under.
-    An $elseif/$else branch is written as the negation of the earlier branches plus its own condition."""
+    """For every line, the $ifthen conditions it is compiled under, outermost first. An $elseif / $else branch
+    is written as the negation of the earlier branches plus its own condition. The directive lines themselves
+    get the conditions around their block.
+
+    >>> line_conditions(['$ifthen "%x%" == "a"', "p = 1;", "$else", "p = 2;", "$endif"])
+    [(), ('"%x%" == "a"',), (), ('not ("%x%" == "a")',), ()]
+    """
     stack: list[list[str]] = []  # per open block: conditions of the branches seen so far
     current: list[str] = []  # effective condition per open block
     out: list[tuple[str, ...]] = []
@@ -79,8 +106,13 @@ def line_conditions(lines: list[str]) -> list[tuple[str, ...]]:
 
 
 def strip_comments(text: str) -> str:
-    """`text` without `*` comment lines, `$ontext` blocks and `!!` end-of-line comments. Unlike `code_part`,
-    quoted strings stay: `"%carbonprice%" == "NDC"` is a test."""
+    r"""`text` without `*` comment lines, `$ontext` blocks and `!!` end-of-line comments. Unlike `code_part`,
+    quoted strings stay: `"%carbonprice%" == "NDC"` is a test.
+
+    >>> print(strip_comments('* note\n$ontext\nprose\n$offtext\np = 1; !! tail\ns = "a !! b";'))
+    p = 1;
+    s = "a !! b";
+    """
     out, in_text = [], False
     for line in text.splitlines():
         if in_text:
@@ -102,7 +134,13 @@ def _neg(conds: list[str]) -> str:
 
 def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
     """For every line, the conditions of the run-time `if(cond, ... elseif cond2, ... else ...)` blocks it
-    sits in, outermost first. Later branches are written as the negation of the earlier ones."""
+    sits in, outermost first. Later branches are written as the negation of the earlier ones. Comments,
+    strings and `$` directives don't open or close blocks. A line where the branch changes (`else`, `elseif`)
+    carries the conditions of both branches; so does everything on a one-line `if(c, a; else b;);`.
+
+    >>> if_guards(["if(cm_x eq 1,", "  p = 1;", "else", "  p = 2;", ");", "q = 1;"])
+    [('cm_x eq 1',), ('cm_x eq 1',), ('cm_x eq 1', 'not (cm_x eq 1)'), ('not (cm_x eq 1)',), ('not (cm_x eq 1)',), ()]
+    """
     out: list[tuple[str, ...]] = []
     stack: list[dict] = []  # depth: paren depth inside the if(; conds: branch conditions; reading; current
     depth = 0
