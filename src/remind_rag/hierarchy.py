@@ -198,7 +198,7 @@ def report(data: dict) -> str:
     for name, ws in d["writers"].items():
         for w in ws:
             wr[w].append(f"{name} ({d['owners'][name]})")
-    for w, ns in sorted(wr.items(), key=lambda x: -len(x[1])):
+    for w, ns in sorted(wr.items(), key=lambda x: (-len(x[1]), x[0])):  # ties by name: sets have no stable order
         out.append(f"- {w} {len(ns)}: {', '.join(sorted(ns))}")
     out.append("\n## How module pairs couple (default run): uses inside equations / between solves / setup")
     tot = Counter()
