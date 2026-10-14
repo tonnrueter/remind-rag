@@ -11,6 +11,7 @@ import json
 import os
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import NamedTuple
 
 from mcp.server.mcpserver import MCPServer
 
@@ -270,6 +271,16 @@ def _loc(u) -> str:
     return "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
 
 
+class Link(NamedTuple):
+    """One entry of a get_links section: a statement (path, line) or an equation (path None, line = its name)."""
+    rank: int  # 0 runs by default, 1 depends on settings, 2 not in a default run
+    path: str | None
+    line: int | str
+    mark: str
+    text: str
+    tags: list[str]
+
+
 @server.tool()
 def get_links(name: str, max_links: int = 10) -> str:
     """Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are
@@ -329,45 +340,46 @@ def get_links(name: str, max_links: int = 10) -> str:
             inputs = [n for n in st.names_from(u["line"]) if n.lower() != name.lower() and n not in st.assigned]
             src = "loaded from a GDX file" if is_load(st) else (
                 "from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
-            computed.append((rank(tags), u["path"], st.start, default_run.mark(u, tags), src, tags))
+            computed.append(Link(rank(tags), u["path"], st.start, default_run.mark(u, tags), src, tags))
         elif targets := [n for n in st.names if n in st.assigned and n.lower() != name.lower()]:
-            feeds.append((rank(tags), u["path"], st.start, default_run.mark(u, tags), f"→ {_names(targets, u['module'])}", tags))
+            feeds.append(Link(rank(tags), u["path"], st.start, default_run.mark(u, tags),
+                              f"→ {_names(targets, u['module'])}", tags))
         else:
             reads.append(u)
 
     def section(title: str, items: list, unit: str = "statements", merge_default: bool = True) -> None:
-        """items: (rank, path, line, mark, text, tags). Statements in the same file with the same status share one
+        """Statements in the same file with the same status share one
         entry, each further line with its own text ('; :22 → x'); with merge_default off, default statements stay
         separate (in 'Computed from' each is a different way the value is computed)."""
         if not items:
             return
         # default-active first, then depends, then inactive; within a file by line (equations by name)
-        items.sort(key=lambda x: (x[0], x[1] or "", x[2] if isinstance(x[2], int) else 0, str(x[2])))
-        counts = [sum(1 for it in items if it[0] == r) for r in range(3)]
+        items.sort(key=lambda x: (x.rank, x.path or "", x.line if isinstance(x.line, int) else 0, str(x.line)))
+        counts = [sum(1 for it in items if it.rank == r) for r in range(3)]
         out.append(f"## {title} ({len(items)} {unit}: {counts[0]} run by default"
                    + (f", {counts[1]} depend on settings" if counts[1] else "")
                    + (f", {counts[2]} not in a default run" if counts[2] else "") + ")")
-        groups: dict[tuple, list] = {}
+        groups: dict[tuple, list[Link]] = {}
         for it in items:
-            separate = it[1] is None or (not merge_default and it[0] == 0)
-            key = (it[1], it[2]) if separate else (it[1], tuple(it[5]))
+            separate = it.path is None or (not merge_default and it.rank == 0)
+            key = (it.path, it.line) if separate else (it.path, tuple(it.tags))
             groups.setdefault(key, []).append(it)
         entries = list(groups.values())
         # links that don't run by default get at most half the room; the rest is counted per module
-        active = [g for g in entries if g[0][0] < 2][:max_links]
-        off = [g for g in entries if g[0][0] == 2][:max(3, min(max_links // 2, max_links - len(active)))]
+        active = [g for g in entries if g[0].rank < 2][:max_links]
+        off = [g for g in entries if g[0].rank == 2][:max(3, min(max_links // 2, max_links - len(active)))]
         for g in active + off:
-            rank, path, line, mark, text, tags = g[0]
-            if path is None:
-                out.append(f"- {text}" + detail(tags))
+            first = g[0]
+            if first.path is None:
+                out.append(f"- {first.text}" + detail(first.tags))
                 continue
-            more = "".join(f"; :{x[2]} {x[4]}" for x in g[1:])
-            if rank == 2:  # not in a default run: the further lines' details may be cut
+            more = "".join(f"; :{x.line} {x.text}" for x in g[1:])
+            if first.rank == 2:  # not in a default run: the further lines' details may be cut
                 more = short(more, 200)
-            out.append(f"- {path}:{line} {mark}  {text}{more}" + detail(tags))
+            out.append(f"- {first.path}:{first.line} {first.mark}  {first.text}{more}" + detail(first.tags))
         hidden = [it for g in entries if g not in active and g not in off for it in g]
         if hidden:
-            mods = Counter((it[1] or "").split("/")[1] if (it[1] or "").startswith("modules/") else "core"
+            mods = Counter((it.path or "").split("/")[1] if (it.path or "").startswith("modules/") else "core"
                            for it in hidden)
             out.append(f"- ... {len(hidden)} more ({', '.join(f'{m} {n}' for m, n in mods.most_common())}): "
                        f'get_symbol("{name}", role=…, module=…) lists them')
@@ -383,7 +395,7 @@ def get_links(name: str, max_links: int = 10) -> str:
         others = [n for n in members if n not in variables]
         text = (f"{eq}  {path} {default_run.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
                 f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}")
-        eq_items.append((rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
+        eq_items.append(Link(rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
     section("In equations (other symbols in the same equation)", eq_items, "equations")
 
     if reads:
