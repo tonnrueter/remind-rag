@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import sys
 
-from remind_rag import server
+from remind_rag import server, store
 
 CALLS = [
     ("get_symbol", "vm_deltaCap"),
@@ -47,7 +47,7 @@ def sections(text: str) -> list[tuple[str, int]]:
 def main() -> None:
     show = "--sections" in sys.argv
     total = 0
-    print(f"index: {server.idx.meta.get('built_at')}  ({server._default_db().name})")
+    print(f"index: {server.idx.meta.get('built_at')}  ({store.default_db().name})")
     print(f"{'call':48s} {'chars':>7s} {'lines':>6s} {'~tokens':>8s}")
     for tool, arg in CALLS:
         text = getattr(server, tool)(arg)

@@ -18,7 +18,8 @@ import json
 import re
 from collections import Counter, defaultdict
 
-from . import server
+from . import store
+from .search import Index
 from .status import DefaultRun, rank
 
 PREFIXES = ("vm_", "pm_", "qm_", "fm_")
@@ -26,7 +27,7 @@ PREFIXES = ("vm_", "pm_", "qm_", "fm_")
 BETWEEN = {"presolve", "postsolve", "loop", "solve"}
 ONCE = {"datainput", "preloop", "bounds", "sets_calculations", None, "module"}
 
-idx = server.idx
+idx = Index(store.default_db())
 default_run = DefaultRun(idx.db)
 
 

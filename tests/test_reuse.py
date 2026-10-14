@@ -13,7 +13,7 @@ def test_key_depends_on_model_and_text():
 
 
 def test_current_index_is_fully_reusable():
-    db, model = server._default_db(), server.idx.model
+    db, model = store.default_db(), server.idx.model
     rule = server.idx.meta.get("embed_rule", "chars1000")
     cache = load_vectors(db, model)
     # every chunk finds its vector from the stored header + text (identical texts share one entry)
@@ -25,7 +25,7 @@ def test_current_index_is_fully_reusable():
 def test_old_cut_rule_is_not_reused_for_longer_text(tmp_path):
     """A vector computed from the first 1,000 characters must not count as the vector of a longer cut."""
     old = tmp_path / "old.db"
-    shutil.copy(server._default_db(), old)
+    shutil.copy(store.default_db(), old)
     db = store.connect(old)
     db.execute("INSERT OR REPLACE INTO meta VALUES ('embed_rule', 'chars1000')")
     db.commit()

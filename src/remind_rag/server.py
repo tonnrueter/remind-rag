@@ -8,9 +8,7 @@ env REMIND_RAG_ROOT names the REMIND checkout it is served for (default: the one
 from __future__ import annotations
 
 import json
-import os
 from collections import Counter, defaultdict
-from pathlib import Path
 from typing import NamedTuple
 
 from mcp.server.mcpserver import MCPServer
@@ -21,23 +19,12 @@ from .search import Index, module_match
 from .status import DefaultRun, detail, equation_domain, rank
 from .steering import steering
 
-DATA = Path(__file__).resolve().parents[2] / "data"
-
-
-def _default_db() -> Path:
-    """REMIND_RAG_DB, else the pinned data/remind-bge.db. Never "the newest file": that can be a draft build."""
-    path = Path(os.environ.get("REMIND_RAG_DB") or DATA / "remind-bge.db")
-    if not path.exists():
-        raise FileNotFoundError(f"no index at {path}; build one: uv run python -m remind_rag.index --root <remind>")
-    return path
-
-
-idx = Index(_default_db())
+idx = Index(store.default_db())
 if (_schema := int(idx.meta.get("schema_version", 0))) < store.SCHEMA_VERSION:
     raise SystemExit(
-        f"{_default_db()} was built by an older remind-rag (index schema {_schema}, this version reads "
+        f"{store.default_db()} was built by an older remind-rag (index schema {_schema}, this version reads "
         f"{store.SCHEMA_VERSION}); rebuild it, reusing its embeddings (seconds): uv run python -m "
-        f"remind_rag.index --root <remind> --reuse {_default_db()}"
+        f"remind_rag.index --root <remind> --reuse {store.default_db()}"
     )
 default_run = DefaultRun(idx.db)
 _root = checkout.served_root(idx.meta)

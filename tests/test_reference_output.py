@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from remind_rag import server
+from remind_rag import server, store
 
 HERE = Path(__file__).parent
 REFERENCE = HERE / "reference"
@@ -61,4 +61,4 @@ if __name__ == "__main__":
     REFERENCE.mkdir(exist_ok=True)
     for tool, arg in CALLS:
         reference_file(tool, arg).write_text(call(tool, arg), encoding="utf-8", newline="\n")
-    print(f"wrote {len(CALLS)} files to {REFERENCE} (index: {server._default_db()})")
+    print(f"wrote {len(CALLS)} files to {REFERENCE} (index: {store.default_db()})")

@@ -1,12 +1,15 @@
-"""SQLite schema: chunks + FTS5 (BM25) + sqlite-vec vectors + symbol tables. Every table is created here."""
+"""The index file: which one to open (default_db), how to open it, and its SQLite schema: chunks + FTS5 (BM25) +
+sqlite-vec vectors + symbol tables. Every table is created here."""
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
 import sqlite_vec
 
+DATA = Path(__file__).resolve().parents[2] / "data"
 SCHEMA_VERSION = 1  # bump when tables or their meaning change; the server refuses older indexes
 
 SCHEMA = """
@@ -49,9 +52,17 @@ CREATE INDEX scenarios_name ON scenarios(name COLLATE NOCASE);
 """
 
 
+def default_db() -> Path:
+    """REMIND_RAG_DB, else the pinned data/remind-bge.db. Never "the newest file": that can be a draft build."""
+    path = Path(os.environ.get("REMIND_RAG_DB") or DATA / "remind-bge.db")
+    if not path.exists():
+        raise FileNotFoundError(f"no index at {path}; build one: uv run python -m remind_rag.index --root <remind>")
+    return path
+
+
 def connect(db_path: Path | str) -> sqlite3.Connection:
     """Open an index with the sqlite-vec extension loaded and rows addressable by column name (r["path"]).
-    Creates an empty file if none exists; the server checks existence first."""
+    Creates an empty file if none exists; default_db() checks existence first."""
     db = sqlite3.connect(str(db_path), check_same_thread=False)
     db.enable_load_extension(True)
     sqlite_vec.load(db)
