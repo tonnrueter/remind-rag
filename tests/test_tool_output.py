@@ -321,6 +321,17 @@ def test_single_quoted_string_tests_are_decided(cond, expected):
     assert usage.eval_expr(cond, DEFAULTS) is expected
 
 
+def test_scenario_search_keeps_code_compiled_in():
+    # 80_optimization/nash/bounds.gms:11 sits under `$ifthen %emicapregi% == 'none'`, true in every config; the old
+    # scenario evaluator kept the quotes ('none' != none) and ranked such code as compiled out (#42)
+    q = "nash bounds emission permits trade"
+    chunk = ("modules/80_optimization/nash/bounds.gms", 11)
+    plain = [(r["path"], r["line_start"]) for r in server.idx.search(q, k=10)]
+    scen = [(r["path"], r["line_start"]) for r in server.idx.search(q, k=10, scenario="SSP2-PkBudg1000")]
+    assert chunk in plain
+    assert chunk in scen
+
+
 def test_scenario_quote_only_difference_is_no_difference():
     # main.gms writes cm_ind_energy_limit_manual in quotes, the KN2045 configs without; same value (#42)
     out = server.get_scenario("KN2045_EasyRide")

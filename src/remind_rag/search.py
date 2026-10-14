@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, store
-from .scenarios import eval_condition
 from .status import switch_defaults
+from .usage import eval_expr
 
 RRF_K = 60
 STOPWORDS = set(
@@ -157,7 +157,7 @@ class Index:
             for cid, r in rows.items():
                 if _inactive_realization(r, values):
                     scores[cid] = 0.0  # dropped below
-                elif r["conditions"] and any(eval_condition(c, values) is False for c in json.loads(r["conditions"])):
+                elif r["conditions"] and any(eval_expr(c, values) is False for c in json.loads(r["conditions"])):
                     scores[cid] *= 0.3  # code compiled out in this scenario: keep, but rank low
         ordered = sorted(scores, key=scores.__getitem__, reverse=True)
         out = []

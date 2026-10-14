@@ -1,10 +1,9 @@
-"""config/scenario_config*.csv: scenario rows as chunks, switch resolution and $ifthen condition evaluation."""
+"""config/scenario_config*.csv: scenario rows as chunks and switch resolution (copyConfigFrom)."""
 
 from __future__ import annotations
 
 import csv
 import io
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,49 +52,3 @@ def scenario_chunks(scenarios: list[Scenario]) -> list[Chunk]:
         chunks.append(Chunk(path=sc.path, kind="scenario", line_start=sc.line, line_end=sc.line,
                             text=text[:MAX_CHARS], name=sc.name))
     return chunks
-
-
-# ------------------------------------------------------------------ conditions
-
-SIMPLE_COND_RE = re.compile(r'^(not\s+)?"?%(\w+)%"?\s*==\s*"?([^"]*?)"?\s*$', re.I)
-
-
-def _split_and(cond: str) -> list[str]:
-    """Split at top-level ' and ' (outside parentheses)."""
-    parts, depth, cur, i = [], 0, "", 0
-    while i < len(cond):
-        ch = cond[i]
-        depth += ch == "("
-        depth -= ch == ")"
-        if depth == 0 and cond[i:i + 5].lower() == " and ":
-            parts.append(cur)
-            cur, i = "", i + 5
-            continue
-        cur += ch
-        i += 1
-    parts.append(cur)
-    return [p.strip() for p in parts if p.strip()]
-
-
-def eval_condition(cond: str, values: dict[str, str]) -> bool | None:
-    """Evaluate the $ifthen conditions produced by gams.line_conditions against switch values.
-    Only `[not] "%switch%" == "value"` and and/not/parentheses combinations are understood; anything else
-    (or an unknown switch) gives None."""
-    parts = _split_and(cond)
-    if len(parts) > 1:
-        results = [eval_condition(p, values) for p in parts]
-        if any(r is False for r in results):
-            return False
-        return None if any(r is None for r in results) else True
-    c = parts[0] if parts else ""
-    m = re.match(r"^not\s*\((.*)\)$", c, re.I)
-    if m:
-        r = eval_condition(m.group(1), values)
-        return None if r is None else not r
-    if c.startswith("(") and c.endswith(")"):
-        return eval_condition(c[1:-1], values)
-    m = SIMPLE_COND_RE.match(c)
-    if not m or m.group(2) not in values:
-        return None
-    equal = values[m.group(2)].strip().strip('"').lower() == m.group(3).strip().lower()
-    return equal != bool(m.group(1))
