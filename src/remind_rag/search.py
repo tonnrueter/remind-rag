@@ -80,7 +80,8 @@ class Index:
                     continue
                 seen_desc.add(desc)
                 row = self.db.execute(
-                    "SELECT id FROM chunks WHERE path = ? AND line_start <= ? AND line_end >= ? AND kind = 'declaration'",
+                    "SELECT id FROM chunks WHERE path = ? AND line_start <= ? AND line_end >= ? "
+                    "AND kind = 'declaration'",
                     (path, line, line),
                 ).fetchone()
                 if row:
@@ -89,7 +90,8 @@ class Index:
             iface_ids = [
                 cid
                 for (cid,) in self.db.execute(
-                    "SELECT id FROM chunks WHERE kind = 'module_interface' AND text LIKE 'Outputs of%' AND instr(text, ?) > 0",
+                    "SELECT id FROM chunks WHERE kind = 'module_interface' AND text LIKE 'Outputs of%' "
+                    "AND instr(text, ?) > 0",
                     (f"\n{name}:",),
                 )
             ]

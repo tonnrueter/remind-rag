@@ -23,7 +23,8 @@ from .chunkers import Switch, chunk_gams
 from .corpus import iter_files
 from .gams import STRING_RE
 
-# REMIND naming: p_, pm_, p45_, v_, vm_, v31_, q_, qm_, s_, sm_, f_, fm_, o_, c_, cm_, c45_, i_, ... (GAMS is case-blind)
+# REMIND naming: p_, pm_, p45_, v_, vm_, v31_, q_, qm_, s_, sm_, f_, fm_, o_, c_, cm_, c45_, i_, ...
+# (GAMS is case-blind)
 NAME_RE = re.compile(r"(?<![\w%$.-])((?:p|pm|v|vm|q|qm|s|sm|f|fm|o|om|c|cm|i|im)\d{0,2}_[A-Za-z]\w{2,})(?![\w-])")
 IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 FILE_EXT_RE = re.compile(r"\.(cs\dr|csv|inc|gms|gdx|put|txt|R|py|mif|rds)\b", re.I)

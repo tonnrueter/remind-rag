@@ -267,9 +267,8 @@ def process_question(rdir: Path, qid: str, arms: list[str], args) -> None:
             r = answer(QUESTIONS[qid], arm, args)
             if "error" in r or r.get("is_error") or not r.get("answer"):
                 # not saved, so a rerun retries it (e.g. after hitting a usage limit)
-                say(
-                    f"{qid:4s} {arm:12s} ERROR (not saved): {(r.get('answer') or r.get('error') or r.get('stderr') or '')[:200]}"
-                )
+                why = r.get("answer") or r.get("error") or r.get("stderr") or ""
+                say(f"{qid:4s} {arm:12s} ERROR (not saved): {why[:200]}")
                 continue
             a_file.write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
             say(
@@ -317,7 +316,8 @@ def show(rdir: Path, qid: str) -> str:
         lines += [
             f"\n[{arm}] {sev} · {g.get('failure_class', '-')} · fix: {g.get('fix_layer', '-')}"
             f" · premise: {g.get('premise_handled', '-')}",
-            f"  ${a.get('cost_usd') or 0:.2f}, {a.get('turns')} turns, {a.get('duration_s')} s; tools: {tool_summary(a)}",
+            f"  ${a.get('cost_usd') or 0:.2f}, {a.get('turns')} turns, {a.get('duration_s')} s;"
+            f" tools: {tool_summary(a)}",
         ]
         if g.get("summary"):
             lines.append(f"  {g['summary']}")
