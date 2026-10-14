@@ -28,7 +28,8 @@ CALLS: list[tuple[str, str]] = _output_size.CALLS
 
 
 def reference_file(tool: str, arg: str) -> Path:
-    return REFERENCE / f"{tool}-{re.sub(r'\W+', '_', arg).strip('_')[:60]}.txt"
+    slug = re.sub(r"\W+", "_", arg).strip("_")[:60]
+    return REFERENCE / f"{tool}-{slug}.txt"
 
 
 def call(tool: str, arg: str) -> str:
