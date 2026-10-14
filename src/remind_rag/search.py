@@ -13,7 +13,13 @@ from . import embeddings, store
 from .status import switch_defaults
 from .usage import eval_expr
 
+# Reciprocal rank fusion: each ranking adds weight / (RRF_K + rank) to a chunk's score. Only ranks count, so
+# BM25 scores and vector distances, which live on different scales, never need to be compared. 60 is the
+# usual constant from the literature: large enough that rank 1 and rank 5 differ little, so a chunk found
+# by both rankers beats one that only a single ranker puts first.
 RRF_K = 60
+# question words left out of the keyword query: it ORs its words, and "how", "does", "the" match nearly
+# every chunk
 STOPWORDS = set(
     "a an and are as at be by can do does for from how i in is it of on or should the this to what when where "
     "which who why with without into there their than then these those its my me we you your get gets got used "
@@ -41,7 +47,10 @@ class Index:
         tokens = [t for t in re.findall(r"[A-Za-z0-9_]+", query) if t.lower() not in STOPWORDS]
         if not tokens:
             return []
+        # quoted, so FTS5 reads every word as a word and never as an operator (AND, NOT, NEAR)
         fts = " OR ".join(f'"{t}"' for t in dict.fromkeys(tokens))
+        # BM25 rewards words that are rare in the corpus and frequent in the chunk; the weights are per FTS
+        # column (title, text), so a match in the header counts 3x
         rows = self.db.execute(
             "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts, 3.0, 1.0) LIMIT ?",
             (fts, n),
@@ -51,6 +60,7 @@ class Index:
     def vector(self, query: str, n: int) -> list[int]:
         """Up to n chunk ids by meaning: the query embedded with the index's model, nearest chunk vectors by
         cosine distance. Loads the model on first use (about a second)."""
+        # sqlite-vec compares raw float32 bytes; "k = ?" is how it takes the number of neighbours
         q = np.asarray(embeddings.embed_query(self.model, query), dtype=np.float32)
         rows = self.db.execute(
             "SELECT rowid FROM chunks_vec WHERE embedding MATCH ? AND k = ? ORDER BY distance", (q.tobytes(), n)
@@ -94,7 +104,8 @@ class Index:
                 ).fetchone()
                 if row:
                     decl_ids.append(row[0])
-            # the providing module's interface record (who provides / consumes it), right after the first declaration
+            # the declaring module's interface record (codeCheck: who declares / consumes it), right after the
+            # first declaration
             iface_ids = [
                 cid
                 for (cid,) in self.db.execute(
@@ -115,6 +126,7 @@ class Index:
                 )
             except sqlite3.OperationalError:  # index built before scenarios existed
                 self._scenario_names = []
+        # names contain '-', so \b won't do: "SSP2-NDC" must not match inside "SSP2-NDC-LTS"
         found = [n for n in self._scenario_names if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", query, re.I)]
         ids = []
         for name in found[:3]:
@@ -167,10 +179,13 @@ class Index:
             if resolved is None:
                 raise ValueError(f"unknown scenario {scenario!r}")
             values = resolved[0]
+        # filters apply after ranking, so a filtered search takes more candidates from each ranker to still
+        # have k left once the filters are through
         filtered = bool(module or realization or kind or phase or scenario)
         n = 400 if filtered else 60
         idents = self.known_identifiers(query)
         rankings: list[tuple[list[int], float]] = []
+        # weights tuned on the 21 questions of FINDINGS §3 (symbol questions 60 % -> 100 %); BM25 at 0.25 was worse
         if mode in ("hybrid", "bm25"):
             # plain-language questions: BM25 over generic words is noisy, lean on the vectors
             rankings.append((self.bm25(query, n), 1.0 if idents or mode == "bm25" else 0.5))
@@ -183,7 +198,7 @@ class Index:
             rankings.append((scen_ids, 2.0))
         scores: dict[int, float] = {}
         for ranking, weight in rankings:
-            for rank, cid in enumerate(ranking):
+            for rank, cid in enumerate(ranking):  # rank counts from 0 here, from 1 in the formula
                 scores[cid] = scores.get(cid, 0.0) + weight / (RRF_K + rank + 1)
         rows = self._rows(list(scores))
         if values is not None:
