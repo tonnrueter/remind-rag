@@ -45,8 +45,13 @@ def described() -> dict[str, str]:
         {"name": t.name, "description": t.description, "parameters": t.input_schema}
         for t in asyncio.run(server.server.list_tools())
     ]
+    # the parts that depend on this machine and its REMIND checkout are replaced, so the file holds only our text
+    text = server.server.instructions.replace(server._where, "<checkout>")
+    for sentence in (server._stale, server._model):
+        if sentence:
+            text = text.replace(sentence + " ", "")
     return {
-        "server-instructions.txt": server.server.instructions,
+        "server-instructions.txt": text,
         "server-tools.json": json.dumps(tools, indent=1, ensure_ascii=False) + "\n",
     }
 
