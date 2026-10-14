@@ -14,7 +14,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | Big-picture overview, glossary | `../HANDOFF-260924-Introducing_REMIND_RAG.md` |
 | Structure diagram, commands | `README.md` |
 | Code | `src/remind_rag/`, four groups, each importing only from the ones before it (map with one line per module: `src/remind_rag/__init__.py`): **reading sources** `gams`, `usage`, `chunkers`, `scenarios`, `gmsdata` → **building** `checkout`, `corpus`, `enrich`, `embeddings`, `preconditions`, `store`, `index` → **answering** `search`, `status`, `links`, `render`, `steering`, `server` → **reports** `hierarchy`, `doccheck` (and `preconditions`) |
-| Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output; `test_reference_output.py`: 15 fixed calls byte for byte against `tests/reference/` (refactoring safety net; regenerate with `--update` only for deliberate changes); `test_gams.py`: pure GAMS helpers, no index; `test_build.py`: build steps on a tiny hand-made index |
+| Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output; `test_reference_output.py`: 15 fixed calls plus the server instructions and tool descriptions byte for byte against `tests/reference/` (refactoring safety net; regenerate with `--update` only for deliberate changes); `test_doctests.py`: the `>>>` examples in docstrings; `test_gams.py`: pure GAMS helpers, no index; `test_build.py`: build steps on a tiny hand-made index |
 | Evaluations | `eval/retrieval_eval.py` (local, free), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |
 
@@ -23,6 +23,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 ```powershell
 $env:UV_SYSTEM_CERTS = 1                                 # PIK network intercepts TLS (uv; UV_NATIVE_TLS is deprecated)
 uv run pytest tests                                      # tool-output checks against data/remind-bge.db (or REMIND_RAG_DB)
+uv run ruff check; uv run ruff format --check            # lint + format (config in pyproject.toml); both clean before a commit
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
 uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
 uv run python -m remind_rag.index --root ..\remind --db data/remind-bge-vN.db --reuse data/remind-bge.db --promote   # + copy to the pinned name if parser checks are clean and retrieval isn't lower
@@ -36,6 +37,15 @@ uv run python -m remind_rag.embeddings download          # fill the model folder
   registration, the tests and the hierarchy report use. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content); v6 = git-tracked files only; v7 = token cut (worse, unused); v8 = v6 + switch declarations counted as declared (#51); v9 = v8 with deterministic where-used order, contentless keyword index (#52, 28 → 23 MB) and `schema_version` 1 (the server refuses older indexes; rebuild with `--reuse` takes seconds).
 - **Parser changes:** the build must end with `parser checks: 0 warning(s)`, and `retrieval_eval.py` must not drop.
 - **Tool-output changes:** add or adjust a test in `tests/test_tool_output.py` that shows the information is present.
+- **Tool descriptions and server instructions** are part of every request Claude makes: change them deliberately,
+  with a reference update in the same commit, and note the size change.
+- **Refactoring:** behaviour must stay byte-identical: reference test green, and for wider changes a dump of all
+  tool output (every module, many symbols/links/switches/scenarios) and, for build code, a scratch rebuild compared
+  table by table with the pinned index.
+- **Comments are for the user** (new to RAG and to this code): say why, not what; explain a concept where it is
+  used (BM25, RRF, embeddings), in a line or two; point to `FINDINGS.md` § or `../TODO.md` # instead of telling
+  history; no comment where the code already says it. Docstrings state the contract the signature doesn't show
+  (what None means, side effects, words callers test for). Pure helpers get a `>>>` example (runs as a test).
 - **Evaluation isolation:** answerer runs use `claude -p --setting-sources user` (no project CLAUDE.md, this file
   included) and read-only tools; `audit.py` does this. Don't put a CLAUDE.md into `piam-rag/` itself, because
   `remind/` sits below it and would inherit it.
