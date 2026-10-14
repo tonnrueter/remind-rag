@@ -17,6 +17,7 @@ from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings
 from .search import Index, _module_match
+from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .status import DefaultRun, detail, equation_domain, rank
 from .usage import STR_TEST_RE, TEST_RE
 
@@ -87,21 +88,6 @@ def _description(name: str) -> str:
     return row[0] if row else ""
 
 
-def _fmt_chunk(r, rank: int | None = None, cut: int | None = None) -> str:
-    """A chunk with location, default status and header; with cut, at most that many text lines plus a pointer
-    to the rest. The header's 'Uses:' line (symbol descriptions, there for the embedding) is left out."""
-    where = f"{r['path']}:{r['line_start']}-{r['line_end']}"
-    head = f"[{rank}] {where}" if rank else where
-    status = "".join(f"\n» {s}" for s in default_run.chunk_status(r))
-    header = "\n".join(x for x in r["header"].splitlines() if not x.startswith("Uses:"))
-    lines = r["text"].splitlines()
-    text = r["text"]
-    if cut and len(lines) > cut:
-        rest = r["line_start"] + cut
-        text = "\n".join(lines[:cut]) + f"\n… ({len(lines) - cut} more lines, {r['path']}:{rest}–{r['line_end']})"
-    return f"{head}  ({r['kind']}){status}\n{header}\n```\n{text}\n```"
-
-
 SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
 
 ROLE_LABELS = {"declared": "Declared", "assigned": "Assigned / fixed / loaded",
@@ -134,47 +120,13 @@ def search(query: str, k: int = 5, module: str | None = None, realization: str |
         return str(e)
     if not rows:
         return "No results."
-    return "\n\n".join(_fmt_chunk(r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
+    return "\n\n".join(fmt_chunk(default_run, r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
 
 
 FULL_LIST_MAX = 15  # symbols with at most this many use lines get the full list instead of a summary
 FLAGGED_MAX = 10  # ⚠ / ? lines listed individually in a summary
 COMPUTED_MAX = 4  # ✓ assignments outside bounds listed individually: where the value is computed
 SHORT_ROLE = 3  # a role with at most this many lines is listed in full
-
-
-def _use_line(u, tags: list[str], also: list[int] | None = None, snippet: int | None = None) -> str:
-    ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
-    if u["context"]:
-        ctx += f", in {u['context']}"
-    text = _short(u["snippet"], snippet) if snippet else u["snippet"]
-    more = f"  (same reason: also line{'s' if len(also) > 1 else ''} {', '.join(map(str, also))})" if also else ""
-    return f"- {u['path']}:{u['line']} [{ctx}] {default_run.mark(u, tags)}  {text}{more}" + detail(tags)
-
-
-def _grouped(tagged: list) -> list[str]:
-    """Summary lines: uses in the same file with the same reasons share one entry (first snippet shown)."""
-    groups: dict[tuple, list] = {}
-    for u, t in tagged:
-        groups.setdefault((u["path"], tuple(t)), []).append((u, t))
-    return [_use_line(g[0][0], g[0][1], [u["line"] for u, _ in g[1:]], snippet=110) for g in groups.values()]
-
-
-def _per_file(tagged: list, limit: int = 6) -> str:
-    """'path n ✓' or 'path n (5 ✓, 1 ⚠)': every file with its default status, so a count never hides whether
-    the file runs (audit 2026-10-01: '70_water/heat/output.gms 1' without a mark left the default unchecked)."""
-    marks: dict[str, Counter] = defaultdict(Counter)
-    for u, t in tagged:
-        marks[u["path"]][default_run.mark(u, t).split(" ")[0]] += 1
-    files = sorted(marks, key=lambda p: -sum(marks[p].values()))
-
-    def status(c: Counter) -> str:
-        if len(c) == 1:
-            return next(iter(c))
-        return "(" + ", ".join(f"{c[m]} {m}" for m in "✓?⚠" if c[m]) + ")"
-
-    shown = [f"{p} {sum(marks[p].values())} {status(marks[p])}" for p in files[:limit]]
-    return ", ".join(shown) + (f", +{len(files) - limit} more files" if len(files) > limit else "")
 
 
 @server.tool()
@@ -198,7 +150,7 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
         page = us[offset:offset + max_uses]
         out = [f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
                + (f" in {module}" if module else "") + f", {offset + 1}–{offset + len(page)} of {len(us)}"]
-        out += [_use_line(u, default_run.use_tags(u)) for u in page]
+        out += [use_line(default_run, u, default_run.use_tags(u)) for u in page]
         if offset + len(page) < len(us):
             out.append(f"- … next page: offset={offset + len(page)}")
         return "\n".join(out)
@@ -236,14 +188,14 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
         skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
         if skipped:
             out.append("## Deliberately not used in (not_used.txt)")
-            out += [f"- {r['module']}/{r['realization']}: {_short(r['reason'], 100)}" for r in skipped[:5]]
+            out += [f"- {r['module']}/{r['realization']}: {short(r['reason'], 100)}" for r in skipped[:5]]
             if len(skipped) > 5:
                 out.append(f"- also: {', '.join(r['module'] + '/' + r['realization'] for r in skipped[5:])}")
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
         head = equation_domain(r["text"], r["name"])
         out.append("## Equation definition\n"
-                   + (f"Generated for (domain and $-condition): {head}\n" if head else "") + _fmt_chunk(r, cut=60))
+                   + (f"Generated for (domain and $-condition): {head}\n" if head else "") + fmt_chunk(default_run, r, cut=60))
     if uses:
         groups: dict[str, list] = {}
         for u in uses:
@@ -256,16 +208,15 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             if not us:
                 continue
             tagged = [(u, default_run.use_tags(u)) for u in us]
-            marks = Counter(default_run.mark(u, t).split(" ")[0] for u, t in tagged)
-            split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
+            split = mark_split(default_run, tagged)
             mods = sorted({u["module"] or u["path"] for u in us})
             out.append(f"### {ROLE_LABELS[r]} ({len(us)} lines: {split}; {', '.join(mods)})")
             if r == "declared" and not full:  # the declarations themselves are listed above
                 continue
             if full or len(us) <= SHORT_ROLE:
-                out += [_use_line(u, t) for u, t in tagged]
+                out += [use_line(default_run, u, t) for u, t in tagged]
                 continue
-            out.append(f"- per file: {_per_file(tagged)}")
+            out.append(f"- per file: {per_file(default_run, tagged)}")
             if r == "equation":
                 names = Counter(u["context"] for u in us if u["context"])
                 out.append(f"- equations: {', '.join(names)}")
@@ -275,7 +226,7 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             flagged = [(u, t) for u, t in tagged if t][:flagged_left]
             flagged_left = max(0, flagged_left - len(flagged))
             # each computation on its own line; uses that are off for the same reason share one
-            out += [_use_line(u, t, snippet=110) for u, t in computed] + _grouped(flagged)
+            out += [use_line(default_run, u, t, snippet=110) for u, t in computed] + grouped(default_run, flagged)
             if len(computed) + len(flagged) < len(us):
                 out.append(f'- lines: get_symbol("{name}", role="{r}"[, module="…"])')
     if not out:
@@ -413,7 +364,7 @@ def get_links(name: str, max_links: int = 10) -> str:
                 continue
             more = "".join(f"; :{x[2]} {x[4]}" for x in g[1:])
             if rank == 2:  # not in a default run: the further lines' details may be cut
-                more = _short(more, 200)
+                more = short(more, 200)
             out.append(f"- {path}:{line} {mark}  {text}{more}" + detail(tags))
         hidden = [it for g in entries if g not in active and g not in off for it in g]
         if hidden:
@@ -467,14 +418,13 @@ def get_switch(name: str) -> str:
     ).fetchall()
     if uses:
         tagged = [(u, default_run.use_tags(u)) for u in uses]
-        marks = Counter(default_run.mark(u, t).split(" ")[0] for u, t in tagged)
-        split = ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
+        split = mark_split(default_run, tagged)
         out.append(f"## Referenced in ({len(uses)} lines: {split})")
         if len(uses) > SWITCH_REFS_LISTED:
-            out.append(f"- per file: {_per_file(tagged)}")
+            out.append(f"- per file: {per_file(default_run, tagged)}")
         # code that runs by default first: that is what the default value actually steers
         shown = sorted(tagged, key=lambda x: rank(x[1]))[:SWITCH_REFS_LISTED]
-        out += [f"- {u['path']}:{u['line']} {default_run.mark(u, t)}  {_short(u['snippet'], 110)}" for u, t in shown]
+        out += [f"- {u['path']}:{u['line']} {default_run.mark(u, t)}  {short(u['snippet'], 110)}" for u, t in shown]
         if len(uses) > SWITCH_REFS_LISTED:
             out.append(f'- lines: get_symbol("{sws[0]["name"]}", role="read"[, module="…"]) (also role="assigned")')
     return "\n".join(out)
@@ -489,32 +439,9 @@ SEVERITY_TEXT = {"impossible": "CAN NEVER BE MET", "dead check": "check can neve
                  "ok": "met by the defaults", "depends": "depends on non-default settings"}
 
 
-def _short(text: str, n: int) -> str:
-    text = " ".join(text.split())
-    return text if len(text) <= n else text[:n - 1] + "…"
-
-
 def _names_with_defaults(names, sws: dict, limit: int = 12) -> str:
     shown = [f"{n} ({sws[n.lower()]})" for n in sorted(names, key=str.lower)[:limit]]
     return ", ".join(shown) + (f", +{len(names) - limit} more" if len(names) > limit else "")
-
-
-def _doc_text(text: str) -> str:
-    """The prose of a goxygen doc chunk: `*'` lines without the tags, no $include boilerplate or separator lines."""
-    keep = []
-    for line in text.splitlines():
-        s = line.strip()
-        if not s.startswith("*'") or "@title" in s or "@authors" in s:
-            continue
-        s = re.sub(r"^\*'\s*(@\w+:?\s*)?", "", s)
-        if s and not re.fullmatch(r"[-=*#_ ]+", s):
-            keep.append(s)
-    return " ".join(keep)
-
-
-def _first_sentence(text: str, n: int = 180) -> str:
-    m = re.match(r"(.+?[.!?])(\s|$)", text)
-    return _short(m.group(1) if m else text, n)
 
 
 def _steering(mod: str) -> dict:
@@ -562,7 +489,7 @@ def _steering(mod: str) -> dict:
         cond = " and ".join(json.loads(p["abort_if"])) or "(unconditional)"
         if len(cond) > 120:  # nested if/elseif chains: the message says it better than the condition
             cond = (f"{', '.join(json.loads(p['switches']))} are inconsistent"
-                    + (f' ("{_short(p["message"], 120)}")' if p["message"] else ""))
+                    + (f' ("{short(p["message"], 120)}")' if p["message"] else ""))
         return cond
 
     def block(real: str | None, title: str) -> list[str]:
@@ -606,7 +533,7 @@ def _steering(mod: str) -> dict:
             top = sorted(counts.items(), key=lambda kv: -sum(kv[1].values()))[:8]
             if top:
                 text += "; they set " + "; ".join(
-                    f"{k} = " + ", ".join(f"{_short(v, 30)} ({n})" for v, n in c.most_common(3)) for k, c in top)
+                    f"{k} = " + ", ".join(f"{short(v, 30)} ({n})" for v, n in c.most_common(3)) for k, c in top)
             lines.append(text)
         return lines if len(lines) > 1 else []
 
@@ -658,7 +585,7 @@ def _interfaces(mod: str) -> list[str]:
         users = {n: sorted({r[0] for r in idx.db.execute(
             "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'in'", (n,))} - {mod}) for n in provides}
         if len(provides) <= INTERFACES_LISTED:
-            lines += [f"- {n} -> used by {_short(', '.join(users[n]) or '-', 120)}" for n in provides]
+            lines += [f"- {n} -> used by {short(', '.join(users[n]) or '-', 120)}" for n in provides]
         else:  # core provides hundreds: counts per consumer; each consumer's get_module lists its inputs by name
             per = Counter(m for n in provides for m in users[n])
             lines.append("- per consuming module: " + ", ".join(f"{m} {c}" for m, c in per.most_common()))
@@ -705,14 +632,14 @@ def get_module(module: str, realization: str | None = None) -> str:
         (limits if r["kind"] == "limitations" else docs)[r["realization"]].append(r)
 
     def described(real: str | None, n: int) -> str:
-        text = " ".join(_doc_text(r["text"]) for r in docs[real])
-        return _short(text, n) if text else "(no description)"
+        text = " ".join(doc_text(r["text"]) for r in docs[real])
+        return short(text, n) if text else "(no description)"
 
     def where(real: str | None) -> str:
         return f"  [{docs[real][0]['path']}:{docs[real][0]['line_start']}]" if docs[real] else ""
 
     def limitations(real: str | None, n: int) -> list[str]:
-        return [f"## limitations ({real or 'module'})  [{r['path']}:{r['line_start']}]\n{_short(_doc_text(r['text']), n)}"
+        return [f"## limitations ({real or 'module'})  [{r['path']}:{r['line_start']}]\n{short(doc_text(r['text']), n)}"
                 for r in limits[real]]
 
     out = []
@@ -746,7 +673,7 @@ def get_module(module: str, realization: str | None = None) -> str:
             lines = [f'## Alternatives (one in full: get_module("{mod}", realization="..."))']
             for r in alts:
                 lim = " · has limitations" if limits[r] else ""
-                lines.append(f"- realization {r}  [not default]: {_first_sentence(described(r, 400), 140)}{lim}"
+                lines.append(f"- realization {r}  [not default]: {first_sentence(described(r, 400), 140)}{lim}"
                              f" · {st['alerts'][r]}")
             out.append("\n".join(lines))
     out += _interfaces(mod)
