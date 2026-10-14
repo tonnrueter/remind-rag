@@ -419,3 +419,33 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
 - Not done from #42, on purpose: opening the database lazily (the server, tests and eval scripts all need it at
   start; no caller gains) and moving every SQL statement into `store.py` (one-off queries next to the tool that
   uses them read better; only ~6 are SQLite-specific, #49).
+
+## 17. v0.9.0: housekeeping, tool descriptions checked (2026-10-15)
+
+- **No output change** apart from the tool descriptions (below). Every commit was checked against a dump of all
+  tool output (instructions, schemas, every get_module, 600 get_links, every 25th get_symbol, all switches and
+  scenarios, 10 searches, the hierarchy report; 2.3 MB), byte-identical before and after. Build code also against
+  the chunker output for all 673 files and a scratch rebuild compared with v9 table by table (row order included);
+  the sweep reports (doccheck, preconditions, hierarchy) identical.
+- **ruff** (lint F/E/W/B/UP/I, format once, line length 120; `requires-python` stays 3.11). It found a backslash in
+  an f-string in the reference test that only Python 3.12+ accepts, and `zip()` calls that could silently drop
+  items. The formatting commit is listed in `.git-blame-ignore-revs`.
+- **Doctests**: 26 `>>>` examples in the pure helpers run as tests. Writing them showed that `if_guards` gives an
+  `else` / `elseif` line the conditions of both branches (harmless for lines holding only the keyword; a one-line
+  `if(c, a; else b;);` would mark `a` with both). Kept as a known limit.
+- **Determinism**: the hierarchy report ordered ties by set order, so two runs could differ (same cause as v0.8.0's
+  where-used fix); ties now sort by name.
+- **Tool descriptions and server instructions** (what Claude reads on every turn) are now recorded in
+  `tests/reference/` and were checked against what the tools return. `get_switch` claimed "config files / scripts
+  that reference it" (it lists GAMS and R code lines with their default marks); `search` named an internal constant
+  instead of "12 lines" and didn't say k is capped at 20; the instructions said "provide" where get_symbol reports
+  the declaring module; `get_scenario` didn't mention the description. Size 4,792 → 4,915 characters (≈ +30 tokens
+  per turn): instructions 1,637, search 1,014, get_links 713, get_symbol 604, get_module 569, get_switch 301,
+  get_scenario 176.
+- **Code layout**: no subpackages (`python -m remind_rag.server` is in every MCP registration); a package map in
+  `__init__.py` instead (four groups, each importing only from the ones before it; checked by script, one
+  exception: `enrich` uses `render.short`). Internal docstrings for 59 of 67 undocumented items; comments for a
+  reader new to RAG; nested conditional expressions and short names rewritten in server, steering, status, index,
+  chunkers, doccheck.
+- Seen on the way, REMIND behaviour rather than ours: `copyConfigFrom` also copies an empty description, so
+  `SSP2-PkBudg1000` shows the text of `SSP2-PkBudg1050` ("peak budget of 1150 Gt").
