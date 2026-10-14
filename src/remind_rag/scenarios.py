@@ -48,7 +48,12 @@ def read_scenarios(root: Path) -> list[Scenario]:
 def scenario_chunks(scenarios: list[Scenario]) -> list[Chunk]:
     chunks = []
     for sc in scenarios:
-        text = f"Scenario {sc.name}\n{sc.description}\nSettings: " + "; ".join(f"{k} = {v}" for k, v in sc.settings.items())
-        chunks.append(Chunk(path=sc.path, kind="scenario", line_start=sc.line, line_end=sc.line,
-                            text=text[:MAX_CHARS], name=sc.name))
+        text = f"Scenario {sc.name}\n{sc.description}\nSettings: " + "; ".join(
+            f"{k} = {v}" for k, v in sc.settings.items()
+        )
+        chunks.append(
+            Chunk(
+                path=sc.path, kind="scenario", line_start=sc.line, line_end=sc.line, text=text[:MAX_CHARS], name=sc.name
+            )
+        )
     return chunks

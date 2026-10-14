@@ -39,13 +39,20 @@ def call(tool: str, arg: str) -> str:
 @pytest.mark.parametrize("tool, arg", CALLS)
 def test_output_unchanged(tool, arg):
     path = reference_file(tool, arg)
-    assert path.exists(), f"no reference for {tool}({arg!r}); run: uv run python tests/test_reference_output.py --update"
+    assert path.exists(), (
+        f"no reference for {tool}({arg!r}); run: uv run python tests/test_reference_output.py --update"
+    )
     expected, actual = path.read_text(encoding="utf-8"), call(tool, arg)
     if actual != expected:
-        diff = "".join(difflib.unified_diff(expected.splitlines(keepends=True), actual.splitlines(keepends=True),
-                                            "reference", "now", n=1))
-        pytest.fail(f"{tool}({arg!r}) changed; if on purpose: uv run python tests/test_reference_output.py "
-                    f"--update\n{diff[:4000]}")
+        diff = "".join(
+            difflib.unified_diff(
+                expected.splitlines(keepends=True), actual.splitlines(keepends=True), "reference", "now", n=1
+            )
+        )
+        pytest.fail(
+            f"{tool}({arg!r}) changed; if on purpose: uv run python tests/test_reference_output.py "
+            f"--update\n{diff[:4000]}"
+        )
 
 
 if __name__ == "__main__":

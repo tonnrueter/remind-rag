@@ -15,8 +15,13 @@ EXPORT_SCRIPT = RAG_DIR / "r" / "export_gms.R"
 def run_export(root: Path, out: Path) -> bool:
     """Run the R export; returns False (with a message) if R or the packages are not available."""
     try:
-        subprocess.run(["Rscript", "--vanilla", str(EXPORT_SCRIPT), str(root), str(out)],
-                       check=True, capture_output=True, text=True, timeout=600)
+        subprocess.run(
+            ["Rscript", "--vanilla", str(EXPORT_SCRIPT), str(root), str(out)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
         return True
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         detail = getattr(e, "stderr", "") or str(e)
@@ -76,22 +81,38 @@ def module_interface_chunks(export: dict, sym_desc: dict[str, str]) -> list[Chun
         meta = path_meta(path)
         # outputs and inputs in separate chunks, so "what does X need" and "what does X provide" each find
         # a focused chunk (one combined list is split arbitrarily once it exceeds MAX_CHARS)
-        out_lines = [f"{v}: {sym_desc.get(v, '')[:70]} -> used by "
-                     f"{', '.join(u for u in iface[v]['consumed_by'] if u != folder) or 'no other module'}"
-                     for v in outs]
-        in_lines = [f"{v}: {sym_desc.get(v, '')[:70]} <- from {', '.join(iface[v]['provided_by']) or '?'}"
-                    for v in ins if not v.startswith("c")]
+        out_lines = [
+            f"{v}: {sym_desc.get(v, '')[:70]} -> used by "
+            f"{', '.join(u for u in iface[v]['consumed_by'] if u != folder) or 'no other module'}"
+            for v in outs
+        ]
+        in_lines = [
+            f"{v}: {sym_desc.get(v, '')[:70]} <- from {', '.join(iface[v]['provided_by']) or '?'}"
+            for v in ins
+            if not v.startswith("c")
+        ]
         if switches:
             in_lines.append("switches read: " + ", ".join(switches))
-        for head, lines in ((f"Outputs of {who} (gms::codeCheck): {len(outs)} objects it provides to other modules",
-                             out_lines),
-                            (f"Inputs of {who} (gms::codeCheck): {len(ins)} objects it needs from other modules",
-                             in_lines)):
+        for head, lines in (
+            (f"Outputs of {who} (gms::codeCheck): {len(outs)} objects it provides to other modules", out_lines),
+            (f"Inputs of {who} (gms::codeCheck): {len(ins)} objects it needs from other modules", in_lines),
+        ):
             if not lines:
                 continue
             for text in _pack_lines(head, lines):
-                chunks.append(Chunk(path=path, kind="module_interface", line_start=1, line_end=1, text=text,
-                                    name=folder, module=meta["module"], realization=None, phase="interfaces"))
+                chunks.append(
+                    Chunk(
+                        path=path,
+                        kind="module_interface",
+                        line_start=1,
+                        line_end=1,
+                        text=text,
+                        name=folder,
+                        module=meta["module"],
+                        realization=None,
+                        phase="interfaces",
+                    )
+                )
     return chunks
 
 
@@ -104,8 +125,17 @@ def limitations_chunks(export: dict, root: Path) -> list[Chunk]:
         line = next((i for i, x in enumerate(lines, 1) if "@limitations" in x), 1)
         meta = path_meta(d["path"])
         where = d["module"] + (f"/{meta['realization']}" if meta["realization"] else "")
-        chunks.append(Chunk(path=d["path"], kind="limitations", line_start=line, line_end=line,
-                            text=f"Limitations of {where}: {d['text']}", name=where, **meta))
+        chunks.append(
+            Chunk(
+                path=d["path"],
+                kind="limitations",
+                line_start=line,
+                line_end=line,
+                text=f"Limitations of {where}: {d['text']}",
+                name=where,
+                **meta,
+            )
+        )
     return chunks
 
 
@@ -114,5 +144,7 @@ def parser_diff(export: dict, our_names: set[str]) -> str:
     theirs = {d["names"] for d in export["declarations"] if d["type"] != "set"}
     missing = sorted(theirs - our_names)
     extra = sorted(n for n in our_names - theirs if "_" in n)
-    return (f"codeCheck declarations: {len(theirs)}, missed by our parser: {len(missing)} {missing[:15]}; "
-            f"only in ours (non-set, with '_'): {len(extra)} {extra[:10]}")
+    return (
+        f"codeCheck declarations: {len(theirs)}, missed by our parser: {len(missing)} {missing[:15]}; "
+        f"only in ours (non-set, with '_'): {len(extra)} {extra[:10]}"
+    )

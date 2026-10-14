@@ -44,24 +44,32 @@ def _start_value(name: str, snippet: str | None) -> bool:
 def collect() -> dict:
     owners = _owners()
     uses = []  # (symbol, owner, module, role, phase, rank)
-    q = f"SELECT * FROM symbol_uses WHERE role != 'declared' AND module IS NOT NULL AND name IN " \
+    q = (
+        f"SELECT * FROM symbol_uses WHERE role != 'declared' AND module IS NOT NULL AND name IN "
         f"({','.join('?' * len(owners))})"
+    )
     for u in idx.db.execute(q, list(owners)):
         if u["role"] == "assigned" and _start_value(u["name"], u["snippet"]):
             continue
-        uses.append((u["name"], owners[u["name"]], u["module"], u["role"], u["phase"],
-                     rank(default_run.use_tags(u))))
-    return {"owners": owners, "uses": uses, "commit": idx.meta.get("remind_commit", "?"),
-            "branch": idx.meta.get("remind_branch", "?"), "built_at": idx.meta.get("built_at", "?")}
+        uses.append((u["name"], owners[u["name"]], u["module"], u["role"], u["phase"], rank(default_run.use_tags(u))))
+    return {
+        "owners": owners,
+        "uses": uses,
+        "commit": idx.meta.get("remind_commit", "?"),
+        "branch": idx.meta.get("remind_branch", "?"),
+        "built_at": idx.meta.get("built_at", "?"),
+    }
 
 
 def analyse(data: dict, max_rank: int) -> dict:
     """max_rank 0: only uses that run in a default run; 1: plus 'depends on settings'; 2: all code."""
     owners, uses = data["owners"], [u for u in data["uses"] if u[5] <= max_rank]
+    # fmt: off
     readers = defaultdict(set)      # symbol -> modules using it (read / in equations / assigned), owner excluded
     eq_readers = defaultdict(set)   # symbol -> modules using it inside equations
     writers = defaultdict(set)      # symbol -> non-owner modules assigning it (incl. bounds / fixing)
     phases = defaultdict(Counter)   # (owner, user) -> phase class counts
+    # fmt: on
     for name, owner, mod, role, phase, _ in uses:
         if mod == owner:
             continue
@@ -88,15 +96,32 @@ def analyse(data: dict, max_rank: int) -> dict:
     symbols = []
     for name, owner in owners.items():
         if readers[name]:
-            symbols.append({"name": name, "owner": owner, "users": len(readers[name]),
-                            "in_equations": len(eq_readers[name]), "writers": sorted(writers[name])})
+            symbols.append(
+                {
+                    "name": name,
+                    "owner": owner,
+                    "users": len(readers[name]),
+                    "in_equations": len(eq_readers[name]),
+                    "writers": sorted(writers[name]),
+                }
+            )
     symbols.sort(key=lambda s: (-s["users"], s["name"]))
 
     edges = {(a, b) for (a, b) in phases}
-    return {"modules": modules, "owns": owns, "reaches": reaches, "eq_owns": eq_owns, "depends": depends,
-            "symbols": symbols, "edges": edges, "phases": phases, "writers": writers, "owners": owners,
-            "sccs": _sccs(modules, edges), "sccs_without_core": _sccs([m for m in modules if m != "core"],
-                                                                     {e for e in edges if "core" not in e})}
+    return {
+        "modules": modules,
+        "owns": owns,
+        "reaches": reaches,
+        "eq_owns": eq_owns,
+        "depends": depends,
+        "symbols": symbols,
+        "edges": edges,
+        "phases": phases,
+        "writers": writers,
+        "owners": owners,
+        "sccs": _sccs(modules, edges),
+        "sccs_without_core": _sccs([m for m in modules if m != "core"], {e for e in edges if "core" not in e}),
+    }
 
 
 def _sccs(nodes: list[str], edges: set[tuple[str, str]]) -> list[list[str]]:
@@ -146,18 +171,26 @@ def self_test(data: dict) -> None:
 
 def report(data: dict) -> str:
     d, al = analyse(data, 0), analyse(data, 2)
-    out = [f"REMIND {data['branch']} @ {data['commit'][:9]}, index built {data['built_at']}",
-           f"interface symbols (vm_/pm_/qm_/fm_, codeCheck owner): {len(data['owners'])}; "
-           f"used outside their owner in a default run: {len(d['symbols'])}"]
-    out.append("\n## Modules (default run | all code)\nmodule | owns | reaches | gap | in equations | depends on"
-               " || owns | reaches | depends on")
+    out = [
+        f"REMIND {data['branch']} @ {data['commit'][:9]}, index built {data['built_at']}",
+        f"interface symbols (vm_/pm_/qm_/fm_, codeCheck owner): {len(data['owners'])}; "
+        f"used outside their owner in a default run: {len(d['symbols'])}",
+    ]
+    out.append(
+        "\n## Modules (default run | all code)\nmodule | owns | reaches | gap | in equations | depends on"
+        " || owns | reaches | depends on"
+    )
     rows = sorted(d["modules"], key=lambda m: (-len(d["reaches"][m]), m))
     for m in rows:
         o, r, e, dep = (len(d[k][m]) for k in ("owns", "reaches", "eq_owns", "depends"))
-        out.append(f"{m} | {o} | {r} | {r - o:+d} | {e} | {dep} || {len(al['owns'][m])} | {len(al['reaches'][m])}"
-                   f" | {len(al['depends'][m])}")
-    out.append("\n## Symbols used by most other modules (default run)\nsymbol | owner | users | in equations | "
-               "non-owner writers")
+        out.append(
+            f"{m} | {o} | {r} | {r - o:+d} | {e} | {dep} || {len(al['owns'][m])} | {len(al['reaches'][m])}"
+            f" | {len(al['depends'][m])}"
+        )
+    out.append(
+        "\n## Symbols used by most other modules (default run)\nsymbol | owner | users | in equations | "
+        "non-owner writers"
+    )
     for s in d["symbols"][:25]:
         out.append(f"{s['name']} | {s['owner']} | {s['users']} | {s['in_equations']} | {', '.join(s['writers'])}")
     out.append("\n## Non-owners writing interface symbols (default run)")
@@ -172,15 +205,19 @@ def report(data: dict) -> str:
     for c in d["phases"].values():
         tot.update({k: 1 for k in c})
     only = Counter("+".join(sorted(c)) for c in d["phases"].values())
-    out.append(f"module pairs: {len(d['phases'])}; with equation uses {tot['equations']}, between-solve uses "
-               f"{tot['between solves']}, setup uses {tot['setup']}")
+    out.append(
+        f"module pairs: {len(d['phases'])}; with equation uses {tot['equations']}, between-solve uses "
+        f"{tot['between solves']}, setup uses {tot['setup']}"
+    )
     out.append("pairs by combination: " + ", ".join(f"{k} {v}" for k, v in only.most_common()))
     out.append("\n## Feedback loops (default run)")
     for label, key in (("with core", "sccs"), ("without core", "sccs_without_core")):
         for c in d[key]:
             out.append(f"- {label}: {len(c)} modules: {', '.join(c)}")
-    out.append("\n## Per module (default run): default realization; symbols it owns -> modules using them; "
-               "symbols it writes but does not own")
+    out.append(
+        "\n## Per module (default run): default realization; symbols it owns -> modules using them; "
+        "symbols it writes but does not own"
+    )
     for m in rows:
         real = "-" if m == "core" else default_run.default_realization(m)
         owned = [f"{s['name']}->{s['users']}" for s in d["symbols"] if s["owner"] == m][:6]
@@ -201,10 +238,18 @@ def main() -> None:
     if args.json:
         d = analyse(data, 0)
         with open(args.json, "w", encoding="utf-8") as f:
-            json.dump({"meta": {k: data[k] for k in ("commit", "branch", "built_at")},
-                       "edges": sorted(map(list, d["edges"])), "symbols": d["symbols"],
-                       "modules": {m: {k: sorted(d[k][m]) for k in ("owns", "reaches", "eq_owns", "depends")}
-                                   for m in d["modules"]}}, f, indent=1)
+            json.dump(
+                {
+                    "meta": {k: data[k] for k in ("commit", "branch", "built_at")},
+                    "edges": sorted(map(list, d["edges"])),
+                    "symbols": d["symbols"],
+                    "modules": {
+                        m: {k: sorted(d[k][m]) for k in ("owns", "reaches", "eq_owns", "depends")} for m in d["modules"]
+                    },
+                },
+                f,
+                indent=1,
+            )
 
 
 if __name__ == "__main__":

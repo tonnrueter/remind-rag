@@ -1,8 +1,8 @@
 """MCP server (stdio) exposing the REMIND index to Claude Code / opencode.
 
-    uv run --directory <rag> python -m remind_rag.server
-    env REMIND_RAG_DB selects the index (default: the pinned data/remind-bge.db)
-    env REMIND_RAG_ROOT names the REMIND checkout it is served for (default: the one the index was built from)
+uv run --directory <rag> python -m remind_rag.server
+env REMIND_RAG_DB selects the index (default: the pinned data/remind-bge.db)
+env REMIND_RAG_ROOT names the REMIND checkout it is served for (default: the one the index was built from)
 """
 
 from __future__ import annotations
@@ -34,9 +34,11 @@ def _default_db() -> Path:
 
 idx = Index(_default_db())
 if (_schema := int(idx.meta.get("schema_version", 0))) < store.SCHEMA_VERSION:
-    raise SystemExit(f"{_default_db()} was built by an older remind-rag (index schema {_schema}, this version reads "
-                     f"{store.SCHEMA_VERSION}); rebuild it, reusing its embeddings (seconds): uv run python -m "
-                     f"remind_rag.index --root <remind> --reuse {_default_db()}")
+    raise SystemExit(
+        f"{_default_db()} was built by an older remind-rag (index schema {_schema}, this version reads "
+        f"{store.SCHEMA_VERSION}); rebuild it, reusing its embeddings (seconds): uv run python -m "
+        f"remind_rag.index --root <remind> --reuse {_default_db()}"
+    )
 default_run = DefaultRun(idx.db)
 _root = checkout.served_root(idx.meta)
 _where = f"the REMIND checkout at {_root}" if _root else "the REMIND checkout you are working in"
@@ -71,13 +73,24 @@ server = MCPServer(
 
 SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
 
-ROLE_LABELS = {"declared": "Declared", "assigned": "Assigned / fixed / loaded",
-               "equation": "Used in equations", "read": "Read"}
+ROLE_LABELS = {
+    "declared": "Declared",
+    "assigned": "Assigned / fixed / loaded",
+    "equation": "Used in equations",
+    "read": "Read",
+}
 
 
 @server.tool()
-def search(query: str, k: int = 5, module: str | None = None, realization: str | None = None,
-           kind: str | None = None, phase: str | None = None, scenario: str | None = None) -> str:
+def search(
+    query: str,
+    k: int = 5,
+    module: str | None = None,
+    realization: str | None = None,
+    kind: str | None = None,
+    phase: str | None = None,
+    scenario: str | None = None,
+) -> str:
     """Hybrid (keyword + semantic) search over REMIND code and docs.
 
     Args:
@@ -95,8 +108,15 @@ def search(query: str, k: int = 5, module: str | None = None, realization: str |
             Only use it when the question is about that scenario.
     """
     try:
-        rows = idx.search(query, k=max(1, min(k, 20)), module=module, realization=realization, kind=kind,
-                          phase=phase, scenario=scenario)
+        rows = idx.search(
+            query,
+            k=max(1, min(k, 20)),
+            module=module,
+            realization=realization,
+            kind=kind,
+            phase=phase,
+            scenario=scenario,
+        )
     except ValueError as e:
         return str(e)
     if not rows:
@@ -111,8 +131,9 @@ SHORT_ROLE = 3  # a role with at most this many lines is listed in full
 
 
 @server.tool()
-def get_symbol(name: str, role: str | None = None, module: str | None = None, offset: int = 0,
-               max_uses: int = 40) -> str:
+def get_symbol(
+    name: str, role: str | None = None, module: str | None = None, offset: int = 0, max_uses: int = 40
+) -> str:
     """Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.
 
     Returns its declaration(s) with domain and description/unit, which module declares it and which modules
@@ -128,9 +149,12 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
         us = [u for u in uses if (not role or u["role"] == role) and (not module or module_match(module, u["module"]))]
         if not us:
             return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + "."
-        page = us[offset:offset + max_uses]
-        out = [f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
-               + (f" in {module}" if module else "") + f", {offset + 1}–{offset + len(page)} of {len(us)}"]
+        page = us[offset : offset + max_uses]
+        out = [
+            f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
+            + (f" in {module}" if module else "")
+            + f", {offset + 1}–{offset + len(page)} of {len(us)}"
+        ]
         out += [use_line(default_run, u, default_run.use_tags(u)) for u in page]
         if offset + len(page) < len(us):
             out.append(f"- … next page: offset={offset + len(page)}")
@@ -148,23 +172,34 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
             first = ds[0]
             where = f"{first['path']}:{first['line']}"
             reals = [d["realization"] for d in ds if d["realization"]]
-            loc = (mod or "top-level") + (f" (realizations: {', '.join(reals)})" if len(reals) > 1
-                                          else f"/{reals[0]}" if reals else "")
+            loc = (mod or "top-level") + (
+                f" (realizations: {', '.join(reals)})" if len(reals) > 1 else f"/{reals[0]}" if reals else ""
+            )
             default = default_run.default_realization(mod)
-            note = ("" if not (reals and default and default.lower() not in {x.lower() for x in reals})
-                    else f"  — module switched off by default ({default})" if default_run.module_off_by_default(mod)
-                    else f"  — only in non-default realizations (default: {default})")
-            out.append(f"- {kind} {nm}({domain}) \"{description}\"  [{loc}] {where}"
-                       + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "") + note)
-    rows = idx.db.execute("SELECT module, direction FROM module_interfaces WHERE name = ? COLLATE NOCASE",
-                          (name,)).fetchall()
+            note = (
+                ""
+                if not (reals and default and default.lower() not in {x.lower() for x in reals})
+                else f"  — module switched off by default ({default})"
+                if default_run.module_off_by_default(mod)
+                else f"  — only in non-default realizations (default: {default})"
+            )
+            out.append(
+                f'- {kind} {nm}({domain}) "{description}"  [{loc}] {where}'
+                + (f" (+{len(ds) - 1} more files)" if len(ds) > 1 else "")
+                + note
+            )
+    rows = idx.db.execute(
+        "SELECT module, direction FROM module_interfaces WHERE name = ? COLLATE NOCASE", (name,)
+    ).fetchall()
     if rows:
         prov = sorted({r["module"] for r in rows if r["direction"] == "out"})
         cons = sorted({r["module"] for r in rows if r["direction"] == "in"})
         # codeCheck's "output" module is the one that declares the object; where values are actually
         # assigned is listed under Uses below
-        out.append(f"## Module interface (gms::codeCheck)\n- declared in (interface owner): "
-                   f"{', '.join(prov) or '?'}\n- used by: {', '.join(cons) or 'none'}")
+        out.append(
+            f"## Module interface (gms::codeCheck)\n- declared in (interface owner): "
+            f"{', '.join(prov) or '?'}\n- used by: {', '.join(cons) or 'none'}"
+        )
     skipped = idx.db.execute("SELECT * FROM not_used WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     if skipped:
         out.append("## Deliberately not used in (not_used.txt)")
@@ -174,8 +209,11 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
     eqs = idx.db.execute("SELECT * FROM chunks WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
     for r in eqs:
         head = equation_domain(r["text"], r["name"])
-        out.append("## Equation definition\n"
-                   + (f"Generated for (domain and $-condition): {head}\n" if head else "") + fmt_chunk(default_run, r, cut=60))
+        out.append(
+            "## Equation definition\n"
+            + (f"Generated for (domain and $-condition): {head}\n" if head else "")
+            + fmt_chunk(default_run, r, cut=60)
+        )
     if uses:
         groups: dict[str, list] = {}
         for u in uses:
@@ -249,6 +287,7 @@ def _names(names: list[str], home: str | None, limit: int = 12) -> str:
 
 class Link(NamedTuple):
     """One entry of a get_links section: a statement (path, line) or an equation (path None, line = its name)."""
+
     rank: int  # 0 runs by default, 1 depends on settings, 2 not in a default run
     path: str | None
     line: int | str
@@ -272,33 +311,46 @@ def get_links(name: str, max_links: int = 10) -> str:
     """
     from .links import equation_members, is_load, statement
 
-    decl = idx.db.execute("SELECT kind, module, description FROM symbols WHERE name = ? COLLATE NOCASE",
-                          (name,)).fetchone()
-    eq_chunks = idx.db.execute("SELECT path, name, module, realization, phase, conditions FROM chunks "
-                               "WHERE kind = 'equation' AND name = ? COLLATE NOCASE", (name,)).fetchall()
-    uses = idx.db.execute("SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path LIKE '%.gms' "
-                          "AND role != 'declared' ORDER BY path, line", (name,)).fetchall()
+    decl = idx.db.execute(
+        "SELECT kind, module, description FROM symbols WHERE name = ? COLLATE NOCASE", (name,)
+    ).fetchone()
+    eq_chunks = idx.db.execute(
+        "SELECT path, name, module, realization, phase, conditions FROM chunks "
+        "WHERE kind = 'equation' AND name = ? COLLATE NOCASE",
+        (name,),
+    ).fetchall()
+    uses = idx.db.execute(
+        "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path LIKE '%.gms' "
+        "AND role != 'declared' ORDER BY path, line",
+        (name,),
+    ).fetchall()
     if not decl and not uses and not eq_chunks:
         return f"Symbol {name!r} not found. Try get_symbol or search."
-    name = decl and idx.db.execute("SELECT name FROM symbols WHERE name = ? COLLATE NOCASE",
-                                   (name,)).fetchone()[0] or name
-    out = [f"# Links of {name}" + (f" — {decl['kind']} \"{decl['description']}\" [declared in "
-                                   f"{decl['module'] or 'core'}]" if decl else ""),
-           "One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · "
-           "[module] = declared outside the statement's module."]
+    name = (
+        decl and idx.db.execute("SELECT name FROM symbols WHERE name = ? COLLATE NOCASE", (name,)).fetchone()[0] or name
+    )
+    out = [
+        f"# Links of {name}"
+        + (f' — {decl["kind"]} "{decl["description"]}" [declared in {decl["module"] or "core"}]' if decl else ""),
+        "One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · "
+        "[module] = declared outside the statement's module.",
+    ]
 
     # an equation: its members
     for r in eq_chunks:
-        tags = default_run.use_tags({"module": r["module"], "realization": r["realization"], "conditions": r["conditions"],
-                          "guards": "[]"}) + default_run.equation_status(r["path"], r["name"])
+        tags = default_run.use_tags(
+            {"module": r["module"], "realization": r["realization"], "conditions": r["conditions"], "guards": "[]"}
+        ) + default_run.equation_status(r["path"], r["name"])
         members = equation_members(idx.db, r["path"], r["name"])
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
-        out.append(f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
-                   f" {default_run.mark(r, tags)}"
-                   + detail(tags)
-                   + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
-                   + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}")
+        out.append(
+            f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
+            f" {default_run.mark(r, tags)}"
+            + detail(tags)
+            + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
+            + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}"
+        )
 
     computed, feeds, reads, equations = [], [], [], {}
     seen = set()
@@ -314,12 +366,23 @@ def get_links(name: str, max_links: int = 10) -> str:
         tags = default_run.use_tags(u)
         if u["role"] == "assigned" or name in st.assigned:
             inputs = [n for n in st.names_from(u["line"]) if n.lower() != name.lower() and n not in st.assigned]
-            src = "loaded from a GDX file" if is_load(st) else (
-                "from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
+            src = (
+                "loaded from a GDX file"
+                if is_load(st)
+                else ("from " + _names(inputs, u["module"]) if inputs else "constant or set-based (no symbol inputs)")
+            )
             computed.append(Link(rank(tags), u["path"], st.start, default_run.mark(u, tags), src, tags))
         elif targets := [n for n in st.names if n in st.assigned and n.lower() != name.lower()]:
-            feeds.append(Link(rank(tags), u["path"], st.start, default_run.mark(u, tags),
-                              f"→ {_names(targets, u['module'])}", tags))
+            feeds.append(
+                Link(
+                    rank(tags),
+                    u["path"],
+                    st.start,
+                    default_run.mark(u, tags),
+                    f"→ {_names(targets, u['module'])}",
+                    tags,
+                )
+            )
         else:
             reads.append(u)
 
@@ -332,9 +395,12 @@ def get_links(name: str, max_links: int = 10) -> str:
         # default-active first, then depends, then inactive; within a file by line (equations by name)
         items.sort(key=lambda x: (x.rank, x.path or "", x.line if isinstance(x.line, int) else 0, str(x.line)))
         counts = [sum(1 for it in items if it.rank == r) for r in range(3)]
-        out.append(f"## {title} ({len(items)} {unit}: {counts[0]} run by default"
-                   + (f", {counts[1]} depend on settings" if counts[1] else "")
-                   + (f", {counts[2]} not in a default run" if counts[2] else "") + ")")
+        out.append(
+            f"## {title} ({len(items)} {unit}: {counts[0]} run by default"
+            + (f", {counts[1]} depend on settings" if counts[1] else "")
+            + (f", {counts[2]} not in a default run" if counts[2] else "")
+            + ")"
+        )
         groups: dict[tuple, list[Link]] = {}
         for it in items:
             separate = it.path is None or (not merge_default and it.rank == 0)
@@ -343,7 +409,7 @@ def get_links(name: str, max_links: int = 10) -> str:
         entries = list(groups.values())
         # links that don't run by default get at most half the room; the rest is counted per module
         active = [g for g in entries if g[0].rank < 2][:max_links]
-        off = [g for g in entries if g[0].rank == 2][:max(3, min(max_links // 2, max_links - len(active)))]
+        off = [g for g in entries if g[0].rank == 2][: max(3, min(max_links // 2, max_links - len(active)))]
         for g in active + off:
             first = g[0]
             if first.path is None:
@@ -355,10 +421,13 @@ def get_links(name: str, max_links: int = 10) -> str:
             out.append(f"- {first.path}:{first.line} {first.mark}  {first.text}{more}" + detail(first.tags))
         hidden = [it for g in entries if g not in active and g not in off for it in g]
         if hidden:
-            mods = Counter((it.path or "").split("/")[1] if (it.path or "").startswith("modules/") else "core"
-                           for it in hidden)
-            out.append(f"- ... {len(hidden)} more ({', '.join(f'{m} {n}' for m, n in mods.most_common())}): "
-                       f'get_symbol("{name}", role=…, module=…) lists them')
+            mods = Counter(
+                (it.path or "").split("/")[1] if (it.path or "").startswith("modules/") else "core" for it in hidden
+            )
+            out.append(
+                f"- ... {len(hidden)} more ({', '.join(f'{m} {n}' for m, n in mods.most_common())}): "
+                f'get_symbol("{name}", role=…, module=…) lists them'
+            )
 
     section(f"Computed from (statements assigning {name})", computed, merge_default=False)
     section(f"Feeds into (statements reading {name} and assigning another symbol)", feeds)
@@ -369,15 +438,19 @@ def get_links(name: str, max_links: int = 10) -> str:
         members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
-        text = (f"{eq}  {path} {default_run.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
-                f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}")
+        text = (
+            f"{eq}  {path} {default_run.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
+            f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}"
+        )
         eq_items.append(Link(rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
     section("In equations (other symbols in the same equation)", eq_items, "equations")
 
     if reads:
         mods = sorted({u["module"] or u["path"] for u in reads})
-        out.append(f"## Other reads: {len(reads)} statements without an assignment (conditions, display, "
-                   f"output; {', '.join(mods[:8])}{', …' if len(mods) > 8 else ''}); see get_symbol")
+        out.append(
+            f"## Other reads: {len(reads)} statements without an assignment (conditions, display, "
+            f"output; {', '.join(mods[:8])}{', …' if len(mods) > 8 else ''}); see get_symbol"
+        )
     if len(out) == 2:
         out.append("No statements or equations found (declared but never used in GAMS code).")
     return "\n".join(out)
@@ -391,12 +464,15 @@ def get_switch(name: str) -> str:
     if not sws:
         similar = idx.db.execute("SELECT name FROM switches WHERE name LIKE ? LIMIT 15", (f"%{name}%",)).fetchall()
         return f"Switch {name!r} not found in main.gms." + (
-            f" Similar: {', '.join(r[0] for r in similar)}" if similar else "")
+            f" Similar: {', '.join(r[0] for r in similar)}" if similar else ""
+        )
     out = []
     for sw in sws:
-        out.append(f"## {sw['name']}  default: {sw['default_value']}"
-                   + (f"  allowed (regexp): {sw['allowed']}" if sw["allowed"] else "")
-                   + f"  [{sw['path']}:{sw['line']}]")
+        out.append(
+            f"## {sw['name']}  default: {sw['default_value']}"
+            + (f"  allowed (regexp): {sw['allowed']}" if sw["allowed"] else "")
+            + f"  [{sw['path']}:{sw['line']}]"
+        )
         chunk = idx.db.execute("SELECT * FROM chunks WHERE id = ?", (sw["chunk_id"],)).fetchone()
         if chunk:
             out.append(f"```\n{chunk['text']}\n```")
@@ -424,14 +500,25 @@ STEER_HEAD = "## Steered by  (switches in the module's code; values in parenthes
 
 def _interfaces(mod: str) -> list[str]:
     """Names only (descriptions: get_symbol); outputs with their consumers, inputs grouped by source module."""
-    ifs = idx.db.execute("SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name",
-                         (mod,)).fetchall()
+    ifs = idx.db.execute(
+        "SELECT name, direction FROM module_interfaces WHERE module = ? ORDER BY name", (mod,)
+    ).fetchall()
     out = []
     provides = [r["name"] for r in ifs if r["direction"] == "out"]
     if provides:
         lines = [f"## Interfaces: provides (outputs), {len(provides)}"]
-        users = {n: sorted({r[0] for r in idx.db.execute(
-            "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'in'", (n,))} - {mod}) for n in provides}
+        users = {
+            n: sorted(
+                {
+                    r[0]
+                    for r in idx.db.execute(
+                        "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'in'", (n,)
+                    )
+                }
+                - {mod}
+            )
+            for n in provides
+        }
         if len(provides) <= INTERFACES_LISTED:
             lines += [f"- {n} -> used by {short(', '.join(users[n]) or '-', 120)}" for n in provides]
         else:  # core provides hundreds: counts per consumer; each consumer's get_module lists its inputs by name
@@ -446,8 +533,11 @@ def _interfaces(mod: str) -> list[str]:
         for n in consumes:
             if n in switches:
                 continue
-            src = idx.db.execute("SELECT module FROM module_interfaces WHERE name = ? AND direction = 'out' "
-                                 "AND module != ? ORDER BY module LIMIT 1", (n, mod)).fetchone()
+            src = idx.db.execute(
+                "SELECT module FROM module_interfaces WHERE name = ? AND direction = 'out' "
+                "AND module != ? ORDER BY module LIMIT 1",
+                (n, mod),
+            ).fetchone()
             by_source[src[0] if src else "?"].append(n)
         lines = [f"## Interfaces: consumes (inputs), {len(consumes)}"]
         lines += [f"- from {src}: {', '.join(ns)}" for src, ns in sorted(by_source.items())]
@@ -491,8 +581,10 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
         return f"  [{docs[real][0]['path']}:{docs[real][0]['line_start']}]" if docs[real] else ""
 
     def limitations(real: str | None, n: int) -> list[str]:
-        return [f"## limitations ({real or 'module'})  [{r['path']}:{r['line_start']}]\n{short(doc_text(r['text']), n)}"
-                for r in limits[real]]
+        return [
+            f"## limitations ({real or 'module'})  [{r['path']}:{r['line_start']}]\n{short(doc_text(r['text']), n)}"
+            for r in limits[real]
+        ]
 
     out = []
     if not is_core:
@@ -525,8 +617,10 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
             lines = [f'## Alternatives (one in full: get_module("{mod}", realization="..."))']
             for r in alts:
                 lim = " · has limitations" if limits[r] else ""
-                lines.append(f"- realization {r}  [not default]: {first_sentence(described(r, 400), 140)}{lim}"
-                             f" · {st['alerts'][r]}")
+                lines.append(
+                    f"- realization {r}  [not default]: {first_sentence(described(r, 400), 140)}{lim}"
+                    f" · {st['alerts'][r]}"
+                )
             out.append("\n".join(lines))
     out += _interfaces(mod)
     return "\n\n".join(out)
@@ -538,8 +632,9 @@ def get_scenario(name: str) -> str:
     and module realizations differ from the main.gms defaults."""
     resolved = idx.scenario_values(name)
     if resolved is None:
-        similar = idx.db.execute("SELECT DISTINCT name FROM scenarios WHERE name LIKE ? LIMIT 20",
-                                 (f"%{name}%",)).fetchall()
+        similar = idx.db.execute(
+            "SELECT DISTINCT name FROM scenarios WHERE name LIKE ? LIMIT 20", (f"%{name}%",)
+        ).fetchall()
         return f"Scenario {name!r} not found." + (f" Similar: {', '.join(r[0] for r in similar)}" if similar else "")
     _, row = resolved
     settings = json.loads(row["settings"])
@@ -547,13 +642,15 @@ def get_scenario(name: str) -> str:
     out += [f"- {k} = {v}" for k, v in settings.items()]
     written = {r["name"]: r["value"] for r in idx.db.execute("SELECT name, value FROM switches")}
     defaults = default_run.defaults  # compared without quotes: `"a, b"` in main.gms equals `a, b` in a config
-    changed = [k for k in settings
-               if k in defaults and defaults[k].lower() != str(settings[k]).strip().strip("\"'").lower()]
+    changed = [
+        k for k in settings if k in defaults and defaults[k].lower() != str(settings[k]).strip().strip("\"'").lower()
+    ]
     if changed:
         out.append("## Differs from main.gms")
         out += [f"- {k}: {written[k]} -> {settings[k]}" for k in changed]
-    others = idx.db.execute("SELECT path FROM scenarios WHERE name = ? COLLATE NOCASE AND path != ?",
-                            (row["name"], row["path"])).fetchall()
+    others = idx.db.execute(
+        "SELECT path FROM scenarios WHERE name = ? COLLATE NOCASE AND path != ?", (row["name"], row["path"])
+    ).fetchall()
     if others:
         out.append("(also defined in: " + ", ".join(r[0] for r in others) + ")")
     return "\n".join(out)

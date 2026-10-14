@@ -75,10 +75,11 @@ class DefaultRun:
         if default.lower() == realization.lower():
             return f"realization {realization}: DEFAULT"
         if self.module_off_by_default(module):
-            return (f"realization {realization}: NOT DEFAULT (module {module} is switched off by default: "
-                    f"${module.partition('_')[2]} = {default})")
-        return (f"realization {realization}: NOT DEFAULT (default: {default}; selected by "
-                f"${module.partition('_')[2]})")
+            return (
+                f"realization {realization}: NOT DEFAULT (module {module} is switched off by default: "
+                f"${module.partition('_')[2]} = {default})"
+            )
+        return f"realization {realization}: NOT DEFAULT (default: {default}; selected by ${module.partition('_')[2]})"
 
     def condition_status(self, cond: str, what: str) -> str:
         v = eval_expr(cond, self.defaults)
@@ -111,8 +112,11 @@ class DefaultRun:
         s = self.realization_status(u["module"], u["realization"])
         if s and "NOT DEFAULT" in s:
             default = self.default_realization(u["module"])
-            tags.append(f"module switched off by default ({default})" if self.module_off_by_default(u["module"])
-                        else f"non-default realization (default: {default})")
+            tags.append(
+                f"module switched off by default ({default})"
+                if self.module_off_by_default(u["module"])
+                else f"non-default realization (default: {default})"
+            )
         for c in json.loads(u["conditions"] or "[]"):
             if (v := self.condition_status(c, "$ifthen")) and "INACTIVE" in v:
                 tags.append(_inactive(v))
@@ -137,12 +141,13 @@ class DefaultRun:
 
     def equation_status(self, path: str, equation: str) -> list[str]:
         """Whether the equation's domain $-condition holds in a default run."""
-        row = self.db.execute("SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? "
-                              "COLLATE NOCASE", (path, equation)).fetchone()
+        row = self.db.execute(
+            "SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE", (path, equation)
+        ).fetchone()
         head = equation_domain(row["text"], equation) if row else None
         if not head or "$" not in head:
             return []
-        cond = head[head.index("$") + 1:]
+        cond = head[head.index("$") + 1 :]
         if not switch_tests(cond, self.defaults):
             return []
         v = self.condition_status(cond, "generated only if")

@@ -1,6 +1,6 @@
 """Retrieval quality: recall@5 and MRR@10 per ranking mode, index and question type.
 
-    uv run python eval/retrieval_eval.py data/remind-bge-v0.db data/remind-jina-v0.db
+uv run python eval/retrieval_eval.py data/remind-bge-v0.db data/remind-jina-v0.db
 """
 
 from __future__ import annotations

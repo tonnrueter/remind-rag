@@ -106,7 +106,12 @@ def pack(lines: list[str], segs: list[tuple[int, int]], target: int = TARGET_CHA
     pieces = [p for s, e in segs for p in _split_large(lines, s, e)]
     out: list[tuple[int, int]] = []
     for s, e in pieces:
-        if out and out[-1][1] == s and _size(lines, out[-1][0], out[-1][1]) < target and _size(lines, out[-1][0], e) <= MAX_CHARS:
+        if (
+            out
+            and out[-1][1] == s
+            and _size(lines, out[-1][0], out[-1][1]) < target
+            and _size(lines, out[-1][0], e) <= MAX_CHARS
+        ):
             out[-1] = (out[-1][0], e)
         else:
             out.append((s, e))
@@ -184,7 +189,7 @@ def _equation_head(lines: list[str], i: int, max_lines: int = 30) -> str | None:
                 depth -= 1
             elif ch == ";" and depth <= 0:
                 return None
-            elif ch == "." and depth == 0 and code[k:k + 2] == ".." and code[k:k + 3] != "...":
+            elif ch == "." and depth == 0 and code[k : k + 2] == ".." and code[k : k + 3] != "...":
                 return m.group(1)
     return None
 
@@ -246,8 +251,9 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
                 bounds = {j for j in range(i + 1, e) if is_comment(lines[j]) and not is_comment(lines[j - 1])}
                 for s2, e2 in pack(lines, _segments_from_boundaries(bounds, i, e), target=1500):
                     names = [sy.name for sy in syms if s2 < sy.line <= e2]
-                    c = _make_chunk(path, lines, s2, e2, "declaration", meta, detail=kind,
-                                    name=", ".join(names[:12]) or None)
+                    c = _make_chunk(
+                        path, lines, s2, e2, "declaration", meta, detail=kind, name=", ".join(names[:12]) or None
+                    )
                     if c:
                         special.append(c)
                 for j in range(i, e):
@@ -267,15 +273,31 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
                 bang = m.group(3) or ""
                 d = DEF_RE.search(bang)
                 r = REGEXP_RE.search(bang)
-                anchors.append((i, m.group(1), (d.group(1) if d else m.group(2)).strip(), r.group(1) if r else "", False,
-                                m.group(2).strip()))
+                anchors.append(
+                    (
+                        i,
+                        m.group(1),
+                        (d.group(1) if d else m.group(2)).strip(),
+                        r.group(1) if r else "",
+                        False,
+                        m.group(2).strip(),
+                    )
+                )
                 continue
             m = ASSIGN_RE.match(line)
             if m and "def" in m.group(3):
                 d = DEF_RE.search(m.group(3))
                 r = REGEXP_RE.search(m.group(3))
-                anchors.append((i, m.group(1), (d.group(1) if d else m.group(2)).strip(), r.group(1) if r else "", True,
-                                m.group(2).strip()))
+                anchors.append(
+                    (
+                        i,
+                        m.group(1),
+                        (d.group(1) if d else m.group(2)).strip(),
+                        r.group(1) if r else "",
+                        True,
+                        m.group(2).strip(),
+                    )
+                )
         start = 0
         for idx, (ai, name, default, allowed, param_style, value) in enumerate(anchors):
             end = ai + 1
@@ -327,8 +349,11 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
         j = i
         while j < len(lines) and not covered[j] and line_conds[j] == line_conds[i]:
             j += 1
-        bounds = {k for k in range(i + 1, j)
-                  if (is_comment(lines[k]) and not is_comment(lines[k - 1])) or not lines[k - 1].strip()}
+        bounds = {
+            k
+            for k in range(i + 1, j)
+            if (is_comment(lines[k]) and not is_comment(lines[k - 1])) or not lines[k - 1].strip()
+        }
         rest.extend(pack(lines, _segments_from_boundaries(bounds, i, j)))
         i = j
     for s, e in rest:

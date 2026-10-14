@@ -42,7 +42,8 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
     """The GAMS statement containing path:line, bounded by the chunk it sits in."""
     row = db.execute(
         "SELECT line_start, text FROM chunks WHERE path = ? AND line_start <= ? AND line_end >= ? "
-        "AND kind IN ('gams_block', 'equation') ORDER BY line_end - line_start LIMIT 1", (path, line, line)
+        "AND kind IN ('gams_block', 'equation') ORDER BY line_end - line_start LIMIT 1",
+        (path, line, line),
     ).fetchone()
     if not row:
         return None
@@ -51,18 +52,24 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
     if not 0 <= i < len(lines):
         return None
     start = i
-    while (start > 0 and i - start < MAX_BACK and not _ends_statement(lines[start - 1])
-           and not lines[start - 1].lstrip().startswith("$")):
+    while (
+        start > 0
+        and i - start < MAX_BACK
+        and not _ends_statement(lines[start - 1])
+        and not lines[start - 1].lstrip().startswith("$")
+    ):
         start -= 1
     while start < i and (is_comment(lines[start]) or not lines[start].strip()):
         start += 1  # report the first code line, not a comment above it
     end = i
     while end < len(lines) - 1 and end - i < MAX_FORWARD and not _ends_statement(lines[end]):
         end += 1
-    text = "\n".join(x for x in lines[start:end + 1] if not is_comment(x))
+    text = "\n".join(x for x in lines[start : end + 1] if not is_comment(x))
     st = Statement(path, first + start, first + end, text)
-    for r in db.execute("SELECT name, role, line FROM symbol_uses WHERE path = ? AND line BETWEEN ? AND ? "
-                        "ORDER BY line", (path, st.start, st.end)):
+    for r in db.execute(
+        "SELECT name, role, line FROM symbol_uses WHERE path = ? AND line BETWEEN ? AND ? ORDER BY line",
+        (path, st.start, st.end),
+    ):
         if r["name"] not in st.names:
             st.names.append(r["name"])
         st.lines.setdefault(r["name"], []).append(r["line"])
@@ -78,8 +85,9 @@ def is_load(st: Statement) -> bool:
 def equation_members(db: sqlite3.Connection, path: str, equation: str) -> list[str]:
     """Symbols in one definition of an equation (in order of first appearance)."""
     names: list[str] = []
-    for r in db.execute("SELECT name FROM symbol_uses WHERE path = ? AND context = ? COLLATE NOCASE "
-                        "ORDER BY line", (path, equation)):
+    for r in db.execute(
+        "SELECT name FROM symbol_uses WHERE path = ? AND context = ? COLLATE NOCASE ORDER BY line", (path, equation)
+    ):
         if r["name"].lower() != equation.lower() and r["name"] not in names:
             names.append(r["name"])
     return names

@@ -52,9 +52,11 @@ def load(alias: str):
     try:
         return _open(alias, local_only=True)
     except ValueError as e:
-        raise ModelMissing(f"embedding model {MODELS[alias][0]} not found in {models_dir()} ({MODELS_ENV}); "
-                           f"fill it once with: {MODELS_ENV}={models_dir()} uv run python -m remind_rag.embeddings "
-                           "download") from e
+        raise ModelMissing(
+            f"embedding model {MODELS[alias][0]} not found in {models_dir()} ({MODELS_ENV}); "
+            f"fill it once with: {MODELS_ENV}={models_dir()} uv run python -m remind_rag.embeddings "
+            "download"
+        ) from e
 
 
 def model_file(alias: str) -> Path | None:
@@ -85,8 +87,10 @@ def mismatch(meta: dict[str, str]) -> str:
     if not built or here == built:
         return ""
     found = f"here {here[:12]}" if here else f"not found in {models_dir()}"
-    return (f"The embedding model differs from the one that built this index (index {built[:12]}, {found}): "
-            "search ranks conceptual questions less reliably; exact lookups are unaffected.")
+    return (
+        f"The embedding model differs from the one that built this index (index {built[:12]}, {found}): "
+        "search ranks conceptual questions less reliably; exact lookups are unaffected."
+    )
 
 
 def visible(alias: str, text: str) -> str:
@@ -95,7 +99,7 @@ def visible(alias: str, text: str) -> str:
     if not enc.overflowing:
         return text
     ends = [end for (start, end), special in zip(enc.offsets, enc.special_tokens_mask, strict=True) if not special]
-    return text[:ends[-1]]
+    return text[: ends[-1]]
 
 
 def embed_passages(alias: str, texts: list[str], batch_size: int = 16):

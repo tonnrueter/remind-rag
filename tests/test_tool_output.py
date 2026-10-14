@@ -21,11 +21,14 @@ def section(text: str, title: str) -> str:
 
 # ------------------------------------------------------------------ default awareness
 
+
 def test_non_default_realization_is_marked():
     # Q1/Q12: v31_fuSlack only exists in timeDepGrades / MOFEX; default fossil realization is grades2poly
     out = server.search("v31_fuSlack early retirement slack", k=5)
-    assert "realization timeDepGrades: NOT DEFAULT (default: grades2poly" in out \
+    assert (
+        "realization timeDepGrades: NOT DEFAULT (default: grades2poly" in out
         or "realization MOFEX: NOT DEFAULT (default: grades2poly" in out
+    )
 
 
 def test_declaration_only_in_non_default_realizations():
@@ -85,6 +88,7 @@ def test_carbonprice_default_marked():
 
 # ------------------------------------------------------------------ get_module: which switches steer a realization
 
+
 def steering(module: str, realization: str) -> str:
     out = server.get_module(module, realization=realization)  # #35: the full block is the drill-down
     m = re.search(rf"### {re.escape(realization)}  \[.*?(?=\n### |\n## |\Z)", out, re.S)
@@ -124,6 +128,7 @@ def test_get_module_stays_readable():
 
 # ------------------------------------------------------------------ equations
 
+
 def test_multiline_equation_head_is_an_equation():
     # parser gap #25: q24_capTrade's $-condition spans several lines before `..`
     out = server.get_symbol("q24_capTrade")
@@ -152,6 +157,7 @@ def test_index_has_no_parser_warnings():
 
 # ------------------------------------------------------------------ interface consumers (Q11)
 
+
 @pytest.mark.parametrize("realization", ["NDCplus", "regiCarbonPrice", "heat"])
 def test_capEarlyReti_consumers(realization):
     out = server.get_symbol("vm_capEarlyReti", max_uses=80)
@@ -160,64 +166,88 @@ def test_capEarlyReti_consumers(realization):
 
 # ------------------------------------------------------------------ index v3: where-used fixes
 
+
 def test_bang_comments_are_not_uses():
     # core/postsolve.gms:55 names "carbonprice" and "climate" only in a !! end-of-line comment
-    rows = server.idx.db.execute("SELECT name FROM symbol_uses WHERE path = 'core/postsolve.gms' AND line = 55"
-                                 ).fetchall()
+    rows = server.idx.db.execute(
+        "SELECT name FROM symbol_uses WHERE path = 'core/postsolve.gms' AND line = 55"
+    ).fetchall()
     assert {"carbonprice", "climate"}.isdisjoint({r["name"] for r in rows})
 
 
 def test_assignment_with_equals_on_next_line():
     # p70_cap_vintages(...)$(...) on one line, "=" on the next
-    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'p70_cap_vintages' AND "
-                                "path = 'modules/70_water/heat/output.gms' AND line = 14").fetchone()
+    row = server.idx.db.execute(
+        "SELECT role FROM symbol_uses WHERE name = 'p70_cap_vintages' AND "
+        "path = 'modules/70_water/heat/output.gms' AND line = 14"
+    ).fetchone()
     assert row and row["role"] == "assigned"
 
 
 def test_if_condition_is_not_an_assignment():
     # "if (cm_startyear gt 2005," followed by an Execute_Loadpoint: the if line only reads cm_startyear
-    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_startyear' AND "
-                                "path = 'core/preloop.gms' AND snippet LIKE 'if (cm_startyear gt 2005,%'").fetchone()
+    row = server.idx.db.execute(
+        "SELECT role FROM symbol_uses WHERE name = 'cm_startyear' AND "
+        "path = 'core/preloop.gms' AND snippet LIKE 'if (cm_startyear gt 2005,%'"
+    ).fetchone()
     assert row and row["role"] == "read"
 
 
 # ------------------------------------------------------------------ index v4: role fixes (real REMIND lines)
 
-@pytest.mark.parametrize("line, name, expected", [
-    # `=` inside if( / elseif( / $( / break$( is a comparison
-    ("if(cm_nucscen = 5,", "cm_nucscen", "read"),
-    ("elseif(c_co2captureEnergy = 3), !! no bio carbon capture:", "c_co2captureEnergy", "read"),
-    ("if ( (pm_ffPolyCumEx(regi,enty,\"max\") = 0),", "pm_ffPolyCumEx", "read"),
-    ('loop(teNoLearn(te) $ (pm_data(regi,"tech_stat",te) = 2),', "pm_data", "read"),
-    ("break$(p47_implicitQttyTargetActive_iter(iteration2,ext_regi) = 1);", "p47_implicitQttyTargetActive_iter",
-     "read"),
-    # conditional assignments with a space after `$` are assignments
-    ('vm_cap.lo(t,regi,te,"1") $ (t.val >= 2030) = 1e-7;', "vm_cap", "assigned"),
-    ('p_capCum("2015",regi,te) $ (p_capCum("2015",regi,te) = 0) = fm_dataglob("ccap0",te) / card(regi);',
-     "p_capCum", "assigned"),
-    ('pm_cesdata_sigma(ttot,in)$ (pm_ttot_val(ttot) le 2025  AND sameAs(in, "inco")) = 0.1;', "pm_cesdata_sigma",
-     "assigned"),
-    # the loop variable of a for loop is assigned
-    ("for (sm_tmp = sm_tmp downto 0,", "sm_tmp", "assigned"),
-    ("if(cond, pm_x(regi) = 1);", "pm_x", "assigned"),
-])
+
+@pytest.mark.parametrize(
+    "line, name, expected",
+    [
+        # `=` inside if( / elseif( / $( / break$( is a comparison
+        ("if(cm_nucscen = 5,", "cm_nucscen", "read"),
+        ("elseif(c_co2captureEnergy = 3), !! no bio carbon capture:", "c_co2captureEnergy", "read"),
+        ('if ( (pm_ffPolyCumEx(regi,enty,"max") = 0),', "pm_ffPolyCumEx", "read"),
+        ('loop(teNoLearn(te) $ (pm_data(regi,"tech_stat",te) = 2),', "pm_data", "read"),
+        (
+            "break$(p47_implicitQttyTargetActive_iter(iteration2,ext_regi) = 1);",
+            "p47_implicitQttyTargetActive_iter",
+            "read",
+        ),
+        # conditional assignments with a space after `$` are assignments
+        ('vm_cap.lo(t,regi,te,"1") $ (t.val >= 2030) = 1e-7;', "vm_cap", "assigned"),
+        (
+            'p_capCum("2015",regi,te) $ (p_capCum("2015",regi,te) = 0) = fm_dataglob("ccap0",te) / card(regi);',
+            "p_capCum",
+            "assigned",
+        ),
+        (
+            'pm_cesdata_sigma(ttot,in)$ (pm_ttot_val(ttot) le 2025  AND sameAs(in, "inco")) = 0.1;',
+            "pm_cesdata_sigma",
+            "assigned",
+        ),
+        # the loop variable of a for loop is assigned
+        ("for (sm_tmp = sm_tmp downto 0,", "sm_tmp", "assigned"),
+        ("if(cond, pm_x(regi) = 1);", "pm_x", "assigned"),
+    ],
+)
 def test_role(line, name, expected):
     assert usage.role(line, name) == expected
 
 
 def test_bounds_with_spaced_condition_are_assignments():
-    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'vm_cap' AND snippet LIKE "
-                                "'vm_cap.lo(t,regi,te,\"1\") $ (t.val >= 2030) = 1e-7;%'").fetchone()
+    row = server.idx.db.execute(
+        "SELECT role FROM symbol_uses WHERE name = 'vm_cap' AND snippet LIKE "
+        "'vm_cap.lo(t,regi,te,\"1\") $ (t.val >= 2030) = 1e-7;%'"
+    ).fetchone()
     assert row and row["role"] == "assigned"
 
 
 def test_switch_comparison_in_if_is_read():
-    row = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_multigasscen' AND "
-                                "path = 'modules/46_carbonpriceRegi/netZero/datainput.gms' AND line = 9").fetchone()
+    row = server.idx.db.execute(
+        "SELECT role FROM symbol_uses WHERE name = 'cm_multigasscen' AND "
+        "path = 'modules/46_carbonpriceRegi/netZero/datainput.gms' AND line = 9"
+    ).fetchone()
     assert row and row["role"] == "read"
 
 
 # ------------------------------------------------------------------ get_links
+
 
 def links_section(text: str, title: str) -> str:
     """The text of one '## title' section of get_links output."""
@@ -270,6 +300,7 @@ def test_links_multiline_assignment_feeds():
 
 # ------------------------------------------------------------------ default status on the entry's first line
 
+
 def test_links_default_realization_marked_positively():
     # smoke test 2026-09-26: q33_carbonRemovalspending (33/portfolio, the default) was called a non-default
     # alternative; the entry carried no mark, only a missing ⚠
@@ -296,26 +327,32 @@ def test_symbol_use_lines_carry_status():
 DEFAULTS = {"cm_startyear": "2005", "cm_emiscen": "9", "carbonprice": "functionalForm"}
 
 
-@pytest.mark.parametrize("text, expected", [
-    # prose in comments and messages is not a test
-    ("q_x(t)$(t.val ge 2010).. !! for cm_startyear = 2005 the equation should not be applied\n v_x(t) =g= 0;", []),
-    ("*** requires cm_emiscen = 1\np_x = 1;", []),
-    ("$ontext\nif(cm_emiscen eq 1, p_x = 1);\n$offtext\np_y = 2;", []),
-    ('if(cm_emiscen ne 9, abort "only compatible with cm_startyear = 2005");', ["cm_emiscen ne 9"]),
-    # code tests stay, including string tests and `!!` inside a string
-    ("if(cm_emiscen eq 9, p_x = 1); !! default", ["cm_emiscen eq 9"]),
-    ('$ifthen "%carbonprice%" == "functionalForm"', ['"%carbonprice%" == "functionalForm"']),
-    ('p_x$(cm_startyear gt 2005) = 1; p_s = "a !! b";', ["cm_startyear gt 2005"]),
-])
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # prose in comments and messages is not a test
+        ("q_x(t)$(t.val ge 2010).. !! for cm_startyear = 2005 the equation should not be applied\n v_x(t) =g= 0;", []),
+        ("*** requires cm_emiscen = 1\np_x = 1;", []),
+        ("$ontext\nif(cm_emiscen eq 1, p_x = 1);\n$offtext\np_y = 2;", []),
+        ('if(cm_emiscen ne 9, abort "only compatible with cm_startyear = 2005");', ["cm_emiscen ne 9"]),
+        # code tests stay, including string tests and `!!` inside a string
+        ("if(cm_emiscen eq 9, p_x = 1); !! default", ["cm_emiscen eq 9"]),
+        ('$ifthen "%carbonprice%" == "functionalForm"', ['"%carbonprice%" == "functionalForm"']),
+        ('p_x$(cm_startyear gt 2005) = 1; p_s = "a !! b";', ["cm_startyear gt 2005"]),
+    ],
+)
 def test_switch_tests_ignore_comments_and_messages(text, expected):
     assert [t.split("  (default")[0] for t, _ in usage.switch_tests(text, DEFAULTS)] == expected
 
 
-@pytest.mark.parametrize("cond, expected", [
-    ("%carbonprice% == 'functionalForm'", True),
-    ("not (%carbonprice% == 'NDC')", True),
-    ("'%carbonprice%' == 'NDC'", False),
-])
+@pytest.mark.parametrize(
+    "cond, expected",
+    [
+        ("%carbonprice% == 'functionalForm'", True),
+        ("not (%carbonprice% == 'NDC')", True),
+        ("'%carbonprice%' == 'NDC'", False),
+    ],
+)
 def test_single_quoted_string_tests_are_decided(cond, expected):
     # `$ifi not %damages% == 'DiceLike'` was read with an empty value and stayed undecided
     assert usage.eval_expr(cond, DEFAULTS) is expected
@@ -349,18 +386,22 @@ def test_scenario_quote_only_difference_is_no_difference():
 
 # ------------------------------------------------------------------ #51: switch declarations in main.gms
 
+
 def test_switch_declaration_in_main_gms_is_declared():
     # main.gms declares its switches inside switch chunks: `parameter cm_nash_mode "…" ;` then `cm_nash_mode = 2;`
-    rows = server.idx.db.execute("SELECT role FROM symbol_uses WHERE name = 'cm_nash_mode' AND path = 'main.gms' "
-                                 "ORDER BY line").fetchall()
+    rows = server.idx.db.execute(
+        "SELECT role FROM symbol_uses WHERE name = 'cm_nash_mode' AND path = 'main.gms' ORDER BY line"
+    ).fetchall()
     assert [r["role"] for r in rows] == ["declared", "assigned"]
     assert "main.gms" in section(server.get_symbol("cm_nash_mode"), "Declared").splitlines()[0]
 
 
 def test_switch_description_mentions_are_not_uses():
     # cm_taxCO2_peakBudgYr's description names cm_peakBudgYr; that is not a read of cm_peakBudgYr
-    row = server.idx.db.execute("SELECT count(*) FROM symbol_uses WHERE name = 'cm_peakBudgYr' AND path = 'main.gms' "
-                                "AND snippet LIKE 'cm_taxCO2_peakBudgYr%'").fetchone()
+    row = server.idx.db.execute(
+        "SELECT count(*) FROM symbol_uses WHERE name = 'cm_peakBudgYr' AND path = 'main.gms' "
+        "AND snippet LIKE 'cm_taxCO2_peakBudgYr%'"
+    ).fetchone()
     assert row[0] == 0
 
 

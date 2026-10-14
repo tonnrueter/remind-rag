@@ -65,6 +65,7 @@ class Precondition:
 
 # ------------------------------------------------------------------ context: switches, realizations, values
 
+
 @dataclass
 class Context:
     switches: dict[str, Switch]  # main.gms, lower-case name → Switch
@@ -107,6 +108,7 @@ def load_context(root: Path, files: list[tuple[str, str]]) -> Context:
 
 # ------------------------------------------------------------------ finding aborts
 
+
 def _norm(cond: str) -> str:
     """Quotes in GAMS string tests may be ' or "; the shared test regexes expect "."""
     return " ".join(cond.replace("'", '"').split())
@@ -148,8 +150,20 @@ def find_aborts(path: str, raw: str) -> list[Precondition]:
         else:
             continue
         abort_if = conds + own
-        out.append(Precondition(path, i + 1, line.strip(), kind, form, meta["module"], meta["realization"],
-                                abort_if, _tests(abort_if), msg))
+        out.append(
+            Precondition(
+                path,
+                i + 1,
+                line.strip(),
+                kind,
+                form,
+                meta["module"],
+                meta["realization"],
+                abort_if,
+                _tests(abort_if),
+                msg,
+            )
+        )
     return out
 
 
@@ -170,6 +184,7 @@ def _tests(conds: list[str]) -> list[Test]:
 
 
 # ------------------------------------------------------------------ checks
+
 
 def _is_switch(name: str, ctx: Context) -> bool:
     n = name.lower()
@@ -285,6 +300,7 @@ def for_realization(pre: list[Precondition], module: str, realization: str | Non
 
 # ------------------------------------------------------------------ CLI
 
+
 def _fmt(p: Precondition) -> str:
     probs = "; ".join(x for t in p.tests for x in t.problems)
     notes = "; ".join(x for t in p.tests for x in t.notes)
@@ -313,7 +329,9 @@ def main() -> None:
         kinds[(p.category, p.kind)] += 1
     print(f"{len(pre)} aborts: " + ", ".join(f"{c}/{k} {n}" for (c, k), n in sorted(kinds.items())))
     print("preconditions by severity: " + ", ".join(f"{s} {len(v)}" for s, v in sorted(by.items()) if s != "-"))
-    order = ["impossible", "dead check", "suspicious", "aborts by default"] + (["depends", "ok", "-"] if args.all else [])
+    order = ["impossible", "dead check", "suspicious", "aborts by default"] + (
+        ["depends", "ok", "-"] if args.all else []
+    )
     msg = [p for p in pre if p.message_issue]
     if msg:
         print(f"\n## message names another realization ({len(msg)})")

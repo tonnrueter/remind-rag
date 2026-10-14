@@ -37,7 +37,8 @@ class Index:
             return []
         fts = " OR ".join(f'"{t}"' for t in dict.fromkeys(tokens))
         rows = self.db.execute(
-            "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts, 3.0, 1.0) LIMIT ?", (fts, n)
+            "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts, 3.0, 1.0) LIMIT ?",
+            (fts, n),
         )
         return [r[0] for r in rows]
 
@@ -68,14 +69,13 @@ class Index:
         for name in names:
             for (cid,) in self.db.execute("SELECT chunk_id FROM switches WHERE name = ?", (name,)):
                 ids.append(cid)
-            for (cid,) in self.db.execute(
-                "SELECT id FROM chunks WHERE kind = 'equation' AND name = ?", (name,)
-            ):
+            for (cid,) in self.db.execute("SELECT id FROM chunks WHERE kind = 'equation' AND name = ?", (name,)):
                 ids.append(cid)
             # declarations: identical copies (same description, e.g. one per realization of a module) count once
             decl_ids, seen_desc = [], set()
             for path, line, desc in self.db.execute(
-                    "SELECT path, line, description FROM symbols WHERE name = ?", (name,)):
+                "SELECT path, line, description FROM symbols WHERE name = ?", (name,)
+            ):
                 if desc in seen_desc:
                     continue
                 seen_desc.add(desc)
@@ -86,9 +86,13 @@ class Index:
                 if row:
                     decl_ids.append(row[0])
             # the providing module's interface record (who provides / consumes it), right after the first declaration
-            iface_ids = [cid for (cid,) in self.db.execute(
-                "SELECT id FROM chunks WHERE kind = 'module_interface' AND text LIKE 'Outputs of%' AND instr(text, ?) > 0",
-                (f"\n{name}:",))]
+            iface_ids = [
+                cid
+                for (cid,) in self.db.execute(
+                    "SELECT id FROM chunks WHERE kind = 'module_interface' AND text LIKE 'Outputs of%' AND instr(text, ?) > 0",
+                    (f"\n{name}:",),
+                )
+            ]
             ids += decl_ids[:1] + iface_ids + decl_ids[1:]
         return list(dict.fromkeys(ids))
 
@@ -96,18 +100,20 @@ class Index:
         """Chunk ids of scenarios named in the query (e.g. 'SSP2-PkBudg1000'); longest names first."""
         if self._scenario_names is None:
             try:
-                self._scenario_names = sorted({r[0] for r in self.db.execute("SELECT name FROM scenarios")},
-                                              key=len, reverse=True)
+                self._scenario_names = sorted(
+                    {r[0] for r in self.db.execute("SELECT name FROM scenarios")}, key=len, reverse=True
+                )
             except sqlite3.OperationalError:  # index built before scenarios existed
                 self._scenario_names = []
-        found = [n for n in self._scenario_names
-                 if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", query, re.I)]
+        found = [n for n in self._scenario_names if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", query, re.I)]
         ids = []
         for name in found[:3]:
             # the same scenario is often defined in several config files; boost one, preferably the main one
             row = self.db.execute(
                 "SELECT id FROM chunks WHERE kind = 'scenario' AND name = ? "
-                "ORDER BY path = 'config/scenario_config.csv' DESC, id LIMIT 1", (name,)).fetchone()
+                "ORDER BY path = 'config/scenario_config.csv' DESC, id LIMIT 1",
+                (name,),
+            ).fetchone()
             if row:
                 ids.append(row[0])
         return ids
@@ -118,16 +124,25 @@ class Index:
         """Switch values of a scenario: main.gms values overridden by its scenario_config row."""
         row = self.db.execute(
             "SELECT * FROM scenarios WHERE name = ? COLLATE NOCASE ORDER BY path = 'config/scenario_config.csv' DESC",
-            (scenario,)).fetchone()
+            (scenario,),
+        ).fetchone()
         if row is None:
             return None
         values = switch_defaults(self.db)
         values.update(json.loads(row["settings"]))
         return values, row
 
-    def search(self, query: str, k: int = 6, module: str | None = None, realization: str | None = None,
-               kind: str | None = None, phase: str | None = None, scenario: str | None = None,
-               mode: str = "hybrid") -> list[sqlite3.Row]:
+    def search(
+        self,
+        query: str,
+        k: int = 6,
+        module: str | None = None,
+        realization: str | None = None,
+        kind: str | None = None,
+        phase: str | None = None,
+        scenario: str | None = None,
+        mode: str = "hybrid",
+    ) -> list[sqlite3.Row]:
         values = None
         if scenario:
             resolved = self.scenario_values(scenario)

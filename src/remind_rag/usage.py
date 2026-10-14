@@ -32,7 +32,7 @@ def role(line: str, name: str) -> str:
     if LOAD_RE.search(code):
         return "assigned"
     for m in re.finditer(rf"(?<![\w.%]){re.escape(name)}(?!\w)", code, re.I):
-        before = code[:m.start()].rstrip()
+        before = code[: m.start()].rstrip()
         # the name must start a statement or a loop/if body (after `;` or `,`); after `(` only in `for (x = ...`,
         # elsewhere `if(x = 2` / `$(x = 2)` is a comparison
         if before and before[-1] not in ";," and not FOR_OPEN_RE.search(before):
@@ -52,10 +52,14 @@ def role(line: str, name: str) -> str:
             k += 1
             while k < len(code) and code[k] == " ":
                 k += 1
-            k = _skip_group(code, k) if k < len(code) and code[k] == "(" else k + len(re.match(r"\w*", code[k:]).group())
+            k = (
+                _skip_group(code, k)
+                if k < len(code) and code[k] == "("
+                else k + len(re.match(r"\w*", code[k:]).group())
+            )
             while k < len(code) and code[k] == " ":
                 k += 1
-        if code[k:k + 1] == "=" and code[k:k + 2] != "==" and not EQ_OPERATOR_RE.match(code, k):
+        if code[k : k + 1] == "=" and code[k : k + 2] != "==" and not EQ_OPERATOR_RE.match(code, k):
             return "assigned"
     return "read"
 
@@ -67,10 +71,14 @@ def role(line: str, name: str) -> str:
 
 TEST_RE = re.compile(
     r"(?<![\w%])(c\w*?_\w+|s\d\d_\w+|sm_\w+)\s*(eq|ne|ge|le|gt|lt|<>|>=|<=|>|<|=)(?!=)\s*"
-    r"(-?\d+(?:\.\d+)?|\"[^\"]*\"|'[^']*'|\w+)", re.I)
+    r"(-?\d+(?:\.\d+)?|\"[^\"]*\"|'[^']*'|\w+)",
+    re.I,
+)
 STR_TEST_RE = re.compile(r"(not\s+)?[\"']?%(\w+)%[\"']?\s*(==|eq|ne|<>)\s*[\"']?([\w.\-]*)[\"']?", re.I)
+# fmt: off
 OPS = {"eq": "==", "=": "==", "ne": "!=", "<>": "!=", "ge": ">=", ">=": ">=", "le": "<=", "<=": "<=",
        "gt": ">", ">": ">", "lt": "<", "<": "<", "==": "=="}
+# fmt: on
 
 
 def _compare(a: str, op: str, b: str) -> bool | None:
@@ -99,8 +107,9 @@ def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | 
         key = next((k for k in defaults if k.lower() == name.lower()), None)
         if key is None:
             continue
-        out.setdefault(f"{name} {m.group(2)} {val}  (default {key} = {defaults[key]})",
-                       _compare(defaults[key], op, val))
+        out.setdefault(
+            f"{name} {m.group(2)} {val}  (default {key} = {defaults[key]})", _compare(defaults[key], op, val)
+        )
     for m in STR_TEST_RE.finditer(text):
         neg, name, op, val = m.group(1), m.group(2), OPS[m.group(3).lower()], m.group(4)
         key = next((k for k in defaults if k.lower() == name.lower()), None)

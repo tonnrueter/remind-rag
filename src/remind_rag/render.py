@@ -11,7 +11,7 @@ from .status import DefaultRun, detail
 def short(text: str, n: int) -> str:
     """Whitespace collapsed, cut to n characters with an ellipsis."""
     text = " ".join(text.split())
-    return text if len(text) <= n else text[:n - 1] + "…"
+    return text if len(text) <= n else text[: n - 1] + "…"
 
 
 def first_sentence(text: str, n: int = 180) -> str:

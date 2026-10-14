@@ -9,8 +9,17 @@ from .render import short
 
 IDENT_RE = re.compile(r"\b[A-Za-z]\w*\b")
 # sets/aliases are too ubiquitous (t, regi, te, ...) to be informative as "uses"
-USE_KINDS = {"scalar", "parameter", "variable", "positive variable", "negative variable",
-             "binary variable", "integer variable", "equation", "table"}
+USE_KINDS = {
+    "scalar",
+    "parameter",
+    "variable",
+    "positive variable",
+    "negative variable",
+    "binary variable",
+    "integer variable",
+    "equation",
+    "table",
+}
 MAX_USES = 8
 
 
@@ -28,8 +37,12 @@ def _location(c: Chunk) -> str:
     return c.path
 
 
-def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
-                iface: dict[str, dict[str, list[str]]] | None = None) -> str:
+def make_header(
+    c: Chunk,
+    sym_desc: dict[str, str],
+    switches: dict[str, Switch],
+    iface: dict[str, dict[str, list[str]]] | None = None,
+) -> str:
     iface = iface or {}
     parts = [_location(c)]
     if c.kind == "equation" and c.name:

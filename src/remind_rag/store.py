@@ -69,8 +69,10 @@ def fts_title(header: str, kind: str, name: str | None) -> str:
 
 def build_fts(db: sqlite3.Connection) -> None:
     rows = db.execute("SELECT id, header, kind, name, text FROM chunks").fetchall()
-    db.executemany("INSERT INTO chunks_fts(rowid, title, text) VALUES (?, ?, ?)",
-                   [(r["id"], fts_title(r["header"], r["kind"], r["name"]), r["text"]) for r in rows])
+    db.executemany(
+        "INSERT INTO chunks_fts(rowid, title, text) VALUES (?, ?, ?)",
+        [(r["id"], fts_title(r["header"], r["kind"], r["name"]), r["text"]) for r in rows],
+    )
     db.commit()
 
 
@@ -81,7 +83,8 @@ def create(db_path: Path, dim: int) -> sqlite3.Connection:
     db.executescript(SCHEMA)
     # keyword index without its own copy of the text (content=''): BM25 needs only the term statistics, and the
     # text is in chunks; '_' is a token character so identifiers like vm_cap stay single tokens
-    db.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(title, text, content='', "
-               "tokenize=\"unicode61 tokenchars '_'\")")
+    db.execute(
+        "CREATE VIRTUAL TABLE chunks_fts USING fts5(title, text, content='', tokenize=\"unicode61 tokenchars '_'\")"
+    )
     db.execute(f"CREATE VIRTUAL TABLE chunks_vec USING vec0(embedding float[{dim}] distance_metric=cosine)")
     return db

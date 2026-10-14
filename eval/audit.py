@@ -58,8 +58,9 @@ _config_lock = threading.Lock()
 _MCP_FILES: dict = {}  # db -> config file, written once per process
 
 
-def claude_cmd(model: str, output_format: str, remind: Path, db: Path | None, context: bool,
-               budget: float) -> list[str]:
+def claude_cmd(
+    model: str, output_format: str, remind: Path, db: Path | None, context: bool, budget: float
+) -> list[str]:
     # the helper files are rewritten per call; the lock keeps parallel workers from reading half-written files
     with _config_lock:
         mcp_file = _MCP_FILES.get(db) or _MCP_FILES.setdefault(db, mcp_config(db))
@@ -68,11 +69,26 @@ def claude_cmd(model: str, output_format: str, remind: Path, db: Path | None, co
             text = static_context(remind)
             if not ctx_file.exists() or ctx_file.read_text(encoding="utf-8") != text:
                 ctx_file.write_text(text, encoding="utf-8")
-    cmd = [shutil.which("claude"), "-p", "--model", model, "--output-format", output_format,
-           "--setting-sources", "user", "--no-session-persistence", "--tools", BUILTIN_TOOLS,
-           "--strict-mcp-config", "--mcp-config", str(mcp_file),
-           "--allowedTools", BUILTIN_TOOLS + (",mcp__remind-rag" if db else ""),
-           "--max-budget-usd", str(budget)]
+    cmd = [
+        shutil.which("claude"),
+        "-p",
+        "--model",
+        model,
+        "--output-format",
+        output_format,
+        "--setting-sources",
+        "user",
+        "--no-session-persistence",
+        "--tools",
+        BUILTIN_TOOLS,
+        "--strict-mcp-config",
+        "--mcp-config",
+        str(mcp_file),
+        "--allowedTools",
+        BUILTIN_TOOLS + (",mcp__remind-rag" if db else ""),
+        "--max-budget-usd",
+        str(budget),
+    ]
     if output_format == "stream-json":
         cmd.append("--verbose")
     if context:
@@ -82,10 +98,12 @@ def claude_cmd(model: str, output_format: str, remind: Path, db: Path | None, co
 
 def git_head(path: Path) -> str:
     try:
-        sha = subprocess.run(["git", "-C", str(path), "rev-parse", "--short", "HEAD"], capture_output=True,
-                             text=True, check=True).stdout.strip()
-        dirty = subprocess.run(["git", "-C", str(path), "status", "--porcelain"], capture_output=True,
-                               text=True).stdout.strip()
+        sha = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "-C", str(path), "status", "--porcelain"], capture_output=True, text=True
+        ).stdout.strip()
         return sha + ("-dirty" if dirty else "")
     except (subprocess.CalledProcessError, FileNotFoundError):
         return "?"
@@ -97,17 +115,26 @@ def write_meta(rdir: Path, args) -> None:
     meta_file = rdir / "meta.json"
     meta = json.loads(meta_file.read_text(encoding="utf-8")) if meta_file.exists() else {"runs": []}
     db_meta = dict(sqlite3.connect(args.db).execute("SELECT key, value FROM meta").fetchall())
-    meta["runs"].append({
-        "started": time.strftime("%Y-%m-%d %H:%M:%S"), "arms": args.arms, "ids": args.ids,
-        "answer_model": args.model, "grader_model": args.grader_model,
-        "rag_git": git_head(args.rag_dir), "rag_dir": str(args.rag_dir), "remind_git": git_head(args.remind),
-        "remind_context_git": git_head(args.remind / "remind-context"),
-        "db": str(args.db), "db_meta": db_meta,
-    })
+    meta["runs"].append(
+        {
+            "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "arms": args.arms,
+            "ids": args.ids,
+            "answer_model": args.model,
+            "grader_model": args.grader_model,
+            "rag_git": git_head(args.rag_dir),
+            "rag_dir": str(args.rag_dir),
+            "remind_git": git_head(args.remind),
+            "remind_context_git": git_head(args.remind / "remind-context"),
+            "db": str(args.db),
+            "db_meta": db_meta,
+        }
+    )
     meta_file.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- answering
+
 
 def parse_stream(stdout: str) -> dict:
     out = {"tool_calls": [], "model": None}
@@ -135,11 +162,16 @@ def parse_stream(stdout: str) -> dict:
     for t in out["tool_calls"]:
         counts[t["name"]] = counts.get(t["name"], 0) + 1
     out.update(
-        answer=result.get("result", ""), cost_usd=result.get("total_cost_usd"), turns=result.get("num_turns"),
-        duration_s=round(result.get("duration_ms", 0) / 1000, 1), is_error=result.get("is_error", False),
-        input_tokens=usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0)
+        answer=result.get("result", ""),
+        cost_usd=result.get("total_cost_usd"),
+        turns=result.get("num_turns"),
+        duration_s=round(result.get("duration_ms", 0) / 1000, 1),
+        is_error=result.get("is_error", False),
+        input_tokens=usage.get("input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
         + usage.get("cache_creation_input_tokens", 0),
-        output_tokens=usage.get("output_tokens", 0), tool_counts=counts,
+        output_tokens=usage.get("output_tokens", 0),
+        tool_counts=counts,
     )
     return out
 
@@ -148,8 +180,9 @@ def answer(q: dict, arm: str, args) -> dict:
     use_rag, context = ARMS[arm]
     cmd = claude_cmd(args.model, "stream-json", args.remind, args.db if use_rag else None, context, args.budget)
     t = time.perf_counter()
-    proc = subprocess.run(cmd, input=q["question"], cwd=args.remind, capture_output=True, text=True,
-                          encoding="utf-8", timeout=1200)
+    proc = subprocess.run(
+        cmd, input=q["question"], cwd=args.remind, capture_output=True, text=True, encoding="utf-8", timeout=1200
+    )
     res = parse_stream(proc.stdout)
     res.update(id=q["id"], kind=q["kind"], arm=arm, question=q["question"], wall_s=round(time.perf_counter() - t, 1))
     if "error" in res or res.get("is_error"):
@@ -159,12 +192,15 @@ def answer(q: dict, arm: str, args) -> dict:
 
 # --------------------------------------------------------------------------- grading
 
+
 def grade_prompt(q: dict, answer_text: str) -> str:
     rubric = (AUDIT / "rubric.md").read_text(encoding="utf-8")
     trap = " (TRAP: the question contains a false premise on purpose)" if q["kind"] == "trap" else ""
-    return (f"{rubric}\n\n---\n\n## Question {q['id']}{trap}\n\n{q['question']}\n\n"
-            f"## Answer key (human reviewer, 2026-09-24)\n\n{q['answer_key']}\n\n"
-            f"## Answer to grade\n\n{answer_text}\n")
+    return (
+        f"{rubric}\n\n---\n\n## Question {q['id']}{trap}\n\n{q['question']}\n\n"
+        f"## Answer key (human reviewer, 2026-09-24)\n\n{q['answer_key']}\n\n"
+        f"## Answer to grade\n\n{answer_text}\n"
+    )
 
 
 def grade(q: dict, answer_text: str, args) -> dict:
@@ -172,15 +208,26 @@ def grade(q: dict, answer_text: str, args) -> dict:
     cmd = claude_cmd(args.grader_model, "json", args.remind, None, False, args.grader_budget)
     cmd += ["--json-schema", schema]
     t = time.perf_counter()
-    proc = subprocess.run(cmd, input=grade_prompt(q, answer_text), cwd=args.remind, capture_output=True,
-                          text=True, encoding="utf-8", timeout=1800)
+    proc = subprocess.run(
+        cmd,
+        input=grade_prompt(q, answer_text),
+        cwd=args.remind,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=1800,
+    )
     try:
         res = json.loads(proc.stdout)
     except json.JSONDecodeError:
         return {"error": (proc.stderr or proc.stdout)[-2000:], "wall_s": round(time.perf_counter() - t, 1)}
-    out = {"grade": res.get("structured_output"), "grader_cost_usd": res.get("total_cost_usd"),
-           "grader_turns": res.get("num_turns"), "grader_duration_s": round(res.get("duration_ms", 0) / 1000, 1),
-           "grader_model": next(iter(res.get("modelUsage", {}) or {}), args.grader_model)}
+    out = {
+        "grade": res.get("structured_output"),
+        "grader_cost_usd": res.get("total_cost_usd"),
+        "grader_turns": res.get("num_turns"),
+        "grader_duration_s": round(res.get("duration_ms", 0) / 1000, 1),
+        "grader_model": next(iter(res.get("modelUsage", {}) or {}), args.grader_model),
+    }
     if not out["grade"]:
         out["error"] = f"no structured output: {str(res.get('result'))[:1000]}"
     return out
@@ -204,8 +251,10 @@ def grade_one(rdir: Path, qid: str, arm: str, args) -> dict | None:
     g_file.parent.mkdir(parents=True, exist_ok=True)
     g_file.write_text(json.dumps(g, indent=2, ensure_ascii=False), encoding="utf-8")
     gr = g.get("grade") or {}
-    say(f"{qid:4s} {arm:12s} graded  C{gr.get('critical', '?')} M{gr.get('major', '?')} m{gr.get('minor', '?')}  "
-        f"{gr.get('failure_class', '')}  ${g.get('grader_cost_usd') or 0:.2f}" + ("  ERROR" if "error" in g else ""))
+    say(
+        f"{qid:4s} {arm:12s} graded  C{gr.get('critical', '?')} M{gr.get('major', '?')} m{gr.get('minor', '?')}  "
+        f"{gr.get('failure_class', '')}  ${g.get('grader_cost_usd') or 0:.2f}" + ("  ERROR" if "error" in g else "")
+    )
     return g
 
 
@@ -218,17 +267,22 @@ def process_question(rdir: Path, qid: str, arms: list[str], args) -> None:
             r = answer(QUESTIONS[qid], arm, args)
             if "error" in r or r.get("is_error") or not r.get("answer"):
                 # not saved, so a rerun retries it (e.g. after hitting a usage limit)
-                say(f"{qid:4s} {arm:12s} ERROR (not saved): {(r.get('answer') or r.get('error') or r.get('stderr') or '')[:200]}")
+                say(
+                    f"{qid:4s} {arm:12s} ERROR (not saved): {(r.get('answer') or r.get('error') or r.get('stderr') or '')[:200]}"
+                )
                 continue
             a_file.write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
-            say(f"{qid:4s} {arm:12s} answered ${r.get('cost_usd') or 0:.2f}  {r.get('turns')} turns  "
-                f"{r.get('duration_s')} s  [{tool_summary(r)}]")
+            say(
+                f"{qid:4s} {arm:12s} answered ${r.get('cost_usd') or 0:.2f}  {r.get('turns')} turns  "
+                f"{r.get('duration_s')} s  [{tool_summary(r)}]"
+            )
         if args.grade:
             grade_one(rdir, qid, arm, args)
     say(f"DONE {qid}")
 
 
 # --------------------------------------------------------------------------- show / report
+
 
 def load(rdir: Path, sub: str, qid: str, arm: str) -> dict:
     f = rdir / sub / f"{qid}-{arm}.json"
@@ -260,9 +314,11 @@ def show(rdir: Path, qid: str) -> str:
         if not a:
             continue
         sev = f"C{g.get('critical', '?')} M{g.get('major', '?')} m{g.get('minor', '?')}" if g else "not graded"
-        lines += [f"\n[{arm}] {sev} · {g.get('failure_class', '-')} · fix: {g.get('fix_layer', '-')}"
-                  f" · premise: {g.get('premise_handled', '-')}",
-                  f"  ${a.get('cost_usd') or 0:.2f}, {a.get('turns')} turns, {a.get('duration_s')} s; tools: {tool_summary(a)}"]
+        lines += [
+            f"\n[{arm}] {sev} · {g.get('failure_class', '-')} · fix: {g.get('fix_layer', '-')}"
+            f" · premise: {g.get('premise_handled', '-')}",
+            f"  ${a.get('cost_usd') or 0:.2f}, {a.get('turns')} turns, {a.get('duration_s')} s; tools: {tool_summary(a)}",
+        ]
         if g.get("summary"):
             lines.append(f"  {g['summary']}")
         bad = [c for c in g.get("claims", []) if c.get("severity") in ("critical", "major")]
@@ -282,20 +338,31 @@ def report(rdir: Path, n: int) -> Path:
     qids = sorted({f.stem.split("-", 1)[0] for f in (rdir / "answers").glob("Q*-*.json")}, key=qkey)
     meta = json.loads((rdir / "meta.json").read_text(encoding="utf-8")) if (rdir / "meta.json").exists() else {}
     last = (meta.get("runs") or [{}])[-1]
-    out = [f"# Round {n:02d} (automated audit)", "",
-           f"Generated by `eval/audit.py report` on {time.strftime('%Y-%m-%d %H:%M')}. Raw data: `round-{n:02d}/`. "
-           "Grades by a headless Opus grader (`audit/rubric.md`), blind to the arm; human overrides are marked ✎.", "",
-           "| | |", "|---|---|",
-           f"| Questions | `audit/questions.yaml` ({len(qids)} asked) |",
-           f"| Arms | {', '.join(arms)} |",
-           f"| Answerer / grader | {last.get('answer_model', '?')} / {last.get('grader_model', '?')} |",
-           f"| rag / REMIND / remind-context | {last.get('rag_git', '?')} / {last.get('remind_git', '?')} / "
-           f"{last.get('remind_context_git', '?')} |",
-           f"| Index | `{Path(last.get('db', '?')).name}` ({last.get('db_meta', {}).get('chunks', '?')} chunks, built "
-           f"{last.get('db_meta', {}).get('built_at', '?')}) |", ""]
+    out = [
+        f"# Round {n:02d} (automated audit)",
+        "",
+        f"Generated by `eval/audit.py report` on {time.strftime('%Y-%m-%d %H:%M')}. Raw data: `round-{n:02d}/`. "
+        "Grades by a headless Opus grader (`audit/rubric.md`), blind to the arm; human overrides are marked ✎.",
+        "",
+        "| | |",
+        "|---|---|",
+        f"| Questions | `audit/questions.yaml` ({len(qids)} asked) |",
+        f"| Arms | {', '.join(arms)} |",
+        f"| Answerer / grader | {last.get('answer_model', '?')} / {last.get('grader_model', '?')} |",
+        f"| rag / REMIND / remind-context | {last.get('rag_git', '?')} / {last.get('remind_git', '?')} / "
+        f"{last.get('remind_context_git', '?')} |",
+        f"| Index | `{Path(last.get('db', '?')).name}` ({last.get('db_meta', {}).get('chunks', '?')} chunks, built "
+        f"{last.get('db_meta', {}).get('built_at', '?')}) |",
+        "",
+    ]
 
-    out += ["## Totals", "", "| arm | graded | Critical | Major | Minor | premise corrected (traps) | mean cost | "
-            "mean turns | mean time | RAG calls/answer | grading cost |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+    out += [
+        "## Totals",
+        "",
+        "| arm | graded | Critical | Major | Minor | premise corrected (traps) | mean cost | "
+        "mean turns | mean time | RAG calls/answer | grading cost |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
     for arm in arms:
         ans = [load(rdir, "answers", q, arm) for q in qids]
         ans = [a for a in ans if a]
@@ -306,20 +373,26 @@ def report(rdir: Path, n: int) -> Path:
         traps = [t for t in traps if t]
         rag_calls = [sum(v for k, v in (a.get("tool_counts") or {}).items() if k.startswith("mcp__")) for a in ans]
         k = max(len(ans), 1)
-        out.append(f"| {arm} | {len(grs)}/{len(ans)} | {sum(g.get('critical', 0) for g in grs)} | "
-                   f"{sum(g.get('major', 0) for g in grs)} | {sum(g.get('minor', 0) for g in grs)} | "
-                   f"{sum(t.get('premise_handled') == 'corrected' for t in traps)}/{len(traps)} | "
-                   f"${sum(a.get('cost_usd') or 0 for a in ans) / k:.2f} | {sum(a.get('turns') or 0 for a in ans) / k:.1f} | "
-                   f"{sum(a.get('duration_s') or 0 for a in ans) / k:.0f} s | {sum(rag_calls) / k:.1f} | "
-                   f"${sum(g.get('grader_cost_usd') or 0 for g in graw if g):.2f} |")
+        out.append(
+            f"| {arm} | {len(grs)}/{len(ans)} | {sum(g.get('critical', 0) for g in grs)} | "
+            f"{sum(g.get('major', 0) for g in grs)} | {sum(g.get('minor', 0) for g in grs)} | "
+            f"{sum(t.get('premise_handled') == 'corrected' for t in traps)}/{len(traps)} | "
+            f"${sum(a.get('cost_usd') or 0 for a in ans) / k:.2f} | {sum(a.get('turns') or 0 for a in ans) / k:.1f} | "
+            f"{sum(a.get('duration_s') or 0 for a in ans) / k:.0f} s | {sum(rag_calls) / k:.1f} | "
+            f"${sum(g.get('grader_cost_usd') or 0 for g in graw if g):.2f} |"
+        )
 
     out += ["", "## Results", "", "| Q | kind | " + " | ".join(arms) + " |", "|---|---|" + "---|" * len(arms)]
     for q in qids:
         cells = []
         for arm in arms:
             g = load(rdir, "grades", q, arm).get("grade")
-            cells.append("—" if not g else f"C{g.get('critical')} M{g.get('major')} m{g.get('minor')} · "
-                         f"{md_cell(g.get('failure_class'))}" + (" ✎" if g.get("overridden") else ""))
+            cells.append(
+                "—"
+                if not g
+                else f"C{g.get('critical')} M{g.get('major')} m{g.get('minor')} · "
+                f"{md_cell(g.get('failure_class'))}" + (" ✎" if g.get("overridden") else "")
+            )
         out.append(f"| [{q}](#{q.lower()}) | {QUESTIONS[q]['kind']} | " + " | ".join(cells) + " |")
 
     tally: dict[tuple[str, str], list[str]] = {}
@@ -339,20 +412,38 @@ def report(rdir: Path, n: int) -> Path:
             if not a:
                 continue
             g = gd.get("grade") or {}
-            out += ["", f"### {arm}", "",
-                    f"${a.get('cost_usd') or 0:.2f} · {a.get('turns')} turns · {a.get('duration_s')} s · "
-                    f"tools: {tool_summary(a)}", "", "<details><summary>Answer</summary>", "",
-                    "\n".join("> " + line for line in (a.get("answer") or "(no answer)").splitlines()), "", "</details>"]
+            out += [
+                "",
+                f"### {arm}",
+                "",
+                f"${a.get('cost_usd') or 0:.2f} · {a.get('turns')} turns · {a.get('duration_s')} s · "
+                f"tools: {tool_summary(a)}",
+                "",
+                "<details><summary>Answer</summary>",
+                "",
+                "\n".join("> " + line for line in (a.get("answer") or "(no answer)").splitlines()),
+                "",
+                "</details>",
+            ]
             if not g:
                 out += ["", "*Not graded.*" + (f" Error: {md_cell(gd.get('error'))[:300]}" if gd.get("error") else "")]
                 continue
-            out += ["", f"**C{g.get('critical')} M{g.get('major')} m{g.get('minor')}** · {g.get('failure_class')} · "
-                    f"fix: {g.get('fix_layer')} · premise: {g.get('premise_handled')}"
-                    + (" · ✎ overridden" if g.get("overridden") else ""), "", g.get("summary", ""), "",
-                    "| # | claim | verdict | severity | evidence | note |", "|---|---|---|---|---|---|"]
+            out += [
+                "",
+                f"**C{g.get('critical')} M{g.get('major')} m{g.get('minor')}** · {g.get('failure_class')} · "
+                f"fix: {g.get('fix_layer')} · premise: {g.get('premise_handled')}"
+                + (" · ✎ overridden" if g.get("overridden") else ""),
+                "",
+                g.get("summary", ""),
+                "",
+                "| # | claim | verdict | severity | evidence | note |",
+                "|---|---|---|---|---|---|",
+            ]
             for i, c in enumerate(g.get("claims", []), 1):
-                out.append(f"| {i} | {md_cell(c.get('claim'))} | {c.get('verdict')} | {c.get('severity')} | "
-                           f"{md_cell(c.get('evidence'))} | {md_cell(c.get('note'))} |")
+                out.append(
+                    f"| {i} | {md_cell(c.get('claim'))} | {c.get('verdict')} | {c.get('severity')} | "
+                    f"{md_cell(c.get('evidence'))} | {md_cell(c.get('note'))} |"
+                )
             if g.get("went_well"):
                 out += ["", f"*Went well:* {g['went_well']}"]
             if g.get("answer_key_issues"):
@@ -363,6 +454,7 @@ def report(rdir: Path, n: int) -> Path:
 
 
 # --------------------------------------------------------------------------- CLI
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -378,8 +470,12 @@ def main() -> None:
     common.add_argument("--budget", type=float, default=2.0, help="max USD per answer")
     common.add_argument("--grader-budget", type=float, default=5.0, help="max USD per grade")
     common.add_argument("--force", action="store_true", help="redo existing answers/grades")
-    common.add_argument("--rag-dir", type=Path, default=RAG_DIR,
-                        help="rag checkout the MCP server runs from, e.g. a git worktree of an older version")
+    common.add_argument(
+        "--rag-dir",
+        type=Path,
+        default=RAG_DIR,
+        help="rag checkout the MCP server runs from, e.g. a git worktree of an older version",
+    )
     p = sub.add_parser("run", parents=[common])
     p.add_argument("--grade", action="store_true", help="grade each answer right after it")
     p.add_argument("--jobs", type=int, default=2, help="questions processed in parallel")
@@ -420,10 +516,17 @@ def main() -> None:
     elif args.cmd == "import-answer":
         (rdir / "answers").mkdir(parents=True, exist_ok=True)
         q = QUESTIONS[args.id]
-        rec = {"id": args.id, "kind": q["kind"], "arm": args.arm, "question": q["question"],
-               "answer": args.file.read_text(encoding="utf-8"), "imported_from": str(args.file)}
-        (rdir / "answers" / f"{args.id}-{args.arm}.json").write_text(json.dumps(rec, indent=2, ensure_ascii=False),
-                                                                    encoding="utf-8")
+        rec = {
+            "id": args.id,
+            "kind": q["kind"],
+            "arm": args.arm,
+            "question": q["question"],
+            "answer": args.file.read_text(encoding="utf-8"),
+            "imported_from": str(args.file),
+        }
+        (rdir / "answers" / f"{args.id}-{args.arm}.json").write_text(
+            json.dumps(rec, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         print(f"stored {args.id}-{args.arm}")
 
 

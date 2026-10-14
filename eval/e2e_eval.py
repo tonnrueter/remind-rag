@@ -21,13 +21,21 @@ import yaml
 HERE = Path(__file__).resolve().parent
 RAG_DIR = HERE.parent
 QUESTIONS = yaml.safe_load((HERE / "questions.yaml").read_text(encoding="utf-8"))
-DEFAULT_IDS = ["sym-emiCdrTeDetail", "sym-capEarlyReti", "sw-EWcropland", "sw-iterTargetAdj",
-               "real-functionalForm", "xref-co2captureCdr", "xref-scc", "con-dacEnergy", "con-EWdecay",
-               "doc-restart"]
+DEFAULT_IDS = [
+    "sym-emiCdrTeDetail",
+    "sym-capEarlyReti",
+    "sw-EWcropland",
+    "sw-iterTargetAdj",
+    "real-functionalForm",
+    "xref-co2captureCdr",
+    "xref-scc",
+    "con-dacEnergy",
+    "con-EWdecay",
+    "doc-restart",
+]
 # (name, use MCP index, inject static remind-context)
 ARMS = [("baseline", False, False), ("rag", True, False), ("context", False, True), ("context+rag", True, True)]
-PROMPT_SUFFIX = ("\n\nAnswer concisely (max ~120 words) and cite file paths with line numbers. "
-                 "Do not modify any files.")
+PROMPT_SUFFIX = "\n\nAnswer concisely (max ~120 words) and cite file paths with line numbers. Do not modify any files."
 
 
 def mcp_config(db: Path | None) -> Path:
@@ -59,17 +67,31 @@ def static_context(remind: Path) -> str:
 def run_one(question: str, remind: Path, model: str, db: Path | None, context: bool = False) -> dict:
     tools = "Read,Grep,Glob" + (",mcp__remind-rag" if db else "")
     # prompt goes via stdin: several flags are variadic and would swallow a trailing positional argument
-    cmd = [shutil.which("claude"), "-p", "--output-format", "json", "--model", model,
-           "--strict-mcp-config", "--mcp-config", str(mcp_config(db)), "--allowedTools", tools,
-           "--disallowedTools", "Bash,Edit,Write,WebFetch,WebSearch,Agent", "--no-session-persistence"]
+    cmd = [
+        shutil.which("claude"),
+        "-p",
+        "--output-format",
+        "json",
+        "--model",
+        model,
+        "--strict-mcp-config",
+        "--mcp-config",
+        str(mcp_config(db)),
+        "--allowedTools",
+        tools,
+        "--disallowedTools",
+        "Bash,Edit,Write,WebFetch,WebSearch,Agent",
+        "--no-session-persistence",
+    ]
     if context:
         # Claude Code does not read AGENT.md, so the static context is injected like a CLAUDE.md would be
         ctx_file = HERE / "results" / "static-context.md"
         ctx_file.write_text(static_context(remind), encoding="utf-8")
         cmd += ["--append-system-prompt-file", str(ctx_file)]
     t = time.perf_counter()
-    proc = subprocess.run(cmd, input=question + PROMPT_SUFFIX, cwd=remind, capture_output=True, text=True,
-                          encoding="utf-8", timeout=900)
+    proc = subprocess.run(
+        cmd, input=question + PROMPT_SUFFIX, cwd=remind, capture_output=True, text=True, encoding="utf-8", timeout=900
+    )
     wall = time.perf_counter() - t
     try:
         res = json.loads(proc.stdout)
@@ -81,7 +103,8 @@ def run_one(question: str, remind: Path, model: str, db: Path | None, context: b
         "cost_usd": res.get("total_cost_usd"),
         "turns": res.get("num_turns"),
         "duration_s": round(res.get("duration_ms", 0) / 1000, 1),
-        "input_tokens": usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0)
+        "input_tokens": usage.get("input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
         + usage.get("cache_creation_input_tokens", 0),
         "output_tokens": usage.get("output_tokens", 0),
         "is_error": res.get("is_error", False),
@@ -108,8 +131,11 @@ def main() -> None:
             r = run_one(q["question"], args.remind.resolve(), args.model, db and args.db, ctx)
             r.update(id=q["id"], type=q["type"], arm=arm, question=q["question"], reference=q["answer"])
             results.append(r)
-            print(f"${r.get('cost_usd') or 0:.3f}  {r.get('turns')} turns  {r.get('duration_s')} s"
-                  + ("  ERROR" if "error" in r or r.get("is_error") else ""), flush=True)
+            print(
+                f"${r.get('cost_usd') or 0:.3f}  {r.get('turns')} turns  {r.get('duration_s')} s"
+                + ("  ERROR" if "error" in r or r.get("is_error") else ""),
+                flush=True,
+            )
 
     out_dir = HERE / "results"
     out_dir.mkdir(exist_ok=True)
@@ -121,10 +147,12 @@ def main() -> None:
         rs = [r for r in results if r["arm"] == arm and "error" not in r]
         if rs:
             n = len(rs)
-            print(f"{arm:11s} n={n}  mean cost ${sum(r['cost_usd'] or 0 for r in rs) / n:.3f}  "
-                  f"mean turns {sum(r['turns'] or 0 for r in rs) / n:.1f}  "
-                  f"mean time {sum(r['duration_s'] for r in rs) / n:.0f} s  "
-                  f"mean input tokens {sum(r['input_tokens'] for r in rs) / n:,.0f}")
+            print(
+                f"{arm:11s} n={n}  mean cost ${sum(r['cost_usd'] or 0 for r in rs) / n:.3f}  "
+                f"mean turns {sum(r['turns'] or 0 for r in rs) / n:.1f}  "
+                f"mean time {sum(r['duration_s'] for r in rs) / n:.0f} s  "
+                f"mean input tokens {sum(r['input_tokens'] for r in rs) / n:,.0f}"
+            )
 
 
 if __name__ == "__main__":

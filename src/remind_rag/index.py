@@ -1,6 +1,6 @@
 """Build the index: walk corpus -> chunk -> enrich -> embed -> SQLite.
 
-    uv run python -m remind_rag.index --root ../remind [--model bge|jina] [--gms-export]
+uv run python -m remind_rag.index --root ../remind [--model bge|jina] [--gms-export]
 """
 
 from __future__ import annotations
@@ -69,15 +69,18 @@ def check_parse(files: list[tuple[str, str]], parsed: dict) -> list[str]:
     """Structural self-checks of the GAMS parse; a warning names what the chunker missed or cut."""
     warnings = []
     eq_chunks = {c.name.lower() for pf in parsed.values() for c in pf.chunks if c.kind == "equation" and c.name}
-    declared = {(s.name.lower(), s.path, s.line) for pf in parsed.values() for s in pf.symbols
-                if s.kind == "equation"}
+    declared = {(s.name.lower(), s.path, s.line) for pf in parsed.values() for s in pf.symbols if s.kind == "equation"}
     for name, path, line in sorted(declared):
         if name not in eq_chunks:
             warnings.append(f"equation {name} declared at {path}:{line} has no definition chunk")
     # a continuation piece of a split equation has no `..` of its own (several alternative definitions of
     # one equation in $ifthen branches are fine)
-    warnings += [f"equation {c.name} is split at {c.path}:{c.line_start} (longer than the size cap)"
-                 for pf in parsed.values() for c in pf.chunks if c.kind == "equation" and ".." not in c.text]
+    warnings += [
+        f"equation {c.name} is split at {c.path}:{c.line_start} (longer than the size cap)"
+        for pf in parsed.values()
+        for c in pf.chunks
+        if c.kind == "equation" and ".." not in c.text
+    ]
     for rel, text in files:
         if not rel.endswith(".gms"):
             continue
@@ -99,7 +102,7 @@ def _role(lines: list[str], i: int, name: str) -> str:
     if r == "read" and ";" not in code_part(lines[i]) and not lines[i].lstrip().startswith("$"):
         end = min(stmt_end(lines, i), i + 10)
         rest = []
-        for x in lines[i + 1:end]:
+        for x in lines[i + 1 : end]:
             if x.lstrip().startswith("$"):  # a compiler directive ends the text we can join
                 break
             if not is_comment(x):
@@ -116,14 +119,19 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
     """Where-used: every non-comment GAMS/R line mentioning a known (non-set) symbol or switch, tagged with
     the equation it sits in (if any), its role (declared / assigned / equation / read), the $ifthen conditions
     it is compiled under and the run-time if(...) conditions guarding it."""
-    usable = {r[0] for r in db.execute(
-        f"SELECT name FROM symbols WHERE kind IN ({','.join('?' * len(USE_KINDS))})", sorted(USE_KINDS))}
+    usable = {
+        r[0]
+        for r in db.execute(
+            f"SELECT name FROM symbols WHERE kind IN ({','.join('?' * len(USE_KINDS))})", sorted(USE_KINDS)
+        )
+    }
     usable |= {r[0] for r in db.execute("SELECT name FROM switches")}
     eq_ranges: dict[str, list[tuple[int, int, str]]] = {}
     decl_ranges: dict[str, list[tuple[int, int]]] = {}
     switch_ranges: dict[str, list[tuple[int, int]]] = {}
-    for path, s, e, name, kind in db.execute("SELECT path, line_start, line_end, name, kind FROM chunks "
-                                             "WHERE kind IN ('equation', 'declaration', 'switch')"):
+    for path, s, e, name, kind in db.execute(
+        "SELECT path, line_start, line_end, name, kind FROM chunks WHERE kind IN ('equation', 'declaration', 'switch')"
+    ):
         if kind == "equation":
             eq_ranges.setdefault(path, []).append((s, e, name))
         elif kind == "declaration":
@@ -140,8 +148,12 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
         ranges, decls = eq_ranges.get(rel, []), decl_ranges.get(rel, [])
         lines = text.splitlines()
         # main.gms declares its switches inside switch chunks (`parameter cm_x "…" ;` then `cm_x = 1;`)
-        decls = decls + [(i + 1, stmt_end(lines, i)) for s, e in switch_ranges.get(rel, [])
-                         for i in range(s - 1, min(e, len(lines))) if decl_start(lines[i])]
+        decls = decls + [
+            (i + 1, stmt_end(lines, i))
+            for s, e in switch_ranges.get(rel, [])
+            for i in range(s - 1, min(e, len(lines)))
+            if decl_start(lines[i])
+        ]
         conds = line_conditions(lines) if is_gms else [()] * len(lines)
         guards = if_guards(lines) if is_gms else [()] * len(lines)
         for n, line in enumerate(lines, 1):
@@ -159,9 +171,21 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
                 idents = [n for n in idents if n in outside]
             for ident in idents:
                 r = ("declared" if in_decl else "equation" if ctx else _role(lines, n - 1, ident)) if is_gms else "read"
-                uses.append((ident, rel, n, meta["module"], meta["realization"], meta["phase"], ctx,
-                             line.strip()[:200], r, json.dumps(list(conds[n - 1])),
-                             json.dumps(list(guards[n - 1]))))
+                uses.append(
+                    (
+                        ident,
+                        rel,
+                        n,
+                        meta["module"],
+                        meta["realization"],
+                        meta["phase"],
+                        ctx,
+                        line.strip()[:200],
+                        r,
+                        json.dumps(list(conds[n - 1])),
+                        json.dumps(list(guards[n - 1])),
+                    )
+                )
     db.executemany("INSERT INTO symbol_uses VALUES (?,?,?,?,?,?,?,?,?,?,?)", uses)
     db.commit()
     return len(uses)
@@ -172,18 +196,40 @@ def build_preconditions(db, root: Path) -> int:
     category precondition (switch settings alone) or assertion (data / run-time state), severity against the
     main.gms defaults and the switches, realizations and values that exist."""
     found, _ctx = preconditions.sweep(root)
-    db.executemany("INSERT INTO preconditions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [
-        (p.path, p.line, p.module, p.realization, p.kind, p.form, p.category, p.severity, json.dumps(p.abort_if),
-         json.dumps(sorted({t.switch for t in p.tests})), p.message,
-         "; ".join(x for t in p.tests for x in t.problems), "; ".join(x for t in p.tests for x in t.notes),
-         p.message_issue)
-        for p in found])
+    db.executemany(
+        "INSERT INTO preconditions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            (
+                p.path,
+                p.line,
+                p.module,
+                p.realization,
+                p.kind,
+                p.form,
+                p.category,
+                p.severity,
+                json.dumps(p.abort_if),
+                json.dumps(sorted({t.switch for t in p.tests})),
+                p.message,
+                "; ".join(x for t in p.tests for x in t.problems),
+                "; ".join(x for t in p.tests for x in t.notes),
+                p.message_issue,
+            )
+            for p in found
+        ],
+    )
     db.commit()
     return len(found)
 
 
-def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
-          reuse: dict[str, bytes] | None = None, rule: str = EMBED_RULE) -> dict:
+def build(
+    root: Path,
+    db_path: Path,
+    model: str,
+    gms_export: dict | None = None,
+    reuse: dict[str, bytes] | None = None,
+    rule: str = EMBED_RULE,
+) -> dict:
     t0 = time.perf_counter()
     files = list(iter_files(root))
     parsed = {rel: chunk_file(rel, text) for rel, text in files}
@@ -213,9 +259,24 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
     db.executemany(
         "INSERT INTO chunks (id, path, kind, name, detail, module, realization, phase, line_start, line_end, header,"
         " text, conditions) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [(i + 1, c.path, c.kind, c.name, c.detail, c.module, c.realization, c.phase,
-          c.line_start, c.line_end, c.header, c.text, json.dumps(c.conditions) if c.conditions else None)
-         for i, c in enumerate(chunks)],
+        [
+            (
+                i + 1,
+                c.path,
+                c.kind,
+                c.name,
+                c.detail,
+                c.module,
+                c.realization,
+                c.phase,
+                c.line_start,
+                c.line_end,
+                c.header,
+                c.text,
+                json.dumps(c.conditions) if c.conditions else None,
+            )
+            for i, c in enumerate(chunks)
+        ],
     )
     store.build_fts(db)
     db.executemany(
@@ -230,21 +291,32 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
         offset += len(pf.chunks)
     db.executemany(
         "INSERT INTO switches VALUES (?,?,?,?,?,?,?)",
-        [(sw.name, sw.default, sw.allowed, sw.value, sw.path, sw.line, first_id[sw.path] + sw.chunk_index)
-         for pf in parsed.values() for sw in pf.switches],
+        [
+            (sw.name, sw.default, sw.allowed, sw.value, sw.path, sw.line, first_id[sw.path] + sw.chunk_index)
+            for pf in parsed.values()
+            for sw in pf.switches
+        ],
     )
-    db.executemany("INSERT INTO scenarios VALUES (?,?,?,?,?)",
-                   [(s.name, s.path, s.line, json.dumps(s.settings), s.description) for s in scens])
+    db.executemany(
+        "INSERT INTO scenarios VALUES (?,?,?,?,?)",
+        [(s.name, s.path, s.line, json.dumps(s.settings), s.description) for s in scens],
+    )
     if gms_export:
         folders = gmsdata.module_folders(gms_export)
-        db.executemany("INSERT INTO module_interfaces VALUES (?,?,?)",
-                       [(folders.get(r["module"], r["module"]), r["name"], r["direction"])
-                        for r in gms_export["interfaces"]])
-        db.executemany("INSERT INTO not_used VALUES (?,?,?,?,?)",
-                       [(r["module"], r["realization"], r["name"], r.get("type") or "", r.get("reason") or "")
-                        for r in gms_export["not_used"] or []])
-        db.executemany("INSERT INTO meta VALUES (?, ?)",
-                       [(f"version_{k}", v) for k, v in gms_export["versions"].items()])
+        db.executemany(
+            "INSERT INTO module_interfaces VALUES (?,?,?)",
+            [(folders.get(r["module"], r["module"]), r["name"], r["direction"]) for r in gms_export["interfaces"]],
+        )
+        db.executemany(
+            "INSERT INTO not_used VALUES (?,?,?,?,?)",
+            [
+                (r["module"], r["realization"], r["name"], r.get("type") or "", r.get("reason") or "")
+                for r in gms_export["not_used"] or []
+            ],
+        )
+        db.executemany(
+            "INSERT INTO meta VALUES (?, ?)", [(f"version_{k}", v) for k, v in gms_export["versions"].items()]
+        )
 
     n_uses = build_uses(db, files)
     n_pre = build_preconditions(db, root)
@@ -256,8 +328,10 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
     texts = [seen_text(rule, model, embed_text(c.header, c.text)) for c in chunks]
     keys = [embed_key(model, t) for t in texts]
     reuse = reuse or {}
-    db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)",
-                   [(i + 1, reuse[k]) for i, k in enumerate(keys) if k in reuse])
+    db.executemany(
+        "INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)",
+        [(i + 1, reuse[k]) for i, k in enumerate(keys) if k in reuse],
+    )
     todo = sorted((i for i, k in enumerate(keys) if k not in reuse), key=lambda i: len(texts[i]))
     print(f"embeddings: {len(texts) - len(todo)} reused, {len(todo)} to compute", flush=True)
     batch = []
@@ -314,14 +388,18 @@ def promote(db_path: Path, warnings: list[str]) -> Path:
     if warnings:
         print(f"not promoted: {len(warnings)} parser warning(s)")
         return db_path
-    spec = importlib.util.spec_from_file_location("retrieval_eval", DEFAULT_DB_DIR.parent / "eval" / "retrieval_eval.py")
+    spec = importlib.util.spec_from_file_location(
+        "retrieval_eval", DEFAULT_DB_DIR.parent / "eval" / "retrieval_eval.py"
+    )
     ev = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ev)
     new = ev.scores(db_path)
     old = ev.scores(PINNED) if PINNED.exists() else {}
     for mode, (recall, mrr) in new.items():
-        print(f"retrieval {mode}: recall@5 {recall:.0%}, MRR {mrr:.2f}"
-              + (f" (pinned: {old[mode][0]:.0%}, {old[mode][1]:.2f})" if mode in old else ""))
+        print(
+            f"retrieval {mode}: recall@5 {recall:.0%}, MRR {mrr:.2f}"
+            + (f" (pinned: {old[mode][0]:.0%}, {old[mode][1]:.2f})" if mode in old else "")
+        )
     lower = [m for m in old if new[m][0] < old[m][0] or new[m][1] < old[m][1] - 1e-9]
     if lower:
         print(f"not promoted: retrieval lower than {PINNED.name} in {', '.join(lower)}")
@@ -334,11 +412,16 @@ def promote(db_path: Path, warnings: list[str]) -> Path:
 def registration(root: Path, db_path: Path) -> str:
     """The `claude mcp add` line for this machine's paths (run it in the REMIND checkout)."""
     rag = DEFAULT_DB_DIR.parent
-    models = f"-e {embeddings.MODELS_ENV}={embeddings.models_dir().resolve().as_posix()} " \
-        if os.environ.get(embeddings.MODELS_ENV) else ""
-    return (f"register (run in {root.resolve()}):\n  claude mcp add remind-rag --scope local "
-            f"-e REMIND_RAG_DB={db_path.resolve().as_posix()} -e REMIND_RAG_ROOT={root.resolve().as_posix()} "
-            f"{models}-- uv run --offline --directory {rag.as_posix()} python -m remind_rag.server")
+    models = (
+        f"-e {embeddings.MODELS_ENV}={embeddings.models_dir().resolve().as_posix()} "
+        if os.environ.get(embeddings.MODELS_ENV)
+        else ""
+    )
+    return (
+        f"register (run in {root.resolve()}):\n  claude mcp add remind-rag --scope local "
+        f"-e REMIND_RAG_DB={db_path.resolve().as_posix()} -e REMIND_RAG_ROOT={root.resolve().as_posix()} "
+        f"{models}-- uv run --offline --directory {rag.as_posix()} python -m remind_rag.server"
+    )
 
 
 def main() -> None:
@@ -346,14 +429,21 @@ def main() -> None:
     ap.add_argument("--root", type=Path, required=True, help="REMIND checkout")
     ap.add_argument("--model", choices=sorted(embeddings.MODELS), default="bge")
     ap.add_argument("--db", type=Path, help="default: data/remind-<model>.db")
-    ap.add_argument("--gms-json", type=Path, default=DEFAULT_DB_DIR / "gms_export.json",
-                    help="gms/goxygen export (r/export_gms.R); used if it exists")
+    ap.add_argument(
+        "--gms-json",
+        type=Path,
+        default=DEFAULT_DB_DIR / "gms_export.json",
+        help="gms/goxygen export (r/export_gms.R); used if it exists",
+    )
     ap.add_argument("--gms-export", action="store_true", help="(re)run r/export_gms.R before indexing")
     ap.add_argument("--reuse", type=Path, help="index to take unchanged embeddings from (default: the --db target)")
     ap.add_argument("--embed-rule", choices=EMBED_RULES, default=EMBED_RULE, help="how the embedded text is cut")
     ap.add_argument("--no-reuse", action="store_true", help="embed every chunk (e.g. to measure a full build)")
-    ap.add_argument("--promote", action="store_true",
-                    help=f"then copy to {PINNED.name} if parser checks are clean and retrieval is not lower")
+    ap.add_argument(
+        "--promote",
+        action="store_true",
+        help=f"then copy to {PINNED.name} if parser checks are clean and retrieval is not lower",
+    )
     args = ap.parse_args()
     db_path = args.db or DEFAULT_DB_DIR / f"remind-{args.model}.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)

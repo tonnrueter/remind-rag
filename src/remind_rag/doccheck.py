@@ -34,15 +34,57 @@ REAL_EQ_RE = re.compile(r"(?:\b(\d\d_[A-Za-z]\w*)|\bmodule\s+(\w+))\s*=\s*([A-Za
 # "default value: X", "def = X". "default investment costs" is no claim about a switch value.
 DEFAULT_RE = re.compile(
     r"(?:\(\s*default\b\s*[=:]?\s*|\bdefaults?\s*(?:=|:|\bto\b|\bis\b|\bvalue\s*[=:])\s*|\bdef\s*=\s*)"
-    r"(\"[^\"]*\"|'[^']*'|[-+]?\d[\d.eE+-]*%?|[A-Za-z][\w.]*)", re.I)
+    r"(\"[^\"]*\"|'[^']*'|[-+]?\d[\d.eE+-]*%?|[A-Za-z][\w.]*)",
+    re.I,
+)
 PLACEHOLDER_RE = re.compile(r"xxx|yyy|FIRSTUNIT|SECONDUNIT|^v_var$|^s_GWh_2_EJ$", re.I)  # naming-convention examples
 RENAME_LINE_RE = re.compile(r"renam|deprecat|obsolete|no longer|removed|instead", re.I)
 # a comment line that is commented-out code, not prose: $include, equation heads, assignments, continuation lines
-CODE_COMMENT_RE = re.compile(r"^\*+\s*(\$|\w+(\([^)]*\))?(\.\w+)?\s*(=[^=]|\.\.)|\w+\([^)]*\)\s*($|\")|[-+]\s*\(?\s*\w+\(|.*;\s*$|.*\.\.\s*$)")
+CODE_COMMENT_RE = re.compile(
+    r"^\*+\s*(\$|\w+(\([^)]*\))?(\.\w+)?\s*(=[^=]|\.\.)|\w+\([^)]*\)\s*($|\")|[-+]\s*\(?\s*\w+\(|.*;\s*$|.*\.\.\s*$)"
+)
 MAIN_SWITCH_LINE_RE = re.compile(r"^\s*(?:\$set[gG]lobal\s+(\w+)|(\w+)\s*=)|^\*+'?\s*((?:c|cm|c\d\d)_\w+)", re.I)
-STOPWORDS = {"value", "values", "setting", "settings", "the", "a", "an", "is", "in", "for", "and", "or", "setting)",
-             "case", "when", "if", "with", "this", "that", "it", "run", "runs", "one", "config", "scenario", "not",
-             "to", "of", "as", "on", "by", "be", "should", "can", "will", "same", "from", "all", "used"}
+STOPWORDS = {
+    "value",
+    "values",
+    "setting",
+    "settings",
+    "the",
+    "a",
+    "an",
+    "is",
+    "in",
+    "for",
+    "and",
+    "or",
+    "setting)",
+    "case",
+    "when",
+    "if",
+    "with",
+    "this",
+    "that",
+    "it",
+    "run",
+    "runs",
+    "one",
+    "config",
+    "scenario",
+    "not",
+    "to",
+    "of",
+    "as",
+    "on",
+    "by",
+    "be",
+    "should",
+    "can",
+    "will",
+    "same",
+    "from",
+    "all",
+    "used",
+}
 
 
 @dataclass
@@ -60,6 +102,7 @@ class Finding:
 
 
 # ------------------------------------------------------------------ prose extraction
+
 
 def prose_lines(path: str, raw: str) -> list[tuple[int, str, str]]:
     """(line number, prose, code) for every line of a .gms file that carries prose: comment lines, $ontext blocks,
@@ -85,14 +128,14 @@ def prose_lines(path: str, raw: str) -> list[tuple[int, str, str]]:
         prose = [bang] if bang else []
         if not s.startswith("$"):
             # description strings: quoted text with a space and no %switch% (those are string tests)
-            prose += [m.group(0)[1:-1] for m in STRING_RE.finditer(code)
-                      if " " in m.group(0) and "%" not in m.group(0)]
+            prose += [m.group(0)[1:-1] for m in STRING_RE.finditer(code) if " " in m.group(0) and "%" not in m.group(0)]
         if prose:
             out.append((n, "  ".join(prose), STRING_RE.sub('""', code)))
     return out
 
 
 # ------------------------------------------------------------------ context
+
 
 @dataclass
 class Context:
@@ -163,6 +206,7 @@ def load_context(root: Path) -> Context:
 
 # ------------------------------------------------------------------ checks
 
+
 def check_names(path: str, n: int, prose: str, ctx: Context) -> list[Finding]:
     out = []
     for m in NAME_RE.finditer(prose):
@@ -170,7 +214,7 @@ def check_names(path: str, n: int, prose: str, ctx: Context) -> list[Finding]:
         low = name.lower()
         if low in ctx.code_names or low.rstrip("_") in ctx.code_names:
             continue
-        if prose[m.end():m.end() + 1] == "*" or name.endswith("_") or PLACEHOLDER_RE.search(name):
+        if prose[m.end() : m.end() + 1] == "*" or name.endswith("_") or PLACEHOLDER_RE.search(name):
             continue  # wildcard (pm_tax*) or naming-convention example
         if low in ctx.renamed:
             problem = f"listed as renamed or deprecated in {ctx.renamed[low]}"
@@ -235,9 +279,17 @@ def check_defaults(path: str, n: int, prose: str, code: str, ctx: Context, doc_s
     out = []
     if path == "main.gms" and code and (m := re.match(r"^\s*(\w+)\s*=", code)) and m.group(1).lower() in ctx.switches:
         sw = ctx.switches[m.group(1).lower()]
-        if (dm := re.search(r"\bdef\s*=\s*", prose)) and not _clause_matches(prose[dm.end():], sw):
-            out.append(Finding("stated default", path, n, "def = " + _first_value(prose[dm.end():]),
-                               f"{sw.name} is set to {sw.value.strip()} on this line", prose.strip()))
+        if (dm := re.search(r"\bdef\s*=\s*", prose)) and not _clause_matches(prose[dm.end() :], sw):
+            out.append(
+                Finding(
+                    "stated default",
+                    path,
+                    n,
+                    "def = " + _first_value(prose[dm.end() :]),
+                    f"{sw.name} is set to {sw.value.strip()} on this line",
+                    prose.strip(),
+                )
+            )
         return out
     if path == "main.gms" and re.match(r"^\s*\$setglobal", code or "", re.I):
         return out  # $setglobal lines: SETGLOBAL_RE parsing gives default == value; checked via the Switch below
@@ -245,7 +297,7 @@ def check_defaults(path: str, n: int, prose: str, code: str, ctx: Context, doc_s
         stated = dm.group(1)
         if stated.lower() in STOPWORDS or stated.lower().startswith(("cm_", "c_")):
             continue
-        before = prose[:dm.start()]
+        before = prose[: dm.start()]
         # the switch named last before "default" (not a module switch: tax, trade, industry are common words)
         names = [x for x in re.findall(r"\w+", before) if x.lower() in ctx.switches and x.lower() not in ctx.modules]
         # the enclosing switch doc only for explicit `def = X` lines
@@ -253,14 +305,26 @@ def check_defaults(path: str, n: int, prose: str, code: str, ctx: Context, doc_s
         if not name or name.lower() not in ctx.switches:
             continue
         sw = ctx.switches[name.lower()]
-        looks_like_value = stated[0] in "\"'" or re.search(r"\d", stated) or stated.lower() in {"on", "off", "none"} \
-            or _allowed(stated, sw) \
-            or re.match(r"\s*(=|:|to\b)", prose[dm.start():dm.start(1)].lower().split("default")[-1].lstrip("s"))
+        looks_like_value = (
+            stated[0] in "\"'"
+            or re.search(r"\d", stated)
+            or stated.lower() in {"on", "off", "none"}
+            or _allowed(stated, sw)
+            or re.match(r"\s*(=|:|to\b)", prose[dm.start() : dm.start(1)].lower().split("default")[-1].lstrip("s"))
+        )
         if not looks_like_value:
             continue
-        if not _clause_matches(prose[dm.start(1):], sw):
-            out.append(Finding("stated default", path, n, f"{sw.name} default {stated}",
-                               f"main.gms:{sw.line} sets {sw.name} = {sw.value.strip()}", prose.strip()))
+        if not _clause_matches(prose[dm.start(1) :], sw):
+            out.append(
+                Finding(
+                    "stated default",
+                    path,
+                    n,
+                    f"{sw.name} default {stated}",
+                    f"main.gms:{sw.line} sets {sw.name} = {sw.value.strip()}",
+                    prose.strip(),
+                )
+            )
     return out
 
 
@@ -285,16 +349,27 @@ def check_files(path: str, n: int, prose: str, code: str, ctx: Context, doc_swit
         if about:
             text = ctx.files[target].lower()
             if not any(re.search(rf"(?<!\w){re.escape(a.lower())}(?!\w)", text) for a in about):
-                out.append(Finding("file pointer", path, n, m.group(1),
-                                   f"{target} doesn't mention {', '.join(sorted(about))}", prose.strip()))
+                out.append(
+                    Finding(
+                        "file pointer",
+                        path,
+                        n,
+                        m.group(1),
+                        f"{target} doesn't mention {', '.join(sorted(about))}",
+                        prose.strip(),
+                    )
+                )
     return out
 
 
 def check_realizations(path: str, n: int, prose: str, ctx: Context) -> list[Finding]:
     out = []
     hits = [(m.group(1), m.group(2)) for m in REAL_PATH_RE.finditer(prose)]
-    hits += [(m.group(1) or m.group(2), m.group(3)) for m in REAL_EQ_RE.finditer(prose)
-             if (m.group(1) or m.group(2)).lower() in ctx.modules]
+    hits += [
+        (m.group(1) or m.group(2), m.group(3))
+        for m in REAL_EQ_RE.finditer(prose)
+        if (m.group(1) or m.group(2)).lower() in ctx.modules
+    ]
     for mod, real in hits:
         if mod.lower() not in ctx.modules:
             if re.match(r"\d\d_", mod):
@@ -305,8 +380,16 @@ def check_realizations(path: str, n: int, prose: str, ctx: Context) -> list[Find
             continue
         if real.lower() in ctx.switches or real.isdigit():
             continue
-        out.append(Finding("realization name", path, n, f"{mod}={real}",
-                           f"{folder} has no realization {real} (available: {', '.join(reals)})", prose.strip()))
+        out.append(
+            Finding(
+                "realization name",
+                path,
+                n,
+                f"{mod}={real}",
+                f"{folder} has no realization {real} (available: {', '.join(reals)})",
+                prose.strip(),
+            )
+        )
     return out
 
 
@@ -341,8 +424,16 @@ def sweep(root: Path) -> list[Finding]:
         if sw.default and sw.value and not _clause_matches(sw.default, sw):
             line = ctx.files["main.gms"].splitlines()[sw.line - 1]
             if not any(f.path == "main.gms" and f.line == sw.line and f.check == "stated default" for f in out):
-                out.append(Finding("stated default", "main.gms", sw.line, f"def = {sw.default}",
-                                   f"{sw.name} is set to {sw.value.strip()} on this line", line.strip()))
+                out.append(
+                    Finding(
+                        "stated default",
+                        "main.gms",
+                        sw.line,
+                        f"def = {sw.default}",
+                        f"{sw.name} is set to {sw.value.strip()} on this line",
+                        line.strip(),
+                    )
+                )
     return out
 
 
@@ -354,6 +445,7 @@ CHECKS = ["unknown name", "stated default", "file pointer", "realization name"]
 def to_markdown(by: dict[str, list[Finding]]) -> str:
     def cell(s: str) -> str:
         return s.replace("|", "\\|").replace("`", "'")[:140]
+
     out = []
     for c in CHECKS:
         rows = sorted(by.get(c, []), key=lambda f: (f.path, f.line))
