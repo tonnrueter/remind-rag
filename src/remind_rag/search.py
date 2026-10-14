@@ -165,7 +165,7 @@ class Index:
             r = rows[cid]
             if scores[cid] == 0.0:
                 continue
-            if module and not _module_match(module, r["module"]):
+            if module and not module_match(module, r["module"]):
                 continue
             if realization and (r["realization"] or "").lower() != realization.lower():
                 continue
@@ -193,7 +193,7 @@ def _inactive_realization(r: sqlite3.Row, values: dict[str, str]) -> bool:
     return selected is not None and selected.lower() != r["realization"].lower()
 
 
-def _module_match(wanted: str, module: str | None) -> bool:
+def module_match(wanted: str, module: str | None) -> bool:
     """Accept '33', 'carbonRemoval', '33_carbonRemoval' or 'core'."""
     if not module:
         return False

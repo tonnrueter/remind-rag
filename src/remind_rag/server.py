@@ -16,7 +16,7 @@ from typing import NamedTuple
 from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings
-from .search import Index, _module_match
+from .search import Index, module_match
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .status import DefaultRun, detail, equation_domain, rank
 from .steering import steering
@@ -83,11 +83,6 @@ def _has_table(name: str) -> bool:
     return idx.db.execute("SELECT 1 FROM sqlite_master WHERE name = ?", (name,)).fetchone() is not None
 
 
-def _description(name: str) -> str:
-    row = idx.db.execute("SELECT description FROM symbols WHERE name = ?", (name,)).fetchone()
-    return row[0] if row else ""
-
-
 SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
 
 ROLE_LABELS = {"declared": "Declared", "assigned": "Assigned / fixed / loaded",
@@ -144,7 +139,7 @@ def get_symbol(name: str, role: str | None = None, module: str | None = None, of
         "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE ORDER BY path, line", (name,)
     ).fetchall()
     if role or module:  # drill-down: the lines themselves, paged
-        us = [u for u in uses if (not role or u["role"] == role) and (not module or _module_match(module, u["module"]))]
+        us = [u for u in uses if (not role or u["role"] == role) and (not module or module_match(module, u["module"]))]
         if not us:
             return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + "."
         page = us[offset:offset + max_uses]
@@ -265,10 +260,6 @@ def _names(names: list[str], home: str | None, limit: int = 12) -> str:
         m = _decl_module(n)
         shown.append(f"{n} [{m}]" if m and m != (home or "core") else n)
     return ", ".join(shown) + (f", +{len(names) - limit} more" if len(names) > limit else "")
-
-
-def _loc(u) -> str:
-    return "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
 
 
 class Link(NamedTuple):
@@ -494,7 +485,7 @@ def get_module(module: str, realization: str | None = None) -> str:
         "SELECT * FROM chunks WHERE kind IN ('module_doc', 'realization_doc', 'limitations') "
         "ORDER BY realization IS NOT NULL, realization, line_start"
     ).fetchall()
-    rows = [r for r in rows if _module_match(module, r["module"])]
+    rows = [r for r in rows if module_match(module, r["module"])]
     is_core = module.lower() == "core"
     if not rows and not is_core:
         return f"Module {module!r} not found."

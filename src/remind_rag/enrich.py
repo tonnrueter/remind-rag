@@ -5,17 +5,13 @@ from __future__ import annotations
 import re
 
 from .chunkers import Chunk, Symbol, Switch
+from .render import short
 
 IDENT_RE = re.compile(r"\b[A-Za-z]\w*\b")
 # sets/aliases are too ubiquitous (t, regi, te, ...) to be informative as "uses"
 USE_KINDS = {"scalar", "parameter", "variable", "positive variable", "negative variable",
              "binary variable", "integer variable", "equation", "table"}
 MAX_USES = 8
-
-
-def _short(text: str, n: int = 90) -> str:
-    text = " ".join(text.split())
-    return text if len(text) <= n else text[: n - 1] + "…"
 
 
 def _location(c: Chunk) -> str:
@@ -37,7 +33,7 @@ def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
     iface = iface or {}
     parts = [_location(c)]
     if c.kind == "equation" and c.name:
-        parts.append(f"Equation {c.name}: {_short(sym_desc.get(c.name, ''), 160)}")
+        parts.append(f"Equation {c.name}: {short(sym_desc.get(c.name, ''), 160)}")
     elif c.kind == "declaration":
         parts.append(f"Declarations ({c.detail})")
     elif c.kind == "switch" and c.name:
@@ -47,7 +43,7 @@ def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
         if sw:
             line += f" (default: {sw.default}"
             line += f"; allowed: {sw.allowed})" if sw.allowed else ")"
-        parts.append(line + (f": {_short(desc, 160)}" if desc else ""))
+        parts.append(line + (f": {short(desc, 160)}" if desc else ""))
     elif c.kind == "module_doc":
         parts.append(f"Module description of {c.name}")
     elif c.kind == "realization_doc":
@@ -64,7 +60,7 @@ def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
         parts.append(f"Known limitations of {c.name}")
 
     if c.conditions:
-        parts.append("Only compiled if: " + _short(" and ".join(c.conditions), 200))
+        parts.append("Only compiled if: " + short(" and ".join(c.conditions), 200))
 
     if c.kind == "declaration" and iface:
         # keep this short: the model reads only the first 512 tokens of header + text
@@ -81,7 +77,7 @@ def make_header(c: Chunk, sym_desc: dict[str, str], switches: dict[str, Switch],
             if ident not in seen and ident in sym_desc:
                 seen.add(ident)
                 src = [m for m in iface.get(ident, {}).get("provided_by", []) if m != c.module]
-                uses.append(f"{ident} ({_short(sym_desc[ident], 60)}" + (f"; from {src[0]})" if src else ")"))
+                uses.append(f"{ident} ({short(sym_desc[ident], 60)}" + (f"; from {src[0]})" if src else ")"))
                 if len(uses) >= MAX_USES:
                     break
         if uses:
