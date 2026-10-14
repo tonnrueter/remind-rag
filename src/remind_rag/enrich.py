@@ -43,6 +43,13 @@ def make_header(
     switches: dict[str, Switch],
     iface: dict[str, dict[str, list[str]]] | None = None,
 ) -> str:
+    """The context lines written above a chunk: where it is, what it is (equation with its description, switch
+    with default and allowed values, ...), the $ifthen conditions it is compiled under, and for code the
+    descriptions of up to MAX_USES symbols it uses ("Uses:"). The header is embedded with the chunk and also
+    keys the embedding cache: changing this function re-embeds every chunk whose header changes.
+
+    sym_desc: symbol -> description; iface: symbol -> {"provided_by": [...], "consumed_by": [...]} from gms.
+    """
     iface = iface or {}
     parts = [_location(c)]
     if c.kind == "equation" and c.name:

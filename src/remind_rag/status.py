@@ -55,7 +55,11 @@ def _inactive(verdict: str) -> str:
 
 
 class DefaultRun:
-    """Verdicts against the switch values of a default run, as assigned in main.gms (not default.cfg, #27)."""
+    """Verdicts against the switch values of a default run, as assigned in main.gms. That is the whole default:
+    config/default.cfg sets no GAMS switches (they moved to main.gms). Scenario values: search(scenario=...).
+
+    The verdicts are text, and callers test it: use_tags and mark look for "INACTIVE", "NOT DEFAULT" and
+    "depends"; keep those words when rewording."""
 
     def __init__(self, db: sqlite3.Connection):
         self.db = db
@@ -63,6 +67,7 @@ class DefaultRun:
 
     @property
     def defaults(self) -> dict[str, str]:
+        """Switch name (as written in main.gms) -> value, quotes dropped; read once per index."""
         if self._defaults is None:
             self._defaults = switch_defaults(self.db)
         return self._defaults
@@ -70,14 +75,19 @@ class DefaultRun:
     # ---------------------------------------------------------------- modules and conditions
 
     def default_realization(self, module: str | None) -> str | None:
+        """The realization main.gms selects for a module folder name ("33_carbonRemoval" -> "portfolio"); None
+        for core, top-level files and unknown modules."""
         if not module or module == "core":
             return None
         return self.defaults.get(module.partition("_")[2])
 
     def module_off_by_default(self, module: str | None) -> bool:
+        """The default realization is "off" or "none": the module does nothing in a default run."""
         return (self.default_realization(module) or "").lower() in {"off", "none"}
 
     def realization_status(self, module: str | None, realization: str | None) -> str | None:
+        """'realization X: DEFAULT' or 'realization X: NOT DEFAULT (...)' with the switch that selects it; None
+        for code outside a realization."""
         default = self.default_realization(module)
         if not realization or not default:
             return None
@@ -91,6 +101,8 @@ class DefaultRun:
         return f"realization {realization}: NOT DEFAULT (default: {default}; selected by ${module.partition('_')[2]})"
 
     def condition_status(self, cond: str, what: str) -> str:
+        """'<what> <cond>: active by default' / 'INACTIVE by default' / 'depends on non-default settings',
+        from eval_expr under the defaults; `what` names the kind of condition ("$ifthen", "inside if", ...)."""
         v = eval_expr(cond, self.defaults)
         label = {True: "active by default", False: "INACTIVE by default"}.get(v, "depends on non-default settings")
         return f"{what} {' '.join(cond.split())}: {label}"
@@ -116,7 +128,10 @@ class DefaultRun:
     # ---------------------------------------------------------------- use lines (✓ / ⚠ / ?)
 
     def use_tags(self, u) -> list[str]:
-        """Why a use line may not run in a default configuration."""
+        """Why a use line may not run in a default configuration; [] means it runs. `u` is a symbol_uses row (or
+        any mapping with module, realization, conditions, guards). Reasons: a non-default or switched-off
+        realization, an $ifthen that is false, an if() guard that is false, or one whose switch tests don't
+        decide it (that one depends on settings; see off())."""
         tags = []
         s = self.realization_status(u["module"], u["realization"])
         if s and "NOT DEFAULT" in s:
@@ -138,8 +153,9 @@ class DefaultRun:
         return tags
 
     def mark(self, u, tags: list[str]) -> str:
-        """Default status for the first line of an entry, positive as well as negative: a missing ⚠ alone was read
-        as 'unknown' (33_carbonRemoval/portfolio, the default, was called an alternative in a smoke test)."""
+        """The status mark for the first line of an entry: ⚠ not in a default run, ? depends on settings, ✓ default
+        realization (code in a module's selected realization) or ✓ runs by default. Always positive or negative,
+        never blank: an entry without a mark was read as "unknown" (FINDINGS 10)."""
         if any(off(t) for t in tags):
             return OFF
         if tags:
@@ -149,7 +165,8 @@ class DefaultRun:
         return ON
 
     def equation_status(self, path: str, equation: str) -> list[str]:
-        """Whether the equation's domain $-condition holds in a default run."""
+        """[] if the equation's domain $-condition holds in a default run or tests no switch, else the one reason
+        ('generated only if ... → inactive by default' or '... depends on non-default settings')."""
         row = self.db.execute(
             "SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE", (path, equation)
         ).fetchone()

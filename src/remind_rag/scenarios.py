@@ -12,6 +12,8 @@ from .chunkers import MAX_CHARS, Chunk
 
 @dataclass
 class Scenario:
+    """One row of a config/scenario_config*.csv file."""
+
     name: str
     path: str
     line: int
@@ -20,6 +22,9 @@ class Scenario:
 
 
 def read_scenarios(root: Path) -> list[Scenario]:
+    """Every scenario row of every config/scenario_config*.csv (`;`-separated), with copyConfigFrom resolved
+    within its file. Commented-out (`#`) and empty rows are skipped; a scenario defined in several files
+    appears once per file."""
     out: list[Scenario] = []
     for f in sorted((root / "config").glob("scenario_config*.csv")):
         rel = f.relative_to(root).as_posix()
@@ -46,6 +51,7 @@ def read_scenarios(root: Path) -> list[Scenario]:
 
 
 def scenario_chunks(scenarios: list[Scenario]) -> list[Chunk]:
+    """One searchable chunk per scenario row: name, description and settings as text."""
     chunks = []
     for sc in scenarios:
         text = f"Scenario {sc.name}\n{sc.description}\nSettings: " + "; ".join(

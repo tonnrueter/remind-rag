@@ -90,6 +90,8 @@ STOPWORDS = {
 
 @dataclass
 class Finding:
+    """One mismatch between prose and code, at the prose line."""
+
     check: str  # unknown name | stated default | file pointer | realization name
     path: str
     line: int
@@ -99,6 +101,7 @@ class Finding:
 
     @property
     def where(self) -> str:
+        """path:line"""
         return f"{self.path}:{self.line}"
 
 
@@ -140,6 +143,8 @@ def prose_lines(path: str, raw: str) -> list[tuple[int, str, str]]:
 
 @dataclass
 class Context:
+    """What the code contains, to check prose against; built once per sweep by load_context."""
+
     root: Path
     code_names: set[str]  # lower-case identifiers in code (GAMS code parts, R, cfg, csv headers)
     file_names: set[str]  # lower-case stems of input files referenced in code ($include p_x.cs4r)
@@ -151,6 +156,7 @@ class Context:
 
 
 def load_context(root: Path) -> Context:
+    """Read every indexed file of the checkout once: names in code, referenced input files, switches, modules."""
     code_names: set[str] = set()
     file_names: set[str] = set()
     all_names: dict[str, str] = {}
@@ -209,6 +215,10 @@ def load_context(root: Path) -> Context:
 
 
 def check_names(path: str, n: int, prose: str, ctx: Context) -> list[Finding]:
+    """Check 1: REMIND-style names in the prose of line n that occur nowhere in code (with a close match, if any).
+
+    The check_* functions get one prose line at a time: `prose` is its comment text, `code` the code on the same
+    line, `doc_switch` the switch the surrounding main.gms doc block is about (None elsewhere)."""
     out = []
     for m in NAME_RE.finditer(prose):
         name = m.group(1)
@@ -277,6 +287,8 @@ def _first_value(text: str) -> str:
 
 
 def check_defaults(path: str, n: int, prose: str, code: str, ctx: Context, doc_switch: str | None) -> list[Finding]:
+    """Check 2: a default stated in prose ("def = X", "default: X", "defaults to X") vs the value main.gms
+    assigns."""
     out = []
     if path == "main.gms" and code and (m := re.match(r"^\s*(\w+)\s*=", code)) and m.group(1).lower() in ctx.switches:
         sw = ctx.switches[m.group(1).lower()]
@@ -338,6 +350,7 @@ def _resolve(p: str, ctx: Context) -> str | None:
 
 
 def check_files(path: str, n: int, prose: str, code: str, ctx: Context, doc_switch: str | None) -> list[Finding]:
+    """Check 3: a file the prose points to must exist and mention the switch or symbol the pointer is about."""
     out = []
     for m in PATH_RE.finditer(prose):
         target = _resolve(m.group(1), ctx)
@@ -364,6 +377,7 @@ def check_files(path: str, n: int, prose: str, code: str, ctx: Context, doc_swit
 
 
 def check_realizations(path: str, n: int, prose: str, ctx: Context) -> list[Finding]:
+    """Check 4: "NN_module/realization" or "module = realization" in prose must name a realization that exists."""
     out = []
     hits = [(m.group(1), m.group(2)) for m in REAL_PATH_RE.finditer(prose)]
     hits += [
@@ -408,6 +422,7 @@ def _doc_switch(path: str, lines: list[str], n: int, ctx: Context) -> str | None
 
 
 def sweep(root: Path) -> list[Finding]:
+    """All four checks over every prose line (comments, $ontext blocks, descriptions) of the checkout."""
     ctx = load_context(root)
     out = []
     for path, raw in ctx.files.items():
@@ -444,6 +459,8 @@ CHECKS = ["unknown name", "stated default", "file pointer", "realization name"]
 
 
 def to_markdown(by: dict[str, list[Finding]]) -> str:
+    """Findings grouped by check as Markdown tables (the sweeps/sweep-NN.md files)."""
+
     def cell(s: str) -> str:
         return s.replace("|", "\\|").replace("`", "'")[:140]
 

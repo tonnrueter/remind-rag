@@ -62,6 +62,8 @@ def fmt_chunk(run: DefaultRun, r, rank: int | None = None, cut: int | None = Non
 
 
 def use_line(run: DefaultRun, u, tags: list[str], also: list[int] | None = None, snippet: int | None = None) -> str:
+    """One where-used entry: "- path:line [module/realization/phase, in equation] mark  code", then the reasons.
+    `also`: further lines with the same reasons, folded in; `snippet`: cut the code to that many characters."""
     ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
     if u["context"]:
         ctx += f", in {u['context']}"

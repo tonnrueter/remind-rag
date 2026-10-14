@@ -28,6 +28,8 @@ DEFAULT_DB_DIR = Path(__file__).resolve().parents[2] / "data"
 
 
 def embed_text(header: str, text: str) -> str:
+    """What gets embedded for a chunk, before the cut rule: header, newline, text with runs of spaces and tabs
+    collapsed (GAMS alignment spaces cost tokens and carry no meaning)."""
     return header + "\n" + re.sub(r"[ \t]+", " ", text)
 
 
@@ -39,6 +41,7 @@ EMBED_RULE = "chars1000"
 
 
 def seen_text(rule: str, model: str, text: str) -> str:
+    """The part of the embed text the vector is computed from, under a cut rule (EMBED_RULES)."""
     return text[:1000] if rule == "chars1000" else embeddings.visible(model, text)
 
 
@@ -230,6 +233,10 @@ def build(
     reuse: dict[str, bytes] | None = None,
     rule: str = EMBED_RULE,
 ) -> dict:
+    """Build a complete index of the REMIND checkout at `root` into db_path (overwritten): chunk and enrich every
+    git-tracked file, fill all tables, embed what `reuse` ({embed_key: vector}, see load_vectors) doesn't
+    have, write meta last. gms_export adds module interfaces and limitations. Returns the stats written to meta
+    plus db_mb. Prints parser warnings and progress."""
     t0 = time.perf_counter()
     files = list(iter_files(root))
     parsed = {rel: chunk_file(rel, text) for rel, text in files}

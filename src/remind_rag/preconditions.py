@@ -30,6 +30,8 @@ NONE = "__no_such_value__"  # value of a switch that can't take the tested value
 
 @dataclass
 class Test:
+    """One switch test inside an abort condition (`cm_emiscen eq 9`, `"%carbonprice%" == "NDC"`, `$if set x`)."""
+
     switch: str
     op: str  # as written: ==, eq, ne, ...; 'set' for $if set
     value: str
@@ -43,6 +45,9 @@ class Test:
 
 @dataclass
 class Precondition:
+    """One `abort` (compile-time $abort / $if ... abort, or run-time abort / abort$) with the conditions that
+    reach it. One row of the `preconditions` table."""
+
     path: str
     line: int
     raw: str
@@ -60,6 +65,7 @@ class Precondition:
 
     @property
     def where(self) -> str:
+        """path:line"""
         return f"{self.path}:{self.line}"
 
 
@@ -68,6 +74,9 @@ class Precondition:
 
 @dataclass
 class Context:
+    """What exists in the checkout, to check tests against: switches, $setglobals, declarations, modules with
+    their realizations, and the values scenario configs use. Read from the files, not from an index."""
+
     switches: dict[str, Switch]  # main.gms, lower-case name → Switch
     setglobals: dict[str, str]  # lower-case name → first place it is $setglobal'ed outside main.gms
     declared: dict[str, str]  # lower-case name → first declaration (parameter / scalar / ...)
@@ -76,10 +85,12 @@ class Context:
 
     @property
     def defaults(self) -> dict[str, str]:
+        """main.gms switch values, quotes dropped (as status.switch_defaults, but from the parsed file)."""
         return {s.name: s.value.strip().strip("\"'") for s in self.switches.values()}
 
 
 def load_context(root: Path, files: list[tuple[str, str]]) -> Context:
+    """Context from the checkout's GAMS files (`files`: (path, text)), modules/ folders and scenario configs."""
     switches: dict[str, Switch] = {}
     setglobals: dict[str, str] = {}
     declared: dict[str, str] = {}
@@ -110,11 +121,12 @@ def load_context(root: Path, files: list[tuple[str, str]]) -> Context:
 
 
 def _norm(cond: str) -> str:
-    """Quotes in GAMS string tests may be ' or "; the shared test regexes expect "."""
+    """One spelling of a condition for display and comparison: ' quotes as ", whitespace collapsed."""
     return " ".join(cond.replace("'", '"').split())
 
 
 def _message(lines: list[str], i: int, start: int) -> str:
+    """The abort message: the first quoted string from line i (column `start`) on, within 4 lines."""
     for j in range(i, min(i + 4, len(lines))):
         text = lines[j][start:] if j == i else lines[j]
         if m := MSG_RE.search(text):
@@ -125,6 +137,7 @@ def _message(lines: list[str], i: int, start: int) -> str:
 
 
 def find_aborts(path: str, raw: str) -> list[Precondition]:
+    """Every abort in one GAMS file, with its $ifthen / $if and if() conditions, unclassified."""
     lines = raw.splitlines()
     # $$ifthen / $$abort (dollar-dollar: evaluated when the enclosing text is compiled) count like $ifthen / $abort
     comp = line_conditions([re.sub(r"^(\s*)\$\$", r"\1$", x) for x in lines])
@@ -192,6 +205,8 @@ def _is_switch(name: str, ctx: Context) -> bool:
 
 
 def check_test(t: Test, ctx: Context) -> None:
+    """Fill t.source and t.default, and record problems (the switch or the tested realization doesn't exist, the
+    value is outside the switch's documented regexp) and notes (a value no default and no scenario uses)."""
     n = t.switch.lower()
     if n in ctx.switches:
         s = ctx.switches[n]
@@ -259,6 +274,16 @@ def _message_issue(p: Precondition, ctx: Context) -> str:
 
 
 def classify(p: Precondition, ctx: Context) -> None:
+    """Set category, default_aborts and severity of an abort.
+
+    category: precondition if switch settings alone decide it, else assertion (severity "-").
+    severity of a precondition:
+      impossible        a test names something that doesn't exist, and the abort fires whatever its value
+      dead check        ... and the abort can never fire
+      suspicious        ... and the rest of the condition decides
+      aborts by default the realization can't run with the main.gms defaults
+      ok / depends      the defaults pass / the defaults don't decide it
+    """
     for t in p.tests:
         check_test(t, ctx)
     # precondition: decided by switch settings alone; assertion: also depends on data or run-time state
@@ -282,6 +307,7 @@ def classify(p: Precondition, ctx: Context) -> None:
 
 
 def sweep(root: Path) -> tuple[list[Precondition], Context]:
+    """All aborts in modules/ and core/ of a checkout, classified (the build stores them; the CLI prints them)."""
     files = [(p, r) for p, r in iter_files(root) if p.endswith(".gms")]
     ctx = load_context(root, files)
     out = []

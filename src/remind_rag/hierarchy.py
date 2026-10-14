@@ -42,6 +42,8 @@ def _start_value(name: str, snippet: str | None) -> bool:
 
 
 def collect() -> dict:
+    """Raw material from the index: interface owners, and every non-declaration use of an owned symbol as
+    (symbol, owner, module, role, phase, default-status rank), plus the REMIND commit it describes."""
     owners = _owners()
     uses = []  # (symbol, owner, module, role, phase, rank)
     q = (
@@ -170,6 +172,7 @@ def self_test(data: dict) -> None:
 
 
 def report(data: dict) -> str:
+    """The Markdown tables of MODULE_HIERARCHY: default run, and where it differs, all realizations."""
     d, al = analyse(data, 0), analyse(data, 2)
     out = [
         f"REMIND {data['branch']} @ {data['commit'][:9]}, index built {data['built_at']}",

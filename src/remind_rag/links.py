@@ -20,6 +20,8 @@ MAX_BACK, MAX_FORWARD = 40, 80  # statement length limits (lines) when scanning 
 
 @dataclass
 class Statement:
+    """One GAMS statement (possibly several lines) and the symbols on it, from the where-used table."""
+
     path: str
     start: int
     end: int
@@ -79,6 +81,7 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
 
 
 def is_load(st: Statement) -> bool:
+    """The statement loads values from a gdx file (execute_load, $gdxin, $load) instead of computing them."""
     return bool(LOAD_RE.search(code_part(st.text)))
 
 

@@ -50,6 +50,8 @@ CREATE INDEX scenarios_name ON scenarios(name COLLATE NOCASE);
 
 
 def connect(db_path: Path | str) -> sqlite3.Connection:
+    """Open an index with the sqlite-vec extension loaded and rows addressable by column name (r["path"]).
+    Creates an empty file if none exists; the server checks existence first."""
     db = sqlite3.connect(str(db_path), check_same_thread=False)
     db.enable_load_extension(True)
     sqlite_vec.load(db)
@@ -73,6 +75,7 @@ def fts_title(header: str, kind: str, name: str | None) -> str:
 
 
 def build_fts(db: sqlite3.Connection) -> None:
+    """Fill the keyword index from `chunks` (title from fts_title, text as is); rowid = chunk id."""
     rows = db.execute("SELECT id, header, kind, name, text FROM chunks").fetchall()
     db.executemany(
         "INSERT INTO chunks_fts(rowid, title, text) VALUES (?, ?, ?)",
@@ -82,6 +85,8 @@ def build_fts(db: sqlite3.Connection) -> None:
 
 
 def create(db_path: Path, dim: int) -> sqlite3.Connection:
+    """A new, empty index at db_path (an existing file is deleted): every table, the keyword index and a
+    vector table for `dim`-dimensional vectors."""
     if db_path.exists():
         db_path.unlink()
     db = connect(db_path)

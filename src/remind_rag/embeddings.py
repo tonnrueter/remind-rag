@@ -26,10 +26,11 @@ DEFAULT_DIR = Path(__file__).resolve().parents[2] / "data" / "models"
 
 
 class ModelMissing(RuntimeError):
-    pass
+    """The model isn't in the shared folder (REMIND_RAG_MODELS); the message says how to fill it."""
 
 
 def models_dir() -> Path:
+    """Where models are read from (and downloaded to): REMIND_RAG_MODELS, else rag/data/models."""
     return Path(os.environ.get(MODELS_ENV) or DEFAULT_DIR)
 
 
@@ -103,10 +104,15 @@ def visible(alias: str, text: str) -> str:
 
 
 def embed_passages(alias: str, texts: list[str], batch_size: int = 16):
+    """Vectors for chunk texts, one per text, in order (a generator: the build stores them in batches).
+
+    "Passage" vs "query" is fastembed's split for models that embed questions and documents differently
+    (a prefix such as "query: "). For bge-small both are plain embeddings: bge v1.5 works without one."""
     yield from load(alias).passage_embed(texts, batch_size=batch_size)
 
 
 def embed_query(alias: str, text: str) -> np.ndarray:
+    """The vector of one search question (see embed_passages)."""
     return next(iter(load(alias).query_embed(text)))
 
 

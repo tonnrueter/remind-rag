@@ -22,6 +22,9 @@ STOPWORDS = set(
 
 
 class Index:
+    """An index file opened for ranking: the rankers, their merge, and scenario filtering. Reads any index
+    version (retrieval_eval compares old ones); the server checks the schema version itself."""
+
     def __init__(self, db_path: Path | str):
         self.db: sqlite3.Connection = store.connect(db_path)
         self.meta = {r["key"]: r["value"] for r in self.db.execute("SELECT key, value FROM meta")}
@@ -32,6 +35,9 @@ class Index:
     # ---------------------------------------------------------------- rankers
 
     def bm25(self, query: str, n: int) -> list[int]:
+        """Up to n chunk ids by keyword match: the query's words minus stopwords, OR-ed, a title hit counting 3x
+        a text hit. Exact tokens only: no stemming ("capacity" doesn't match "capacities"), identifiers stay whole
+        ("vm_cap" is one token)."""
         tokens = [t for t in re.findall(r"[A-Za-z0-9_]+", query) if t.lower() not in STOPWORDS]
         if not tokens:
             return []
@@ -43,6 +49,8 @@ class Index:
         return [r[0] for r in rows]
 
     def vector(self, query: str, n: int) -> list[int]:
+        """Up to n chunk ids by meaning: the query embedded with the index's model, nearest chunk vectors by
+        cosine distance. Loads the model on first use (about a second)."""
         q = np.asarray(embeddings.embed_query(self.model, query), dtype=np.float32)
         rows = self.db.execute(
             "SELECT rowid FROM chunks_vec WHERE embedding MATCH ? AND k = ? ORDER BY distance", (q.tobytes(), n)
@@ -145,6 +153,14 @@ class Index:
         scenario: str | None = None,
         mode: str = "hybrid",
     ) -> list[sqlite3.Row]:
+        """The k best chunks (full `chunks` rows) for a query, after the filters.
+
+        Rankings merged by reciprocal rank fusion (each adds weight / (RRF_K + rank) to a chunk's score): BM25
+        (weight 0.5 for plain-language questions, 1 when the query names a known identifier), vectors (1), and
+        with weight 2 the definitions of named identifiers and named scenarios. With `scenario`, chunks of
+        realizations it doesn't select are dropped and code its switches compile out ranks at 0.3x.
+        mode="bm25" / "vector" uses one ranker alone (retrieval_eval). Raises ValueError for an unknown scenario.
+        """
         values = None
         if scenario:
             resolved = self.scenario_values(scenario)
@@ -211,7 +227,11 @@ def _inactive_realization(r: sqlite3.Row, values: dict[str, str]) -> bool:
 
 
 def module_match(wanted: str, module: str | None) -> bool:
-    """Accept '33', 'carbonRemoval', '33_carbonRemoval' or 'core'."""
+    """Whether a user's module name means `module`: number, name or both, any case.
+
+    >>> [module_match(w, "33_carbonRemoval") for w in ("33", "carbonremoval", "33_carbonRemoval", "3", "core")]
+    [True, True, True, False, False]
+    """
     if not module:
         return False
     w = wanted.lower()

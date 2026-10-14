@@ -30,6 +30,7 @@ def run_export(root: Path, out: Path) -> bool:
 
 
 def load(path: Path) -> dict | None:
+    """The gms/goxygen export written by r/export_gms.R (modules, interfaces, not_used, docs), None if absent."""
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
@@ -117,6 +118,7 @@ def module_interface_chunks(export: dict, sym_desc: dict[str, str]) -> list[Chun
 
 
 def limitations_chunks(export: dict, root: Path) -> list[Chunk]:
+    """One chunk per goxygen @limitations text, located at its line in the source file."""
     chunks = []
     for d in export["docs"]:
         if d["type"] != "limitations" or not d["text"].strip():

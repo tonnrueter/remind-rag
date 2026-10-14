@@ -48,6 +48,9 @@ class Steering:
 
 
 def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
+    """Gather everything about one module (folder name, e.g. "45_carbonprice") that its blocks and alerts need.
+    A switch's kind per realization: set (assigned), tested (in an if / $() test), read, or branched on
+    ($ifthen around the code)."""
     values = {k.lower(): v for k, v in run.defaults.items()}
     canon = {k.lower(): k for k in run.defaults}
     sel = mod.partition("_")[2].lower()
@@ -97,6 +100,7 @@ def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
 
 
 def names_with_defaults(names, values: dict, limit: int = 12) -> str:
+    """Switch names, sorted, each with its main.gms value: "cm_emiscen (9), cm_startyear (2005)"."""
     shown = [f"{n} ({values[n.lower()]})" for n in sorted(names, key=str.lower)[:limit]]
     return ", ".join(shown) + (f", +{len(names) - limit} more" if len(names) > limit else "")
 

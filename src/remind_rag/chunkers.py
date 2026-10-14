@@ -21,8 +21,12 @@ EQ_MAX_CHARS = 12000  # equation definitions
 
 @dataclass
 class Chunk:
+    """A piece of one file, the unit of search. One row of `chunks` later (id = position in the build)."""
+
     path: str  # relative to the REMIND root, forward slashes
-    kind: str  # declaration|equation|switch|module_doc|realization_doc|gams_block|r_code|md_section
+    # here: declaration|equation|switch|module_doc|realization_doc|gams_block|r_code|md_section;
+    # scenarios.py adds scenario, gmsdata.py module_interface and limitations
+    kind: str
     line_start: int  # 1-based, inclusive
     line_end: int
     text: str
@@ -37,6 +41,8 @@ class Chunk:
 
 @dataclass
 class Symbol:
+    """One declaration of a GAMS symbol (a symbol declared in several realizations has several)."""
+
     name: str
     kind: str  # scalar|parameter|variable|positive variable|...|equation|set|table
     domain: str
@@ -49,6 +55,8 @@ class Symbol:
 
 @dataclass
 class Switch:
+    """A main.gms switch: a scalar parameter set there, or a $setglobal (module selections, cm_ flags)."""
+
     name: str
     default: str  # documented default (from `!! def = ...`), else the assigned value
     allowed: str
@@ -60,6 +68,8 @@ class Switch:
 
 @dataclass
 class ParsedFile:
+    """What one file yields; symbols and switches only for GAMS."""
+
     chunks: list[Chunk] = field(default_factory=list)
     symbols: list[Symbol] = field(default_factory=list)
     switches: list[Switch] = field(default_factory=list)
@@ -228,6 +238,10 @@ def _parse_decl_block(path, lines, s, e, first_rest, kind, meta) -> list[Symbol]
 
 
 def chunk_gams(path: str, raw: str) -> ParsedFile:
+    """Chunks, declared symbols and (main.gms only) switches of a GAMS file. In order of precedence: goxygen docs
+    of module.gms / realization.gms; declaration blocks (in main.gms they stay in the switch chunks); one chunk
+    per switch; one per equation definition (whole up to EQ_MAX_CHARS); the rest split at comment blocks and
+    blank lines and packed to ~TARGET_CHARS, never across a change of $ifthen condition."""
     lines = [("" if LICENSE_RE.match(line) else line) for line in raw.splitlines()]
     meta = path_meta(path)
     out = ParsedFile()
@@ -389,6 +403,8 @@ RSECTION_RE = re.compile(r"^#+\s*(-{3,}|={3,}|#{3,})|^#{2,}\s")
 
 
 def chunk_r(path: str, raw: str) -> ParsedFile:
+    """R code split at functions and section headers (with the comment block above them) and at blank lines,
+    then packed; a chunk is named after the functions it defines."""
     lines = raw.splitlines()
     meta = path_meta(path)
     bounds = set()
@@ -415,6 +431,8 @@ HEADING_RE = re.compile(r"^(#{1,4})\s+(.*)")
 
 
 def chunk_markdown(path: str, raw: str) -> ParsedFile:
+    """Markdown / Rmd split at headings (not inside code fences), long sections at blank lines; a chunk is named
+    by its heading path ("Setup > Install")."""
     lines = raw.splitlines()
     meta = path_meta(path)
     sections: list[tuple[int, int, str]] = []
