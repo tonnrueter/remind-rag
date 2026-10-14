@@ -8,7 +8,7 @@ from pathlib import Path
 from .checkout import tracked_files
 
 INCLUDE_SUFFIXES = {".gms", ".r", ".rmd", ".md"}
-INCLUDE_FILES = {"config/default.cfg"}
+INCLUDE_FILES = {"config/default.cfg"}  # R syntax, but not .R: the run settings users start from
 # data folders, vendored/generated stuff, and the existing static context (baseline)
 EXCLUDE_DIRS = {".git", "renv", "remind-context", "output", "input", "doc", ".github"}
 
@@ -30,6 +30,6 @@ def iter_files(root: Path) -> Iterator[tuple[str, str]]:
         raw = p.read_bytes()
         try:
             text = raw.decode("utf-8")
-        except UnicodeDecodeError:
+        except UnicodeDecodeError:  # not UTF-8: Latin-1 decodes any byte, so the file is never skipped
             text = raw.decode("latin-1")
         yield rel, text

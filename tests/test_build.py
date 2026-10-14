@@ -38,7 +38,7 @@ def test_server_refuses_an_index_without_schema_version(tmp_path):
 
 
 def test_promote_refuses_parser_warnings(tmp_path, monkeypatch):
-    monkeypatch.setattr(index, "PINNED", tmp_path / "pinned.db")
+    monkeypatch.setattr(store, "PINNED", tmp_path / "pinned.db")
     built = tmp_path / "v.db"
     built.write_bytes(b"x")
     assert index.promote(built, ["equation q_x has no definition chunk"]) == built

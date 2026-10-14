@@ -54,4 +54,6 @@ def tracked_files(root: Path) -> set[str] | None:
         ).stdout
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
+    # -z: NUL-separated, so git doesn't quote unusual file names; surrogateescape: a name that isn't valid UTF-8
+    # doesn't stop the build
     return {p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p}

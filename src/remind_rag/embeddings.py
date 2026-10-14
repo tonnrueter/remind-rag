@@ -35,6 +35,8 @@ def models_dir() -> Path:
 
 
 def _open(alias: str, local_only: bool):
+    # imported here, not at the top: fastembed (with onnxruntime) takes about a second to import, and exact
+    # lookups and most of the server never need it
     from fastembed import TextEmbedding
 
     if not local_only:
@@ -44,7 +46,7 @@ def _open(alias: str, local_only: bool):
     return TextEmbedding(MODELS[alias][0], cache_dir=str(models_dir()), local_files_only=local_only)
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=2)  # one load per process and model: about a second and 64 MB+ of memory each
 def load(alias: str):
     """The model, from disk if it is there. Missing in a shared folder: ModelMissing; missing in the default
     folder: download (fastembed checks its cache before it goes online)."""
@@ -96,6 +98,7 @@ def mismatch(meta: dict[str, str]) -> str:
 
 def visible(alias: str, text: str) -> str:
     """The part of text the model actually reads: everything up to its token limit (512 incl. [CLS]/[SEP] for bge)."""
+    # the tokenizer's character offsets say where the last token the model reads ends in the text
     enc = load(alias).model.tokenizer.encode(text)
     if not enc.overflowing:
         return text

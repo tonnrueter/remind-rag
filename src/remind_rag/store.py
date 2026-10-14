@@ -10,6 +10,7 @@ from pathlib import Path
 import sqlite_vec
 
 DATA = Path(__file__).resolve().parents[2] / "data"
+PINNED = DATA / "remind-bge.db"  # the index used when REMIND_RAG_DB is not set; index --promote copies to it
 SCHEMA_VERSION = 1  # bump when tables or their meaning change; the server refuses older indexes
 
 SCHEMA = """
@@ -54,7 +55,7 @@ CREATE INDEX scenarios_name ON scenarios(name COLLATE NOCASE);
 
 def default_db() -> Path:
     """REMIND_RAG_DB, else the pinned data/remind-bge.db. Never "the newest file": that can be a draft build."""
-    path = Path(os.environ.get("REMIND_RAG_DB") or DATA / "remind-bge.db")
+    path = Path(os.environ.get("REMIND_RAG_DB") or PINNED)
     if not path.exists():
         raise FileNotFoundError(f"no index at {path}; build one: uv run python -m remind_rag.index --root <remind>")
     return path
@@ -63,6 +64,8 @@ def default_db() -> Path:
 def connect(db_path: Path | str) -> sqlite3.Connection:
     """Open an index with the sqlite-vec extension loaded and rows addressable by column name (r["path"]).
     Creates an empty file if none exists; default_db() checks existence first."""
+    # sqlite3 refuses by default to use a connection from a thread other than the one that opened it; the
+    # server opens the index once at import and only reads from it, so sharing it is safe
     db = sqlite3.connect(str(db_path), check_same_thread=False)
     db.enable_load_extension(True)
     sqlite_vec.load(db)

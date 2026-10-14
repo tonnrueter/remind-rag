@@ -20,7 +20,7 @@ USE_KINDS = {
     "equation",
     "table",
 }
-MAX_USES = 8
+MAX_USES = 8  # symbol descriptions in the "Uses:" line; more would push the code out of what the model reads
 
 
 def _location(c: Chunk) -> str:

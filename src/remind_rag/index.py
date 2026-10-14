@@ -24,8 +24,6 @@ from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 from .gams import ENDIF_RE, IFTHEN_RE, code_part, decl_start, if_guards, is_comment, line_conditions, stmt_end
 from .usage import LOAD_RE, role
 
-DEFAULT_DB_DIR = Path(__file__).resolve().parents[2] / "data"
-
 
 def embed_text(header: str, text: str) -> str:
     """What gets embedded for a chunk, before the cut rule: header, newline, text with runs of spaces and tabs
@@ -173,7 +171,14 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
                 outside = set(IDENT_RE.findall(code_part(line)))
                 idents = [n for n in idents if n in outside]
             for ident in idents:
-                r = ("declared" if in_decl else "equation" if ctx else _role(lines, n - 1, ident)) if is_gms else "read"
+                if not is_gms:
+                    r = "read"  # R: no roles
+                elif in_decl:
+                    r = "declared"
+                elif ctx:
+                    r = "equation"  # inside an equation body
+                else:
+                    r = _role(lines, n - 1, ident)
                 uses.append(
                     (
                         ident,
@@ -386,22 +391,17 @@ def build(
     return stats
 
 
-PINNED = DEFAULT_DB_DIR / "remind-bge.db"  # what the server and tests use without REMIND_RAG_DB
-
-
 def promote(db_path: Path, warnings: list[str]) -> Path:
     """Copy a verified build to the pinned name: no parser warnings, and recall@5 and MRR of every ranking mode at
     least as high as the pinned index's (eval/retrieval_eval.py). Returns the path to register."""
     if warnings:
         print(f"not promoted: {len(warnings)} parser warning(s)")
         return db_path
-    spec = importlib.util.spec_from_file_location(
-        "retrieval_eval", DEFAULT_DB_DIR.parent / "eval" / "retrieval_eval.py"
-    )
+    spec = importlib.util.spec_from_file_location("retrieval_eval", store.DATA.parent / "eval" / "retrieval_eval.py")
     ev = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ev)
     new = ev.scores(db_path)
-    old = ev.scores(PINNED) if PINNED.exists() else {}
+    old = ev.scores(store.PINNED) if store.PINNED.exists() else {}
     for mode, (recall, mrr) in new.items():
         print(
             f"retrieval {mode}: recall@5 {recall:.0%}, MRR {mrr:.2f}"
@@ -409,16 +409,16 @@ def promote(db_path: Path, warnings: list[str]) -> Path:
         )
     lower = [m for m in old if new[m][0] < old[m][0] or new[m][1] < old[m][1] - 1e-9]
     if lower:
-        print(f"not promoted: retrieval lower than {PINNED.name} in {', '.join(lower)}")
+        print(f"not promoted: retrieval lower than {store.PINNED.name} in {', '.join(lower)}")
         return db_path
-    shutil.copy2(db_path, PINNED)
-    print(f"promoted: {db_path.name} -> {PINNED.name} (servers pick it up on their next start: /mcp reconnect)")
-    return PINNED
+    shutil.copy2(db_path, store.PINNED)
+    print(f"promoted: {db_path.name} -> {store.PINNED.name} (servers pick it up on their next start: /mcp reconnect)")
+    return store.PINNED
 
 
 def registration(root: Path, db_path: Path) -> str:
     """The `claude mcp add` line for this machine's paths (run it in the REMIND checkout)."""
-    rag = DEFAULT_DB_DIR.parent
+    rag = store.DATA.parent
     models = (
         f"-e {embeddings.MODELS_ENV}={embeddings.models_dir().resolve().as_posix()} "
         if os.environ.get(embeddings.MODELS_ENV)
@@ -427,6 +427,7 @@ def registration(root: Path, db_path: Path) -> str:
     return (
         f"register (run in {root.resolve()}):\n  claude mcp add remind-rag --scope local "
         f"-e REMIND_RAG_DB={db_path.resolve().as_posix()} -e REMIND_RAG_ROOT={root.resolve().as_posix()} "
+        # --offline: uv starts the server from the installed environment without asking the package index
         f"{models}-- uv run --offline --directory {rag.as_posix()} python -m remind_rag.server"
     )
 
@@ -439,7 +440,7 @@ def main() -> None:
     ap.add_argument(
         "--gms-json",
         type=Path,
-        default=DEFAULT_DB_DIR / "gms_export.json",
+        default=store.DATA / "gms_export.json",
         help="gms/goxygen export (r/export_gms.R); used if it exists",
     )
     ap.add_argument("--gms-export", action="store_true", help="(re)run r/export_gms.R before indexing")
@@ -449,10 +450,10 @@ def main() -> None:
     ap.add_argument(
         "--promote",
         action="store_true",
-        help=f"then copy to {PINNED.name} if parser checks are clean and retrieval is not lower",
+        help=f"then copy to {store.PINNED.name} if parser checks are clean and retrieval is not lower",
     )
     args = ap.parse_args()
-    db_path = args.db or DEFAULT_DB_DIR / f"remind-{args.model}.db"
+    db_path = args.db or store.DATA / f"remind-{args.model}.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     if args.gms_export:
         gmsdata.run_export(args.root, args.gms_json)
@@ -466,7 +467,7 @@ def main() -> None:
     stats = build(args.root, tmp, args.model, export, reuse, args.embed_rule)
     os.replace(tmp, db_path)
     print(json.dumps(stats, indent=2))
-    if args.promote and db_path.resolve() != PINNED.resolve():
+    if args.promote and db_path.resolve() != store.PINNED.resolve():
         db_path = promote(db_path, json.loads(stats["check_warnings"]))
     print(registration(args.root, db_path))
 
