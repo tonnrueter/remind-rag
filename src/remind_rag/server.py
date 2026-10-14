@@ -39,10 +39,11 @@ server = MCPServer(
         f"R scripts, tutorials). Paths are relative to {_where}. "
         + (_stale + " " if _stale else "")
         + (_model + " " if _model else "")
-        + "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which modules provide / "
-        "consume them, get_switch for cm_*/c_* switches and module selections, get_module for a module's "
-        "realizations, interfaces and limitations, get_scenario for a scenario's settings, and search for "
-        "conceptual questions (pass scenario=... only when the question is about a specific scenario). "
+        + "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which module declares "
+        "them and which modules consume them, get_switch for cm_*/c_* switches and module selections, "
+        "get_module for a module's realizations, interfaces and limitations, get_scenario for a scenario's "
+        "settings, and search for conceptual questions (pass scenario=... only when the question is about a "
+        "specific scenario). "
         "For 'how does X affect Y' or 'where does this value come from', follow the chain with get_links: it "
         "shows what a symbol is computed from, what is computed from it and which equations it shares, one hop "
         "at a time; call it again on the linked symbol that leads toward the target. "
@@ -58,7 +59,7 @@ server = MCPServer(
 )
 
 
-SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range
+SEARCH_LINES = 12  # text lines per search hit; the rest is a path:line range (search's docstring says 12 too)
 
 ROLE_LABELS = {
     "declared": "Declared",
@@ -82,7 +83,7 @@ def search(
 
     Args:
         query: natural-language question or identifiers.
-        k: number of chunks to return (default 5). Long chunks are cut after SEARCH_LINES lines with a
+        k: number of chunks to return (default 5, at most 20). Long chunks are cut after 12 lines, with a
             path:line range for the rest (read the file for it).
         module: restrict to a module, e.g. "33", "carbonRemoval", "33_carbonRemoval" or "core".
         realization: restrict to a realization, e.g. "portfolio", "nash".
@@ -446,7 +447,8 @@ def get_links(name: str, max_links: int = 10) -> str:
 @server.tool()
 def get_switch(name: str) -> str:
     """Look up a configuration switch (cm_*, c_*, or a module selection like "carbonprice") in main.gms:
-    its documentation, default and allowed values, plus config files / scripts that reference it."""
+    its documentation, default and allowed values, and the GAMS and R lines that reference it with their default
+    status (✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role="read")."""
     sws = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     if not sws:
         similar = idx.db.execute("SELECT name FROM switches WHERE name LIKE ? LIMIT 15", (f"%{name}%",)).fetchall()
@@ -615,8 +617,8 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
 
 @server.tool()
 def get_scenario(name: str) -> str:
-    """Settings of a scenario from config/scenario_config*.csv (after copyConfigFrom), and which switches
-    and module realizations differ from the main.gms defaults."""
+    """A scenario from config/scenario_config*.csv: its description, its settings (after copyConfigFrom), and
+    which switches and module realizations differ from the main.gms defaults."""
     resolved = idx.scenario_values(name)
     if resolved is None:
         similar = idx.db.execute(

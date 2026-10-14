@@ -1,7 +1,7 @@
 [
  {
   "name": "search",
-  "description": "Hybrid (keyword + semantic) search over REMIND code and docs.\n\nArgs:\n    query: natural-language question or identifiers.\n    k: number of chunks to return (default 5). Long chunks are cut after SEARCH_LINES lines with a\n        path:line range for the rest (read the file for it).\n    module: restrict to a module, e.g. \"33\", \"carbonRemoval\", \"33_carbonRemoval\" or \"core\".\n    realization: restrict to a realization, e.g. \"portfolio\", \"nash\".\n    kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,\n        module_interface, limitations, scenario, gams_block, r_code, md_section.\n    phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,\n        bounds, postsolve, ...\n    scenario: a scenario name from config/scenario_config*.csv (e.g. \"SSP2-PkBudg1000\"). Drops\n        realizations the scenario does not select and ranks code compiled out by its switches low.\n        Only use it when the question is about that scenario.\n",
+  "description": "Hybrid (keyword + semantic) search over REMIND code and docs.\n\nArgs:\n    query: natural-language question or identifiers.\n    k: number of chunks to return (default 5, at most 20). Long chunks are cut after 12 lines, with a\n        path:line range for the rest (read the file for it).\n    module: restrict to a module, e.g. \"33\", \"carbonRemoval\", \"33_carbonRemoval\" or \"core\".\n    realization: restrict to a realization, e.g. \"portfolio\", \"nash\".\n    kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,\n        module_interface, limitations, scenario, gams_block, r_code, md_section.\n    phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,\n        bounds, postsolve, ...\n    scenario: a scenario name from config/scenario_config*.csv (e.g. \"SSP2-PkBudg1000\"). Drops\n        realizations the scenario does not select and ranks code compiled out by its switches low.\n        Only use it when the question is about that scenario.\n",
   "parameters": {
    "properties": {
     "query": {
@@ -156,7 +156,7 @@
  },
  {
   "name": "get_switch",
-  "description": "Look up a configuration switch (cm_*, c_*, or a module selection like \"carbonprice\") in main.gms:\nits documentation, default and allowed values, plus config files / scripts that reference it.",
+  "description": "Look up a configuration switch (cm_*, c_*, or a module selection like \"carbonprice\") in main.gms:\nits documentation, default and allowed values, and the GAMS and R lines that reference it with their default\nstatus (✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role=\"read\").",
   "parameters": {
    "properties": {
     "name": {
@@ -219,7 +219,7 @@
  },
  {
   "name": "get_scenario",
-  "description": "Settings of a scenario from config/scenario_config*.csv (after copyConfigFrom), and which switches\nand module realizations differ from the main.gms defaults.",
+  "description": "A scenario from config/scenario_config*.csv: its description, its settings (after copyConfigFrom), and\nwhich switches and module realizations differ from the main.gms defaults.",
   "parameters": {
    "properties": {
     "name": {
