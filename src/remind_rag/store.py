@@ -79,7 +79,9 @@ def create(db_path: Path, dim: int) -> sqlite3.Connection:
         db_path.unlink()
     db = connect(db_path)
     db.executescript(SCHEMA)
-    # '_' is a token character so identifiers like vm_cap stay single tokens
-    db.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(title, text, tokenize=\"unicode61 tokenchars '_'\")")
+    # keyword index without its own copy of the text (content=''): BM25 needs only the term statistics, and the
+    # text is in chunks; '_' is a token character so identifiers like vm_cap stay single tokens
+    db.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(title, text, content='', "
+               "tokenize=\"unicode61 tokenchars '_'\")")
     db.execute(f"CREATE VIRTUAL TABLE chunks_vec USING vec0(embedding float[{dim}] distance_metric=cosine)")
     return db

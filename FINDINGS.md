@@ -399,3 +399,23 @@ fastembed 0.8.1 a model already on disk loads without network (Hugging Face endp
 remaining offline problem was only fastembed's download retries for a missing model. New builds record the model's
 sha256 (`meta.model_sha256`, = the Hugging Face blob name, bge-small `51f1bd0a…`); the server says so when the
 model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference output, 40 new tests), #39; 205 tests.
+
+## 16. v0.8.0: cleanup without output change, index v9 (2026-10-14)
+
+- **Split by job (#41).** `server.py` 850 → ~560 lines: `status.py` (does it run by default?), `render.py` (text),
+  `steering.py` (get_module "Steered by"), named `Link` entries in get_links. **One way to read each thing (#42):**
+  `status.switch_defaults`, `gams.py` (line helpers with public names), one `short()`, one condition evaluator,
+  the pinned index instead of "newest by date". Checks for every pure move: the 15 reference calls plus get_module
+  for all 141 module/realization calls and get_links for 600 symbols byte-identical before and after.
+- **Fixes found on the way.** `get_scenario` listed a quote-only difference (`cm_ind_energy_limit_manual`, 4 KN2045
+  scenarios) as "differs from main.gms". The scenario evaluator kept single quotes: `%emicapregi% == 'none'` was
+  false in all 577 scenarios, so 5 chunks of the default nash realization ranked as compiled out in
+  `search(scenario=…)`. `build_uses` inserted names in hash-seed order, so builds differed and get_links' input order
+  changed between builds (found by the reference test; now order of appearance). `get_module` takes `name=` (#43).
+- **Index v9 (#44, #52)** = v8 rebuilt with `--reuse --promote`: `schema_version` 1 (the server refuses older
+  indexes with the rebuild command), all tables created in `store.py`, `--no-embed` removed, and a contentless
+  keyword index: `chunks_fts_content` (4,992 KB, a second copy of every chunk's text) is gone, **28.1 → 23.0 MB**.
+  BM25, vector and hybrid recall@5 / MRR unchanged (`eval/results/retrieval-v9-contentless.txt`).
+- Not done from #42, on purpose: opening the database lazily (the server, tests and eval scripts all need it at
+  start; no caller gains) and moving every SQL statement into `store.py` (one-off queries next to the tool that
+  uses them read better; only ~6 are SQLite-specific, #49).

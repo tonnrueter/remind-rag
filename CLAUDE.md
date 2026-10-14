@@ -25,15 +25,15 @@ $env:UV_SYSTEM_CERTS = 1                                 # PIK network intercept
 uv run pytest tests                                      # tool-output checks against data/remind-bge.db (or REMIND_RAG_DB)
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
 uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
-uv run python -m remind_rag.index --root ..\remind --no-embed --db <copy>   # uses/FTS only, seconds
+uv run python -m remind_rag.index --root ..\remind --db data/remind-bge-vN.db --reuse data/remind-bge.db --promote   # + copy to the pinned name if parser checks are clean and retrieval isn't lower
 uv run python -m remind_rag.embeddings download          # fill the model folder (REMIND_RAG_MODELS or data/models)
 ```
 
 ## Conventions
 
 - **Keep measured states reproducible.** Each index state gets a version: build into `data/remind-bge-vN.db` (next
-  free N; `--no-embed` rebuilds go into a copy), verify, then copy it to `data/remind-bge.db`, which the MCP
-  registration pins. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content); v6 = git-tracked files only; v7 = token cut (worse, unused); v8 = v6 + switch declarations counted as declared (#51).
+  free N), verify, then copy it to `data/remind-bge.db` (`--promote` does both checks and the copy), which the MCP
+  registration, the tests and the hierarchy report use. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content); v6 = git-tracked files only; v7 = token cut (worse, unused); v8 = v6 + switch declarations counted as declared (#51); v9 = v8 with deterministic where-used order, contentless keyword index (#52, 28 → 23 MB) and `schema_version` 1 (the server refuses older indexes; rebuild with `--reuse` takes seconds).
 - **Parser changes:** the build must end with `parser checks: 0 warning(s)`, and `retrieval_eval.py` must not drop.
 - **Tool-output changes:** add or adjust a test in `tests/test_tool_output.py` that shows the information is present.
 - **Evaluation isolation:** answerer runs use `claude -p --setting-sources user` (no project CLAUDE.md, this file

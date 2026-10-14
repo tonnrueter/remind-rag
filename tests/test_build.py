@@ -9,6 +9,16 @@ import sys
 from remind_rag import index, store
 
 
+def test_keyword_index_keeps_no_copy_of_the_text(tmp_path):
+    # #52: chunks holds the text; the FTS table only needs term statistics for BM25
+    db = store.create(tmp_path / "t.db", 4)
+    db.execute("INSERT INTO chunks (id, header, kind, text) VALUES (1, 'REMIND core', 'gams_block', 'vm_cap.fx = 0;')")
+    store.build_fts(db)
+    assert not db.execute("SELECT 1 FROM sqlite_master WHERE name = 'chunks_fts_content'").fetchone()
+    hits = db.execute("SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH 'vm_cap' ORDER BY bm25(chunks_fts, 3.0, 1.0)")
+    assert [r[0] for r in hits] == [1]
+
+
 def test_server_refuses_an_index_without_schema_version(tmp_path):
     db = store.connect(tmp_path / "old.db")
     db.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
