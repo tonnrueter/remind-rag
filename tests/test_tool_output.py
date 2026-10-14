@@ -321,6 +321,13 @@ def test_single_quoted_string_tests_are_decided(cond, expected):
     assert usage.eval_expr(cond, DEFAULTS) is expected
 
 
+def test_scenario_quote_only_difference_is_no_difference():
+    # main.gms writes cm_ind_energy_limit_manual in quotes, the KN2045 configs without; same value (#42)
+    out = server.get_scenario("KN2045_EasyRide")
+    assert "cm_ind_energy_limit_manual = 2050" in out
+    assert "- cm_ind_energy_limit_manual:" not in out
+
+
 # ------------------------------------------------------------------ #51: switch declarations in main.gms
 
 def test_switch_declaration_in_main_gms_is_declared():

@@ -567,11 +567,13 @@ def get_scenario(name: str) -> str:
     settings = json.loads(row["settings"])
     out = [f"# {row['name']}  [{row['path']}:{row['line']}]", row["description"] or "", "## Settings"]
     out += [f"- {k} = {v}" for k, v in settings.items()]
-    defaults = {r["name"]: r["value"] for r in idx.db.execute("SELECT name, value FROM switches")}
-    changed = [k for k in settings if k in defaults and str(defaults[k]).lower() != str(settings[k]).lower()]
+    written = {r["name"]: r["value"] for r in idx.db.execute("SELECT name, value FROM switches")}
+    defaults = default_run.defaults  # compared without quotes: `"a, b"` in main.gms equals `a, b` in a config
+    changed = [k for k in settings
+               if k in defaults and defaults[k].lower() != str(settings[k]).strip().strip("\"'").lower()]
     if changed:
         out.append("## Differs from main.gms")
-        out += [f"- {k}: {defaults[k]} -> {settings[k]}" for k in changed]
+        out += [f"- {k}: {written[k]} -> {settings[k]}" for k in changed]
     others = idx.db.execute("SELECT path FROM scenarios WHERE name = ? COLLATE NOCASE AND path != ?",
                             (row["name"], row["path"])).fetchall()
     if others:
