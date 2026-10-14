@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -19,7 +18,7 @@ from . import checkout, embeddings
 from .search import Index, _module_match
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .status import DefaultRun, detail, equation_domain, rank
-from .usage import STR_TEST_RE, TEST_RE
+from .steering import steering
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 
@@ -431,143 +430,6 @@ def get_switch(name: str) -> str:
 
 
 SWITCH_REFS_LISTED = 10  # references of a switch listed individually (default-active first)
-SWITCH_REF_RE = re.compile(r"%(\w+)%")
-STEER_KINDS = [("branches", "branches on (compile time, $ifthen)"), ("tests", "tests (run time, if / $())"),
-               ("sets", "overwrites"), ("reads", "reads")]
-SEVERITY_TEXT = {"impossible": "CAN NEVER BE MET", "dead check": "check can never fire",
-                 "suspicious": "names something that doesn't exist", "aborts by default": "aborts under the defaults",
-                 "ok": "met by the defaults", "depends": "depends on non-default settings"}
-
-
-def _names_with_defaults(names, sws: dict, limit: int = 12) -> str:
-    shown = [f"{n} ({sws[n.lower()]})" for n in sorted(names, key=str.lower)[:limit]]
-    return ", ".join(shown) + (f", +{len(names) - limit} more" if len(names) > limit else "")
-
-
-def _steering(mod: str) -> dict:
-    """Per realization: the abort preconditions, the switches its code uses (compile-time branches, run-time
-    tests, overwrites, plain reads), and what the scenario configs that select it set alongside.
-    Returns the full blocks (drill-down), the shared block, and per realization a one-line alert with the
-    config count for the summary."""
-    sws = {r["name"].lower(): (r["value"] or "").strip().strip("\"'")
-           for r in idx.db.execute("SELECT name, value FROM switches")}
-    canon = {r["name"].lower(): r["name"] for r in idx.db.execute("SELECT name FROM switches")}
-    sel = mod.partition("_")[2].lower()
-    reals = [r[0] for r in idx.db.execute("SELECT DISTINCT realization FROM chunks WHERE module = ? AND "
-                                          "realization IS NOT NULL ORDER BY realization COLLATE NOCASE", (mod,))]
-    uses: dict[str | None, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
-    for u in idx.db.execute("SELECT name, realization, role, snippet FROM symbol_uses WHERE module = ? AND "
-                            "path LIKE '%.gms'", (mod,)):
-        n = u["name"].lower()
-        if n not in sws or n == sel:
-            continue
-        tested = any(m.group(1).lower() == n for m in TEST_RE.finditer(u["snippet"])) or any(
-            m.group(2).lower() == n for m in STR_TEST_RE.finditer(u["snippet"]))
-        kind = "sets" if u["role"] == "assigned" else "tests" if tested else "reads"
-        uses[u["realization"]][canon[n]].add(kind)
-    # $ifthen lines aren't uses; their switches show up in the conditions of the chunks they enclose
-    for c in idx.db.execute("SELECT realization, conditions FROM chunks WHERE module = ? AND conditions IS NOT NULL",
-                            (mod,)):
-        for cond in json.loads(c["conditions"]):
-            for n in SWITCH_REF_RE.findall(cond):
-                if n.lower() in sws and n.lower() != sel:
-                    uses[c["realization"]][canon[n.lower()]].add("branches")
-    # switches that every realization with switch uses shares are listed once (off/none realizations use none)
-    active = [r for r in reals if uses[r]]
-    common = set.intersection(*(set(uses[r]) for r in active)) if len(active) > 1 else set()
-    pre = defaultdict(list)
-    if _has_table("preconditions"):
-        for p in idx.db.execute("SELECT * FROM preconditions WHERE module = ? AND category = 'precondition' "
-                                "ORDER BY path, line", (mod,)):
-            pre[p["realization"]].append(p)
-    scens = [json.loads(r[0]) for r in idx.db.execute("SELECT settings FROM scenarios")]
-    default = default_run.default_realization(mod) or ""
-    chosen = {real: [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower()
-                     == real.lower()] for real in reals}
-
-    def condition(p) -> str:
-        cond = " and ".join(json.loads(p["abort_if"])) or "(unconditional)"
-        if len(cond) > 120:  # nested if/elseif chains: the message says it better than the condition
-            cond = (f"{', '.join(json.loads(p['switches']))} are inconsistent"
-                    + (f' ("{short(p["message"], 120)}")' if p["message"] else ""))
-        return cond
-
-    def block(real: str | None, title: str) -> list[str]:
-        lines = [title]
-        quiet = []
-        for p in pre[real]:
-            if p["severity"] in ("ok", "depends"):
-                quiet.append(p)
-                continue
-            sev = SEVERITY_TEXT.get(p["severity"], p["severity"])
-            lines.append(f"- requires: aborts if {condition(p)} → {sev}"
-                         + (f" ({p['problems']})" if p["problems"] else "") + f"  [{p['path']}:{p['line']}]")
-        if quiet:
-            names = sorted({n for p in quiet for n in json.loads(p["switches"])}, key=str.lower)
-            where = defaultdict(list)
-            for p in quiet:
-                where[p["path"].rsplit("/", 1)[-1]].append(str(p["line"]))
-            locs = "; ".join(f + ":" + ",".join(ls) for f, ls in where.items())
-            ok = sum(p["severity"] == "ok" for p in quiet)
-            counts = ", ".join(x for x in (f"{ok} met by the defaults" if ok else "",
-                                           f"{len(quiet) - ok} depend on other settings" if len(quiet) > ok else "")
-                               if x)
-            lines.append(f"- other abort checks ({counts}) on {', '.join(names)}  [{locs}]")
-        own = {n: k for n, k in uses[real].items() if n not in common}
-        for kind, label in STEER_KINDS:
-            # each switch under its strongest kind: a compile-time branch outranks a run-time test, ...
-            names = [n for n, ks in own.items() if kind in ks and not any(
-                k in ks for k, _ in STEER_KINDS[:[x for x, _ in STEER_KINDS].index(kind)])]
-            if names:
-                lines.append(f"- {label}: {_names_with_defaults(names, sws)}")
-        if real is not None:
-            relevant = set(own) | {n for p in pre[real] for n in json.loads(p["switches"])}
-            counts: dict[str, Counter] = defaultdict(Counter)
-            for s in chosen[real]:
-                for k, v in s.items():
-                    if k in relevant or k.lower() in {n.lower() for n in relevant}:
-                        counts[k][v] += 1
-            text = f"- in practice: {len(chosen[real])} of {len(scens)} scenario configs select it"
-            if real.lower() == default.lower():
-                text += " (incl. those that leave the module switch empty)"
-            top = sorted(counts.items(), key=lambda kv: -sum(kv[1].values()))[:8]
-            if top:
-                text += "; they set " + "; ".join(
-                    f"{k} = " + ", ".join(f"{short(v, 30)} ({n})" for v, n in c.most_common(3)) for k, c in top)
-            lines.append(text)
-        return lines if len(lines) > 1 else []
-
-    def alert(real: str) -> str:
-        """What the summary line of a realization must say: verdicts that change an answer, plus usage."""
-        parts, needs = [], []
-        for p in pre[real]:
-            if p["severity"] in ("impossible", "suspicious"):
-                parts.append(f"⚠ {SEVERITY_TEXT[p['severity']]}: aborts if {condition(p)}"
-                             + (f" ({p['problems']})" if p["problems"] else ""))
-            elif p["severity"] == "aborts by default":  # all such checks of a realization in one clause
-                needs += [n for n in json.loads(p["switches"]) if n not in needs]
-        if needs:
-            low = {x.lower() for x in needs}
-            n_set = sum(any(k.lower() in low for k in s) for s in chosen[real])
-            parts.append(f"aborts under the defaults unless {', '.join(needs)} {'is' if len(needs) == 1 else 'are'}"
-                         " changed" + (f" (set by {n_set} of {len(chosen[real])} selecting configs)"
-                                       if chosen[real] else ""))
-        parts.append(f"{len(chosen[real])} of {len(scens)} configs")
-        return " · ".join(parts)
-
-    shared = block(None, "### all realizations (module-level files)")
-    if common:
-        shared = shared or ["### all realizations (module-level files)"]
-        who = "every realization" if len(active) == len(reals) else f"all {len(active)} realizations that use switches"
-        shared.append(f"- used by {who}: {_names_with_defaults(common, sws)}")
-    blocks = {}
-    for real in reals:
-        mark = "DEFAULT" if real.lower() == default.lower() else "not default"
-        blocks[real] = block(real, f"### {real}  [{mark}]") or [f"### {real}  [{mark}]", "- no switch uses"]
-    return {"reals": reals, "default": default, "shared": shared, "blocks": blocks,
-            "alerts": {r: alert(r) for r in reals}}
-
-
 INTERFACES_LISTED = 40  # longer output lists (core: 266) are summarized per consuming module
 STEER_HEAD = "## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)"
 
@@ -646,7 +508,7 @@ def get_module(module: str, realization: str | None = None) -> str:
     if not is_core:
         sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
         out.append(f"# {mod}" + (f"  (default realization in main.gms: {sel['value']})" if sel else ""))
-    st = _steering(mod) if not is_core else None
+    st = steering(idx.db, default_run, mod) if not is_core else None
 
     if realization:  # drill-down: one realization in full
         reals = st["reals"] if st else []
