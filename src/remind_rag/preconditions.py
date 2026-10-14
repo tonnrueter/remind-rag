@@ -13,10 +13,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .chunkers import SETGLOBAL_RE, Switch, _code_part, _is_comment, _line_conditions, chunk_gams, path_meta
+from .chunkers import SETGLOBAL_RE, Switch, chunk_gams, path_meta
+from .gams import code_part, if_guards, is_comment, line_conditions
 from .corpus import iter_files
 from .scenarios import read_scenarios
-from .usage import OPS, STR_TEST_RE, TEST_RE, eval_expr, if_guards
+from .usage import OPS, STR_TEST_RE, TEST_RE, eval_expr
 
 SINGLE_IF_RE = re.compile(r"^\s*\$\$?if[ei]?\s+(.*?)\s+\$?abort\b(.*)$", re.I)
 COMPILE_ABORT_RE = re.compile(r"^\s*\$\$?abort\b(.*)$", re.I)
@@ -124,12 +125,12 @@ def _message(lines: list[str], i: int, start: int) -> str:
 def find_aborts(path: str, raw: str) -> list[Precondition]:
     lines = raw.splitlines()
     # $$ifthen / $$abort (dollar-dollar: evaluated when the enclosing text is compiled) count like $ifthen / $abort
-    comp = _line_conditions([re.sub(r"^(\s*)\$\$", r"\1$", x) for x in lines])
+    comp = line_conditions([re.sub(r"^(\s*)\$\$", r"\1$", x) for x in lines])
     guards = if_guards(lines)
     meta = path_meta(path)
     out = []
     for i, line in enumerate(lines):
-        if _is_comment(line) or not re.search(r"abort", line, re.I):
+        if is_comment(line) or not re.search(r"abort", line, re.I):
             continue
         conds = [_norm(c) for c in comp[i]]
         if m := SINGLE_IF_RE.match(line):
@@ -138,7 +139,7 @@ def find_aborts(path: str, raw: str) -> list[Precondition]:
         elif m := COMPILE_ABORT_RE.match(line):
             kind, form, own = "compile", "$ifthen" if conds else "$abort", []
             msg = _message(lines, i, m.start(1))
-        elif not line.lstrip().startswith("$") and (m := RUNTIME_ABORT_RE.search(_code_part(line))):
+        elif not line.lstrip().startswith("$") and (m := RUNTIME_ABORT_RE.search(code_part(line))):
             kind = "runtime"
             own = [_norm(m.group(2).strip())] if m.group(2) else []
             form = "abort$" if own else "if" if guards[i] else "abort"

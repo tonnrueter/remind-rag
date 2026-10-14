@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
+from .gams import code_part, decl_start, is_comment, line_conditions, stmt_end
+
 TARGET_CHARS = 1200  # pack small segments up to roughly this size
 MAX_CHARS = 2500  # hard cap per chunk (~700 tokens)
 EQ_MAX_CHARS = 12000  # equation definitions
@@ -135,56 +137,15 @@ def _segments_from_boundaries(bounds: set[int], s: int, e: int) -> list[tuple[in
 # --------------------------------------------------------------------------- GAMS
 
 LICENSE_RE = re.compile(r"^\*\*\* \||^\*\*\* (SOF|EOF) ")
-DECL_RE = re.compile(
-    r"^\s*((?:positive |negative |binary |integer |free |sos[12] |semicont |semiint )?variables?"
-    r"|scalars?|parameters?|equations?|sets?|tables?)\b(.*)$",
-    re.I,
-)
+
 ENTRY_RE = re.compile(r"""^\s*([A-Za-z]\w*)\s*(\([^)]*\))?\s*(?:"([^"]*)"|'([^']*)'|([^/;"']*))""")
 EQDEF_RE = re.compile(r"^\s*([A-Za-z]\w*)\s*(\([^)]*\))?\s*(\$.*?)?\.\.(?!\.)")
 SETGLOBAL_RE = re.compile(r"^\s*\$set[gG]lobal\s+(\w+)\s+(.*?)\s*(!!.*)?$", re.I)
 ASSIGN_RE = re.compile(r"^\s*([A-Za-z]\w*)\s*=\s*([^;]*);\s*(!!.*)$")
 DEF_RE = re.compile(r"def\s*=\s*(.*?)\s*(?:!!|$)")
 REGEXP_RE = re.compile(r"regexp\s*=\s*(.*?)\s*(?:!!|$)")
-STRING_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
+
 NEW_SWITCH_DOC_RE = re.compile(r"^\*+'?\s*(c_|cm_|c\d\d_)\w+|^\*'?-{5,}")
-
-
-IFTHEN_RE = re.compile(r"^\s*\$ifthen[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
-ELSEIF_RE = re.compile(r"^\s*\$elseif[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
-ELSE_RE = re.compile(r"^\s*\$else(?:\.(\w+))?\s*(?:!!.*)?$", re.I)
-ENDIF_RE = re.compile(r"^\s*\$endif(?:\.(\w+))?", re.I)
-
-
-def _line_conditions(lines: list[str]) -> list[tuple[str, ...]]:
-    """For every line, the stack of $ifthen/$elseif/$else conditions it is compiled under.
-    An $elseif/$else branch is written as the negation of the earlier branches plus its own condition."""
-    stack: list[list[str]] = []  # per open block: conditions of the branches seen so far
-    current: list[str] = []  # effective condition per open block
-    out: list[tuple[str, ...]] = []
-    for line in lines:
-        if m := IFTHEN_RE.match(line):
-            out.append(tuple(current))
-            stack.append([m.group(2)])
-            current.append(m.group(2))
-            continue
-        if stack and (m := ELSEIF_RE.match(line)):
-            out.append(tuple(current[:-1]))
-            prev = " and ".join(f"not ({c})" for c in stack[-1])
-            stack[-1].append(m.group(2))
-            current[-1] = f"{prev} and ({m.group(2)})"
-            continue
-        if stack and ELSE_RE.match(line):
-            out.append(tuple(current[:-1]))
-            current[-1] = " and ".join(f"not ({c})" for c in stack[-1])
-            continue
-        if stack and ENDIF_RE.match(line):
-            out.append(tuple(current[:-1]))
-            stack.pop()
-            current.pop()
-            continue
-        out.append(tuple(current))
-    return out
 
 
 def _common_conditions(lines: list[str], conds: list[tuple[str, ...]], s: int, e: int) -> list[str]:
@@ -200,32 +161,6 @@ def _common_conditions(lines: list[str], conds: list[tuple[str, ...]], s: int, e
     return list(common or ())
 
 
-def decl_start(line: str) -> re.Match | None:
-    """DECL_RE match if the line starts a declaration statement ("parameter", "positive variables", ...)."""
-    m = DECL_RE.match(line) if not _is_comment(line) else None
-    # "sets" etc. must be the statement keyword, not e.g. "set_x(t) = ..."
-    if m and (not m.group(2) or m.group(2)[:1] in " \t\"'(" or not m.group(2).strip()):
-        return m
-    return None
-
-
-def _is_comment(line: str) -> bool:
-    return line.startswith("*")
-
-
-def _code_part(line: str) -> str:
-    """Line with strings and !! end-of-line comments removed (for ; and / detection)."""
-    return STRING_RE.sub("", line).split("!!", 1)[0]
-
-
-def _stmt_end(lines: list[str], i: int) -> int:
-    """Index (exclusive) of the line terminating the statement starting at i."""
-    for j in range(i, len(lines)):
-        if not _is_comment(lines[j]) and ";" in _code_part(lines[j]):
-            return j + 1
-    return len(lines)
-
-
 EQSTART_RE = re.compile(r"^\s*([A-Za-z]\w*)\s*[($.]")
 
 
@@ -238,9 +173,9 @@ def _equation_head(lines: list[str], i: int, max_lines: int = 30) -> str | None:
         return None
     depth = 0
     for j in range(i, min(len(lines), i + max_lines)):
-        if _is_comment(lines[j]):
+        if is_comment(lines[j]):
             continue
-        code = _code_part(lines[j])
+        code = code_part(lines[j])
         for k, ch in enumerate(code):
             if ch in "([":
                 depth += 1
@@ -263,7 +198,7 @@ def _parse_decl_block(path, lines, s, e, first_rest, kind, meta) -> list[Symbol]
     in_data = False
     for i in range(s, e):
         line = first_rest if i == s else lines[i]
-        if not line.strip() or _is_comment(line.lstrip() if i == s else line):
+        if not line.strip() or is_comment(line.lstrip() if i == s else line):
             continue
         if not in_data:
             m = ENTRY_RE.match(line)
@@ -273,7 +208,7 @@ def _parse_decl_block(path, lines, s, e, first_rest, kind, meta) -> list[Symbol]
                 if desc or dom:
                     syms.append(Symbol(name, kind, dom, desc, path, i + 1, meta["module"], meta["realization"]))
         # element/data lists between slashes can span lines
-        if _code_part(line).count("/") % 2 == 1:
+        if code_part(line).count("/") % 2 == 1:
             in_data = not in_data
     return syms
 
@@ -302,12 +237,12 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
     i = 0
     while i < len(lines):
         if m := decl_start(lines[i]):
-            e = _stmt_end(lines, i)
+            e = stmt_end(lines, i)
             kind = _decl_kind(m.group(1))
             syms = _parse_decl_block(path, lines, i, e, m.group(2), kind, meta)
             out.symbols.extend(syms)
             if not is_main:  # main.gms: declarations stay inside their switch chunk
-                bounds = {j for j in range(i + 1, e) if _is_comment(lines[j]) and not _is_comment(lines[j - 1])}
+                bounds = {j for j in range(i + 1, e) if is_comment(lines[j]) and not is_comment(lines[j - 1])}
                 for s2, e2 in pack(lines, _segments_from_boundaries(bounds, i, e), target=1500):
                     names = [sy.name for sy in syms if s2 < sy.line <= e2]
                     c = _make_chunk(path, lines, s2, e2, "declaration", meta, detail=kind,
@@ -324,7 +259,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
     if is_main:
         anchors = []  # (line index, name, default, allowed, param_style)
         for i, line in enumerate(lines):
-            if _is_comment(line):
+            if is_comment(line):
                 continue
             m = SETGLOBAL_RE.match(line)
             if m:
@@ -344,7 +279,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
         for idx, (ai, name, default, allowed, param_style, value) in enumerate(anchors):
             end = ai + 1
             if param_style:  # the option list follows the assignment, until the next switch's doc starts
-                while end < len(lines) and _is_comment(lines[end]) and not NEW_SWITCH_DOC_RE.match(lines[end]):
+                while end < len(lines) and is_comment(lines[end]) and not NEW_SWITCH_DOC_RE.match(lines[end]):
                     end += 1
             nxt = anchors[idx + 1][0] if idx + 1 < len(anchors) else len(lines)
             end = min(end, nxt)
@@ -360,15 +295,15 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
 
     # 3) equation definitions
     for i, line in enumerate(lines):
-        if covered[i] or _is_comment(line):
+        if covered[i] or is_comment(line):
             continue
         m = EQDEF_RE.match(line)
         name = m.group(1) if m else _equation_head(lines, i)
         if not name:
             continue
-        e = _stmt_end(lines, i)
+        e = stmt_end(lines, i)
         s = i
-        while s > 0 and not covered[s - 1] and _is_comment(lines[s - 1]):
+        while s > 0 and not covered[s - 1] and is_comment(lines[s - 1]):
             s -= 1
         # an equation stays whole unless it is huge: only its start is embedded anyway, and a split
         # equation is easy to misread
@@ -381,7 +316,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
 
     # 4) everything else: split at comment-block starts and blank lines, then pack -- but never across a
     # change of $ifthen condition, so switch-dependent code gets chunks of its own
-    line_conds = _line_conditions(lines)
+    line_conds = line_conditions(lines)
     rest: list[tuple[int, int]] = []
     i = 0
     while i < len(lines):
@@ -392,7 +327,7 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
         while j < len(lines) and not covered[j] and line_conds[j] == line_conds[i]:
             j += 1
         bounds = {k for k in range(i + 1, j)
-                  if (_is_comment(lines[k]) and not _is_comment(lines[k - 1])) or not lines[k - 1].strip()}
+                  if (is_comment(lines[k]) and not is_comment(lines[k - 1])) or not lines[k - 1].strip()}
         rest.extend(pack(lines, _segments_from_boundaries(bounds, i, j)))
         i = j
     for s, e in rest:

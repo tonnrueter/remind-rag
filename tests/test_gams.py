@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from remind_rag.chunkers import _line_conditions, decl_start
-from remind_rag.usage import eval_expr, if_guards, role, strip_comments
+from remind_rag.gams import decl_start, if_guards, line_conditions, strip_comments
+from remind_rag.usage import eval_expr, role
 
 DEFAULTS = {"cm_emiscen": "9", "cm_startyear": "2005", "carbonprice": "functionalForm", "optimization": "nash"}
 
@@ -18,7 +18,7 @@ DEFAULTS = {"cm_emiscen": "9", "cm_startyear": "2005", "carbonprice": "functiona
 def test_line_conditions_branches():
     lines = ['$ifthen "%carbonprice%" == "NDC"', "a", '$elseif "%carbonprice%" == "none"', "b", "$else", "c",
              "$endif", "d"]
-    c = _line_conditions(lines)
+    c = line_conditions(lines)
     assert c[1] == ('"%carbonprice%" == "NDC"',)
     assert c[3] == ('not ("%carbonprice%" == "NDC") and ("%carbonprice%" == "none")',)
     assert c[5] == ('not ("%carbonprice%" == "NDC") and not ("%carbonprice%" == "none")',)
@@ -28,7 +28,7 @@ def test_line_conditions_branches():
 
 def test_line_conditions_nested():
     lines = ["$ifthen %optimization% == 'nash'", "$ifthen.x %cm_emiscen% == 9", "a", "$endif.x", "b", "$endif"]
-    c = _line_conditions(lines)
+    c = line_conditions(lines)
     assert len(c[2]) == 2 and len(c[4]) == 1
 
 

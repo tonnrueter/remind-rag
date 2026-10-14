@@ -16,9 +16,9 @@ from pathlib import Path
 import numpy as np
 
 from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
-from .chunkers import (ENDIF_RE, IFTHEN_RE, _code_part, _is_comment, _line_conditions, _stmt_end, chunk_file,
-                       decl_start, path_meta)
-from .usage import LOAD_RE, if_guards, role
+from .chunkers import chunk_file, path_meta
+from .gams import ENDIF_RE, IFTHEN_RE, code_part, decl_start, if_guards, is_comment, line_conditions, stmt_end
+from .usage import LOAD_RE, role
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 
@@ -94,18 +94,18 @@ def _role(lines: list[str], i: int, name: str) -> str:
     """role() of line i; when the statement continues on the next lines (`x(t)` here, `= ...` below), the
     statement up to its `;` is checked as one line."""
     r = role(lines[i], name)
-    if r == "read" and ";" not in _code_part(lines[i]) and not lines[i].lstrip().startswith("$"):
-        end = min(_stmt_end(lines, i), i + 10)
+    if r == "read" and ";" not in code_part(lines[i]) and not lines[i].lstrip().startswith("$"):
+        end = min(stmt_end(lines, i), i + 10)
         rest = []
         for x in lines[i + 1:end]:
             if x.lstrip().startswith("$"):  # a compiler directive ends the text we can join
                 break
-            if not _is_comment(x):
+            if not is_comment(x):
                 rest.append(x.split("!!", 1)[0])
         # the following lines may only supply the `=` for the occurrence on this line: their own mentions of
         # the name (e.g. the body of an if/loop opened here) and loads belong to other statements
         tail = re.sub(rf"(?<![\w.%]){re.escape(name)}(?!\w)", "_", " ".join(rest), flags=re.I)
-        if not LOAD_RE.search(_code_part(tail)):
+        if not LOAD_RE.search(code_part(tail)):
             r = role(lines[i].split("!!", 1)[0] + " " + tail, name)
     return r
 
@@ -142,9 +142,9 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
         ranges, decls = eq_ranges.get(rel, []), decl_ranges.get(rel, [])
         lines = text.splitlines()
         # main.gms declares its switches inside switch chunks (`parameter cm_x "…" ;` then `cm_x = 1;`)
-        decls = decls + [(i + 1, _stmt_end(lines, i)) for s, e in switch_ranges.get(rel, [])
+        decls = decls + [(i + 1, stmt_end(lines, i)) for s, e in switch_ranges.get(rel, [])
                          for i in range(s - 1, min(e, len(lines))) if decl_start(lines[i])]
-        conds = _line_conditions(lines) if is_gms else [()] * len(lines)
+        conds = line_conditions(lines) if is_gms else [()] * len(lines)
         guards = if_guards(lines) if is_gms else [()] * len(lines)
         for n, line in enumerate(lines, 1):
             if line.lstrip().startswith(comment):
@@ -156,7 +156,7 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
             ctx = next((name for s, e, name in ranges if s <= n <= e), None)
             in_decl = any(s <= n <= e for s, e in decls)
             if in_decl:  # in declarations, a name inside another symbol's description is not a use
-                idents &= set(IDENT_RE.findall(_code_part(line)))
+                idents &= set(IDENT_RE.findall(code_part(line)))
             for ident in idents:
                 r = ("declared" if in_decl else "equation" if ctx else _role(lines, n - 1, ident)) if is_gms else "read"
                 uses.append((ident, rel, n, meta["module"], meta["realization"], meta["phase"], ctx,

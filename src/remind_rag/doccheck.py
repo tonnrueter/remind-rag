@@ -19,7 +19,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from .chunkers import STRING_RE, Switch, chunk_gams, path_meta
+from .chunkers import Switch, chunk_gams, path_meta
+from .gams import STRING_RE
 from .corpus import iter_files
 
 # REMIND naming: p_, pm_, p45_, v_, vm_, v31_, q_, qm_, s_, sm_, f_, fm_, o_, c_, cm_, c45_, i_, ... (GAMS is case-blind)

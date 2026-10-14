@@ -12,7 +12,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 
-from .chunkers import _code_part, _is_comment
+from .gams import code_part, is_comment
 from .usage import LOAD_RE
 
 MAX_BACK, MAX_FORWARD = 40, 80  # statement length limits (lines) when scanning a chunk
@@ -35,7 +35,7 @@ class Statement:
 
 
 def _ends_statement(line: str) -> bool:
-    return not _is_comment(line) and ";" in _code_part(line)
+    return not is_comment(line) and ";" in code_part(line)
 
 
 def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
@@ -54,12 +54,12 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
     while (start > 0 and i - start < MAX_BACK and not _ends_statement(lines[start - 1])
            and not lines[start - 1].lstrip().startswith("$")):
         start -= 1
-    while start < i and (_is_comment(lines[start]) or not lines[start].strip()):
+    while start < i and (is_comment(lines[start]) or not lines[start].strip()):
         start += 1  # report the first code line, not a comment above it
     end = i
     while end < len(lines) - 1 and end - i < MAX_FORWARD and not _ends_statement(lines[end]):
         end += 1
-    text = "\n".join(x for x in lines[start:end + 1] if not _is_comment(x))
+    text = "\n".join(x for x in lines[start:end + 1] if not is_comment(x))
     st = Statement(path, first + start, first + end, text)
     for r in db.execute("SELECT name, role, line FROM symbol_uses WHERE path = ? AND line BETWEEN ? AND ? "
                         "ORDER BY line", (path, st.start, st.end)):
@@ -72,7 +72,7 @@ def statement(db: sqlite3.Connection, path: str, line: int) -> Statement | None:
 
 
 def is_load(st: Statement) -> bool:
-    return bool(LOAD_RE.search(_code_part(st.text)))
+    return bool(LOAD_RE.search(code_part(st.text)))
 
 
 def equation_members(db: sqlite3.Connection, path: str, equation: str) -> list[str]:

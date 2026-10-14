@@ -78,7 +78,7 @@ def _split_and(cond: str) -> list[str]:
 
 
 def eval_condition(cond: str, values: dict[str, str]) -> bool | None:
-    """Evaluate the $ifthen conditions produced by chunkers._line_conditions against switch values.
+    """Evaluate the $ifthen conditions produced by gams.line_conditions against switch values.
     Only `[not] "%switch%" == "value"` and and/not/parentheses combinations are understood; anything else
     (or an unknown switch) gives None."""
     parts = _split_and(cond)

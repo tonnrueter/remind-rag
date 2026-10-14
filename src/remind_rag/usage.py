@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from .chunkers import STRING_RE, _code_part, _is_comment
+from .gams import STRING_RE, code_part, strip_comments
 
 # ------------------------------------------------------------------ roles
 
@@ -28,7 +28,7 @@ def _skip_group(s: str, k: int) -> int:
 def role(line: str, name: str) -> str:
     """'assigned' if the line assigns / fixes / loads `name`, else 'read'. Declarations and equation bodies
     are classified by the caller from the chunk kinds."""
-    code = _code_part(line)
+    code = code_part(line)
     if LOAD_RE.search(code):
         return "assigned"
     for m in re.finditer(rf"(?<![\w.%]){re.escape(name)}(?!\w)", code, re.I):
@@ -62,69 +62,6 @@ def role(line: str, name: str) -> str:
 
 # ------------------------------------------------------------------ run-time if-blocks
 
-IF_OPEN_RE = re.compile(r"if\s*\(", re.I)
-WORD_RE = re.compile(r"[A-Za-z_]\w*")
-
-
-def _neg(conds: list[str]) -> str:
-    return " and ".join(f"not ({c})" for c in conds)
-
-
-def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
-    """For every line, the conditions of the run-time `if(cond, ... elseif cond2, ... else ...)` blocks it
-    sits in, outermost first. Later branches are written as the negation of the earlier ones."""
-    out: list[tuple[str, ...]] = []
-    stack: list[dict] = []  # depth: paren depth inside the if(; conds: branch conditions; reading; current
-    depth = 0
-    for line in lines:
-        active = [b["current"] for b in stack if not b["reading"]]
-        if _is_comment(line) or line.lstrip().startswith("$"):
-            out.append(tuple(active))
-            continue
-        code = _code_part(line)
-        k = 0
-        while k < len(code):
-            ch = code[k]
-            top = stack[-1] if stack else None
-            if top and top["reading"]:
-                if ch == "," and depth == top["depth"]:
-                    top["reading"] = False
-                    top["conds"][-1] = " ".join(top["conds"][-1].split())
-                    prev = _neg(top["conds"][:-1])
-                    top["current"] = f"{prev} and ({top['conds'][-1]})" if prev else top["conds"][-1]
-                    active.append(top["current"])
-                    k += 1
-                    continue
-                top["conds"][-1] += ch
-            elif ch.isalpha() and (k == 0 or not (code[k - 1].isalnum() or code[k - 1] in "_%.")):
-                word = WORD_RE.match(code, k).group()
-                low = word.lower()
-                if low == "if" and IF_OPEN_RE.match(code, k):
-                    k = IF_OPEN_RE.match(code, k).end()
-                    depth += 1
-                    stack.append({"depth": depth, "conds": [""], "reading": True, "current": ""})
-                    continue
-                if top and depth == top["depth"] and low in ("elseif", "else"):
-                    if low == "elseif":
-                        top["conds"].append("")
-                        top["reading"] = True
-                    else:
-                        top["current"] = _neg(top["conds"])
-                        active.append(top["current"])
-                    k += len(word)
-                    continue
-                k += len(word)
-                continue
-            if ch == "(":
-                depth += 1
-            elif ch == ")":
-                if top and top["depth"] == depth:
-                    stack.pop()
-                depth = max(0, depth - 1)
-            k += 1
-        out.append(tuple(dict.fromkeys(active + [b["current"] for b in stack if not b["reading"]])))
-    return out
-
 
 # ------------------------------------------------------------------ switch tests
 
@@ -145,28 +82,6 @@ def _compare(a: str, op: str, b: str) -> bool | None:
             return None
         x, y = a.lower(), b.lower()
     return {"==": x == y, "!=": x != y, ">=": x >= y, "<=": x <= y, ">": x > y, "<": x < y}[op]
-
-
-ONTEXT_RE = re.compile(r"\s*\$ontext\b", re.I)
-OFFTEXT_RE = re.compile(r"\s*\$offtext\b", re.I)
-
-
-def strip_comments(text: str) -> str:
-    """`text` without `*` comment lines, `$ontext` blocks and `!!` end-of-line comments. Unlike `_code_part`,
-    quoted strings stay: `"%carbonprice%" == "NDC"` is a test."""
-    out, in_text = [], False
-    for line in text.splitlines():
-        if in_text:
-            in_text = not OFFTEXT_RE.match(line)
-            continue
-        if ONTEXT_RE.match(line):
-            in_text = True
-            continue
-        if _is_comment(line):
-            continue
-        cut = STRING_RE.sub(lambda m: "x" * len(m.group()), line).find("!!")
-        out.append(line if cut < 0 else line[:cut])
-    return "\n".join(out)
 
 
 def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | None]]:
