@@ -150,13 +150,15 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
             if line.lstrip().startswith(comment):
                 continue
             code = line.split("!!", 1)[0] if is_gms else line  # names in !! end-of-line comments aren't uses
-            idents = set(IDENT_RE.findall(code)) & usable
+            # in order of appearance (links lists a statement's inputs that way); a set made builds differ
+            idents = [n for n in dict.fromkeys(IDENT_RE.findall(code)) if n in usable]
             if not idents:
                 continue
             ctx = next((name for s, e, name in ranges if s <= n <= e), None)
             in_decl = any(s <= n <= e for s, e in decls)
             if in_decl:  # in declarations, a name inside another symbol's description is not a use
-                idents &= set(IDENT_RE.findall(code_part(line)))
+                outside = set(IDENT_RE.findall(code_part(line)))
+                idents = [n for n in idents if n in outside]
             for ident in idents:
                 r = ("declared" if in_decl else "equation" if ctx else _role(lines, n - 1, ident)) if is_gms else "read"
                 uses.append((ident, rel, n, meta["module"], meta["realization"], meta["phase"], ctx,
