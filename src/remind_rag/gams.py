@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import re
 
+# the declaration keywords, singular or plural, variables with their optional type
 DECL_RE = re.compile(
     r"^\s*((?:positive |negative |binary |integer |free |sos[12] |semicont |semiint )?variables?"
     r"|scalars?|parameters?|equations?|sets?|tables?)\b(.*)$",
     re.I,
 )
 STRING_RE = re.compile(r'"[^"]*"|\'[^\']*\'')
+# $ifthen / $ifthene (evaluates numbers) / $iftheni (ignores case), optionally tagged ($ifthen.label) so nested
+# blocks can be closed by name; a trailing !! comment is not part of the condition
 IFTHEN_RE = re.compile(r"^\s*\$ifthen[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
 ELSEIF_RE = re.compile(r"^\s*\$elseif[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
 ELSE_RE = re.compile(r"^\s*\$else(?:\.(\w+))?\s*(?:!!.*)?$", re.I)
@@ -123,6 +126,7 @@ def strip_comments(text: str) -> str:
             continue
         if is_comment(line):
             continue
+        # strings masked with x's of the same length: a "!!" inside quotes is not a comment, and positions stay
         cut = STRING_RE.sub(lambda m: "x" * len(m.group()), line).find("!!")
         out.append(line if cut < 0 else line[:cut])
     return "\n".join(out)
@@ -141,8 +145,12 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
     >>> if_guards(["if(cm_x eq 1,", "  p = 1;", "else", "  p = 2;", ");", "q = 1;"])
     [('cm_x eq 1',), ('cm_x eq 1',), ('cm_x eq 1', 'not (cm_x eq 1)'), ('not (cm_x eq 1)',), ('not (cm_x eq 1)',), ()]
     """
+    # Walks the code character by character, counting parentheses. An `if(` opens a block; its condition is
+    # read up to the first comma at the block's own depth, and the matching `)` closes the block. Per open
+    # block: depth = paren depth of its `if(`, conds = the conditions of its branches so far, reading = still
+    # inside a condition, current = the condition of the branch the code is in now.
     out: list[tuple[str, ...]] = []
-    stack: list[dict] = []  # depth: paren depth inside the if(; conds: branch conditions; reading; current
+    stack: list[dict] = []
     depth = 0
     for line in lines:
         active = [b["current"] for b in stack if not b["reading"]]
@@ -164,6 +172,7 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
                     k += 1
                     continue
                 top["conds"][-1] += ch
+            # a word start, but not inside a name, a %switch% or a .suffix: "p_if", "%else%", "x.elseif" aren't keywords
             elif ch.isalpha() and (k == 0 or not (code[k - 1].isalnum() or code[k - 1] in "_%.")):
                 word = WORD_RE.match(code, k).group()
                 low = word.lower()
@@ -190,5 +199,6 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
                     stack.pop()
                 depth = max(0, depth - 1)
             k += 1
+        # conditions active at the start of the line plus those opened on it; dict.fromkeys drops repeats, keeps order
         out.append(tuple(dict.fromkeys(active + [b["current"] for b in stack if not b["reading"]])))
     return out

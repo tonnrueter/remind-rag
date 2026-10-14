@@ -160,15 +160,19 @@ def _segments_from_boundaries(bounds: set[int], s: int, e: int) -> list[tuple[in
 
 # --------------------------------------------------------------------------- GAMS
 
+# the license header, identical in every file: blanked, so it doesn't make all files look alike to search
 LICENSE_RE = re.compile(r"^\*\*\* \||^\*\*\* (SOF|EOF) ")
 
+# one entry of a declaration: name, optional (domain), description in quotes or unquoted up to / or ;
 ENTRY_RE = re.compile(r"""^\s*([A-Za-z]\w*)\s*(\([^)]*\))?\s*(?:"([^"]*)"|'([^']*)'|([^/;"']*))""")
+# an equation definition on one line: name(domain)$condition .. (two dots, not an ellipsis "...")
 EQDEF_RE = re.compile(r"^\s*([A-Za-z]\w*)\s*(\([^)]*\))?\s*(\$.*?)?\.\.(?!\.)")
 SETGLOBAL_RE = re.compile(r"^\s*\$set[gG]lobal\s+(\w+)\s+(.*?)\s*(!!.*)?$", re.I)
 ASSIGN_RE = re.compile(r"^\s*([A-Za-z]\w*)\s*=\s*([^;]*);\s*(!!.*)$")
 DEF_RE = re.compile(r"def\s*=\s*(.*?)\s*(?:!!|$)")
 REGEXP_RE = re.compile(r"regexp\s*=\s*(.*?)\s*(?:!!|$)")
 
+# in main.gms, where the documentation of the next switch begins (its name, or a ----- separator)
 NEW_SWITCH_DOC_RE = re.compile(r"^\*+'?\s*(c_|cm_|c\d\d_)\w+|^\*'?-{5,}")
 
 
@@ -226,6 +230,7 @@ def _parse_decl_block(path, lines, s, e, first_rest, kind, meta) -> list[Symbol]
             continue
         if not in_data:
             m = ENTRY_RE.match(line)
+            # alias(a, b) declares no symbol; entries with neither domain nor description are data, not names
             if m and m.group(1).lower() not in {"alias"}:
                 name, dom = m.group(1), (m.group(2) or "").strip("()")
                 desc = (m.group(3) or m.group(4) or m.group(5) or "").strip()
@@ -286,40 +291,22 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
 
     # 2) switches (main.gms only)
     if is_main:
-        anchors = []  # (line index, name, default, allowed, param_style)
+        # a switch is either `$setglobal name value` (module selections, string switches) or a parameter
+        # assignment `cm_x = 9; !! def = 9` whose comment documents the default ("param style")
+        anchors = []  # (line index, name, documented default, allowed values, param_style, assigned value)
         for i, line in enumerate(lines):
             if is_comment(line):
                 continue
-            m = SETGLOBAL_RE.match(line)
-            if m:
-                bang = m.group(3) or ""
-                d = DEF_RE.search(bang)
-                r = REGEXP_RE.search(bang)
-                anchors.append(
-                    (
-                        i,
-                        m.group(1),
-                        (d.group(1) if d else m.group(2)).strip(),
-                        r.group(1) if r else "",
-                        False,
-                        m.group(2).strip(),
-                    )
-                )
+            if m := SETGLOBAL_RE.match(line):
+                param_style, bang = False, m.group(3) or ""
+            elif (m := ASSIGN_RE.match(line)) and "def" in m.group(3):
+                param_style, bang = True, m.group(3)
+            else:
                 continue
-            m = ASSIGN_RE.match(line)
-            if m and "def" in m.group(3):
-                d = DEF_RE.search(m.group(3))
-                r = REGEXP_RE.search(m.group(3))
-                anchors.append(
-                    (
-                        i,
-                        m.group(1),
-                        (d.group(1) if d else m.group(2)).strip(),
-                        r.group(1) if r else "",
-                        True,
-                        m.group(2).strip(),
-                    )
-                )
+            name, value = m.group(1), m.group(2).strip()
+            d, r = DEF_RE.search(bang), REGEXP_RE.search(bang)
+            # no `def =` in the comment: the assigned value is the default
+            anchors.append((i, name, (d.group(1) if d else value).strip(), r.group(1) if r else "", param_style, value))
         start = 0
         for idx, (ai, name, default, allowed, param_style, value) in enumerate(anchors):
             end = ai + 1

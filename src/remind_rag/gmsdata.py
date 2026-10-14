@@ -43,6 +43,8 @@ def module_folders(export: dict) -> dict[str, str]:
 
 def interface_map(export: dict) -> dict[str, dict[str, list[str]]]:
     """symbol -> {'provided_by': [folders], 'consumed_by': [folders]}"""
+    # "provided" is codeCheck's word for direction "out": the module declares the symbol (its interface owner),
+    # which is not necessarily where its values are computed
     folders = module_folders(export)
     out: dict[str, dict[str, list[str]]] = {}
     for row in export["interfaces"]:
@@ -55,6 +57,7 @@ def interface_map(export: dict) -> dict[str, dict[str, list[str]]]:
 
 
 def _pack_lines(head: str, lines: list[str]) -> list[str]:
+    # texts of at most ~MAX_CHARS, each starting with the head line, so every piece says whose list it is
     texts, cur = [], head
     for line in lines:
         if len(cur) + len(line) + 1 > MAX_CHARS and cur != head:
@@ -76,6 +79,7 @@ def module_interface_chunks(export: dict, sym_desc: dict[str, str]) -> list[Chun
             continue
         outs = sorted(r["name"] for r in rows if r["direction"] == "out")
         ins = sorted(r["name"] for r in rows if r["direction"] == "in")
+        # switches (cm_*, c_*) come from main.gms, not from another module: listed by name only
         switches = [x for x in ins if x.startswith("c")]
         who = "the REMIND core" if folder == "core" else f"module {folder}"
         path = "core/declarations.gms" if folder == "core" else f"modules/{folder}/module.gms"

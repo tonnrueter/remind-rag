@@ -9,6 +9,7 @@ from .gams import STRING_RE, code_part, strip_comments
 
 # ------------------------------------------------------------------ roles
 
+# =e= =l= =g= ...: the relation in an equation body, not an assignment
 EQ_OPERATOR_RE = re.compile(r"=[elgnxcbELGNXCB]=")
 # a line that loads from a gdx file assigns every symbol on it
 LOAD_RE = re.compile(r"\bexecute_load(point)?\b|\$gdxin|\$load", re.I)
@@ -46,6 +47,8 @@ def role(line: str, name: str) -> str:
         # elsewhere `if(x = 2` / `$(x = 2)` is a comparison
         if before and before[-1] not in ";," and not FOR_OPEN_RE.search(before):
             continue
+        # step over what may stand between the name and an assignment's `=`: an index (t,regi), a suffix
+        # .fx / .lo / .up / .l with its own index, and a condition $(...) or $name
         k = m.end()
         while k < len(code) and code[k] == " ":
             k += 1
@@ -75,11 +78,14 @@ def role(line: str, name: str) -> str:
 
 # ------------------------------------------------------------------ switch tests
 
+# a comparison with a candidate switch name (cm_*, c_*, module scalars s33_*, sm_*); only names that are
+# known switches count, the callers check that
 TEST_RE = re.compile(
     r"(?<![\w%])(c\w*?_\w+|s\d\d_\w+|sm_\w+)\s*(eq|ne|ge|le|gt|lt|<>|>=|<=|>|<|=)(?!=)\s*"
     r"(-?\d+(?:\.\d+)?|\"[^\"]*\"|'[^']*'|\w+)",
     re.I,
 )
+# a string comparison as in $if / $ifthen: "%carbonprice%" == "NDC", optionally negated, quotes optional
 STR_TEST_RE = re.compile(r"(not\s+)?[\"']?%(\w+)%[\"']?\s*(==|eq|ne|<>)\s*[\"']?([\w.\-]*)[\"']?", re.I)
 # operator spellings in GAMS (eq, =, ...) and $if (==) -> the Python comparison
 # fmt: off
@@ -148,6 +154,10 @@ def eval_expr(cond: str, defaults: dict[str, str]) -> bool | None:
     >>> eval_expr("cm_emiscen eq 9 and sameas(t, '2005')", d) is None  # depends on t
     True
     """
+    # Approach: every switch test is replaced by a placeholder __t0, __t1, ... holding its truth value; every
+    # other operand becomes a placeholder with value None (unknown). What is left is a Python expression of
+    # placeholders, and/or/not and parentheses. It is evaluated for every True/False combination of the
+    # unknowns (a truth table): if all combinations agree, the switches decide it.
     tokens: list[bool | None] = []
 
     def sub(m: re.Match, string: bool) -> str:
@@ -173,18 +183,18 @@ def eval_expr(cond: str, defaults: dict[str, str]) -> bool | None:
 
     # everything that isn't a switch test becomes an unknown: function calls / indexed symbols, comparisons,
     # bare names. The result is only reported if the switch tests alone decide it.
-    for _ in range(5):
+    for _ in range(5):  # innermost calls first, so nested ones (up to 5 deep) go from the inside out
         new = re.sub(r"(?<!\w)(?!(?:and|or|not)\b)[A-Za-z_][\w.]*\s*\([^()]*\)", unknown, expr, flags=re.I)
         if new == expr:
             break
         expr = new
     expr = re.sub(r"(?<!\w)[\w.\"']+\s*(?:eq|ne|gt|lt|ge|le|<>|<=|>=|<|>|=)\s*[-\w.\"']+", unknown, expr, flags=re.I)
     expr = re.sub(r"(?<!\w)(?!(?:and|or|not)\b)(?!__t\d)[A-Za-z_]\w*", unknown, expr, flags=re.I)
-    if re.search(r"[^\w\s()]", expr):
+    if re.search(r"[^\w\s()]", expr):  # something left that isn't a placeholder, keyword or parenthesis
         return None
     py = re.sub(r"\b(and|or|not)\b", lambda m: m.group(1).lower(), expr, flags=re.I)
     open_ = [i for i, t in enumerate(tokens) if t is None]
-    if len(open_) > 6:
+    if len(open_) > 6:  # 2**6 = 64 combinations; with more unknowns the switches rarely decide anyway
         return None
     results = set()
     for mask in range(2 ** len(open_)):
