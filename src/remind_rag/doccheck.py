@@ -19,9 +19,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from .chunkers import Switch, chunk_gams, path_meta
-from .gams import STRING_RE
+from .chunkers import Switch, chunk_gams
 from .corpus import iter_files
+from .gams import STRING_RE
 
 # REMIND naming: p_, pm_, p45_, v_, vm_, v31_, q_, qm_, s_, sm_, f_, fm_, o_, c_, cm_, c45_, i_, ... (GAMS is case-blind)
 NAME_RE = re.compile(r"(?<![\w%$.-])((?:p|pm|v|vm|q|qm|s|sm|f|fm|o|om|c|cm|i|im)\d{0,2}_[A-Za-z]\w{2,})(?![\w-])")

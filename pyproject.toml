@@ -23,4 +23,13 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.17.0",
 ]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"  # = requires-python: flags syntax newer than the oldest Python we promise
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, bugbear (likely bugs), pyupgrade, import order
+select = ["F", "E", "W", "B", "UP", "I"]

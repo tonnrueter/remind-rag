@@ -1,6 +1,5 @@
 """Which checkout an index belongs to: the staleness line in the server instructions."""
 
-from pathlib import Path
 
 from remind_rag.checkout import served_root, staleness
 

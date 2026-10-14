@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .chunkers import Chunk, Symbol, Switch
+from .chunkers import Chunk, Switch, Symbol
 from .render import short
 
 IDENT_RE = re.compile(r"\b[A-Za-z]\w*\b")

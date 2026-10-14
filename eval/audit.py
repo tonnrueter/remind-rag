@@ -26,9 +26,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import yaml
-
 import e2e_eval
+import yaml
 from e2e_eval import HERE, RAG_DIR, mcp_config, static_context
 
 AUDIT = HERE / "audit"

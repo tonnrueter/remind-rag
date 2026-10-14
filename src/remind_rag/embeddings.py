@@ -94,7 +94,7 @@ def visible(alias: str, text: str) -> str:
     enc = load(alias).model.tokenizer.encode(text)
     if not enc.overflowing:
         return text
-    ends = [end for (start, end), special in zip(enc.offsets, enc.special_tokens_mask) if not special]
+    ends = [end for (start, end), special in zip(enc.offsets, enc.special_tokens_mask, strict=True) if not special]
     return text[:ends[-1]]
 
 

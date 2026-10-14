@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .chunkers import SETGLOBAL_RE, Switch, chunk_gams, path_meta
-from .gams import code_part, if_guards, is_comment, line_conditions
 from .corpus import iter_files
+from .gams import code_part, if_guards, is_comment, line_conditions
 from .scenarios import read_scenarios
 from .usage import OPS, STR_TEST_RE, TEST_RE, eval_expr
 

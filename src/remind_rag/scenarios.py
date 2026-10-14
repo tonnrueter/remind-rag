@@ -31,7 +31,7 @@ def read_scenarios(root: Path) -> list[Scenario]:
         for n, row in enumerate(rows[1:], start=2):
             if not row or not row[0].strip() or row[0].lstrip().startswith("#"):
                 continue
-            cells = {h: v.strip() for h, v in zip(header, row) if h and v.strip()}
+            cells = {h: v.strip() for h, v in zip(header, row, strict=False) if h and v.strip()}  # rows may be shorter
             name = cells.pop("title", row[0].strip())
             # same semantics as scripts/start/readCheckScenarioConfig.R::copyConfigFrom: fill empty cells
             # from an earlier row of the same file

@@ -19,10 +19,10 @@ import numpy as np
 
 from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
 from .chunkers import chunk_file, path_meta
-from .gams import ENDIF_RE, IFTHEN_RE, code_part, decl_start, if_guards, is_comment, line_conditions, stmt_end
-from .usage import LOAD_RE, role
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
+from .gams import ENDIF_RE, IFTHEN_RE, code_part, decl_start, if_guards, is_comment, line_conditions, stmt_end
+from .usage import LOAD_RE, role
 
 DEFAULT_DB_DIR = Path(__file__).resolve().parents[2] / "data"
 
@@ -262,7 +262,7 @@ def build(root: Path, db_path: Path, model: str, gms_export: dict | None = None,
     print(f"embeddings: {len(texts) - len(todo)} reused, {len(todo)} to compute", flush=True)
     batch = []
     vecs = embeddings.embed_passages(model, [texts[i] for i in todo]) if todo else []
-    for n, (i, vec) in enumerate(zip(todo, vecs), 1):
+    for n, (i, vec) in enumerate(zip(todo, vecs, strict=True), 1):
         batch.append((i + 1, np.asarray(vec, dtype=np.float32).tobytes()))
         if len(batch) == 256:
             db.executemany("INSERT INTO chunks_vec(rowid, embedding) VALUES (?, ?)", batch)

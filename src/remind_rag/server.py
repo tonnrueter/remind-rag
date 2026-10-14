@@ -16,8 +16,8 @@ from typing import NamedTuple
 from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings, store
-from .search import Index, module_match
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
+from .search import Index, module_match
 from .status import DefaultRun, detail, equation_domain, rank
 from .steering import steering
 

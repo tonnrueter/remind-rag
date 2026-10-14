@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from itertools import pairwise
 from pathlib import PurePosixPath
 
 from .gams import code_part, decl_start, is_comment, line_conditions, stmt_end
@@ -131,7 +132,7 @@ def _make_chunk(path: str, lines: list[str], s: int, e: int, kind: str, meta: di
 def _segments_from_boundaries(bounds: set[int], s: int, e: int) -> list[tuple[int, int]]:
     cuts = sorted(b for b in bounds if s < b < e)
     edges = [s, *cuts, e]
-    return [(a, b) for a, b in zip(edges, edges[1:]) if a < b]
+    return [(a, b) for a, b in pairwise(edges) if a < b]
 
 
 # --------------------------------------------------------------------------- GAMS
