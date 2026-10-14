@@ -321,6 +321,14 @@ def test_single_quoted_string_tests_are_decided(cond, expected):
     assert usage.eval_expr(cond, DEFAULTS) is expected
 
 
+def test_get_module_takes_name_and_module():
+    # Claude called get_module(name="30_biomass") and got a validation error (ERRORS.md, #43)
+    out = server.get_module(name="45")
+    assert out == server.get_module(module="45") == server.get_module("45")
+    assert out.startswith("# 45_carbonprice")
+    assert "name=" in server.get_module()
+
+
 def test_scenario_search_keeps_code_compiled_in():
     # 80_optimization/nash/bounds.gms:11 sits under `$ifthen %emicapregi% == 'none'`, true in every config; the old
     # scenario evaluator kept the quotes ('none' != none) and ranked such code as compiled out (#42)

@@ -461,12 +461,16 @@ def _interfaces(mod: str) -> list[str]:
 
 
 @server.tool()
-def get_module(module: str, realization: str | None = None) -> str:
-    """A module (e.g. "33", "carbonRemoval", "core"): description, the default realization with the switches that
-    steer it, every alternative realization in one line (with verdicts such as "aborts under the defaults" or
+def get_module(name: str | None = None, realization: str | None = None, module: str | None = None) -> str:
+    """A module (name e.g. "33", "carbonRemoval", "core"): description, the default realization with the switches
+    that steer it, every alternative realization in one line (with verdicts such as "aborts under the defaults" or
     "CAN NEVER BE MET" and how many scenario configs select it), and its interfaces (names; descriptions via
     get_symbol). Pass realization="..." for one realization in full: its description, limitations, abort
-    preconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set."""
+    preconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set.
+    (module= is the old name of name=.)"""
+    module = name or module  # name= like the other tools; module= until 1.0 (ERRORS.md: Claude called name=)
+    if not module:
+        return 'Pass the module as name="33" (or "carbonRemoval", "33_carbonRemoval", "core").'
     rows = idx.db.execute(
         "SELECT * FROM chunks WHERE kind IN ('module_doc', 'realization_doc', 'limitations') "
         "ORDER BY realization IS NOT NULL, realization, line_start"
