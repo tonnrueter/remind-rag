@@ -40,25 +40,7 @@ q_smoothphaseoutCapEarlyReti(ttot,regi,te)$(ttot.val le 2100 AND pm_ttot_val(tto
     ;
 ```
 
-[4] core/datainput.gms:775-790  (gams_block)
-REMIND core, datainput (core/datainput.gms)
-```
-*** increase default early retirement rates by 2%/yr for EU subregions
-  loop(regi$regi_group("EUR_regi",regi),
-    pm_regiEarlyRetiRate(t,regi,teEarlyReti) = pm_regiEarlyRetiRate(t,regi,teEarlyReti) + 0.02
-  );
-);
-
-
-*** Technology-specific adaptations of maximum allowed annual early retirement rates
-*** increase early retirement for technologies that are old and should be phased out faster
-pm_regiEarlyRetiRate(t,regi,"pc")      = 1.2 * pm_regiEarlyRetiRate(t,regi,"pc");       !! standard coal power plants, pc, are a relatively old technology that should be allowed to retire faster
-*** reduce early retirement for technologies with additional characteristics that are difficult to represent in REMIND, eg. industries built around heating/CHP plants, or flexibility from ngt plants
-pm_regiEarlyRetiRate(t,regi,"ngt")     = 0.3 * pm_regiEarlyRetiRate(t,regi,"ngt");      !! ngt should only be phased out very slowly, as they provide flexibility - which REMIND is not too good at capturing endogeneously
-… (4 more lines, core/datainput.gms:787–790)
-```
-
-[5] core/equations.gms:307-317  (equation)
+[4] core/equations.gms:307-317  (equation)
 REMIND core, equations (core/equations.gms)
 Equation q_cap: calculate available capacities (capacity motion equation) by adding up past capacity additions weighted by the respective technical depreciation parameter
 ```
@@ -73,4 +55,22 @@ q_cap(ttot,regi,te2rlf(te,rlf))$(ttot.val ge cm_startyear)..
     * vm_deltaCap(ttot - (pm_tsu2opTimeYr(ttot,opTimeYr) - 1),regi,te,rlf)
   )
 ;
+```
+
+[5] core/datainput.gms:780-795  (gams_block)
+REMIND core, datainput (core/datainput.gms)
+```
+*** increase default early retirement rates by 2%/yr for EU subregions
+  loop(regi$regi_group("EUR_regi",regi),
+    pm_regiEarlyRetiRate(t,regi,teEarlyReti) = pm_regiEarlyRetiRate(t,regi,teEarlyReti) + 0.02
+  );
+);
+
+
+*** Technology-specific adaptations of maximum allowed annual early retirement rates
+*** increase early retirement for technologies that are old and should be phased out faster
+pm_regiEarlyRetiRate(t,regi,"pc")      = 1.2 * pm_regiEarlyRetiRate(t,regi,"pc");       !! standard coal power plants, pc, are a relatively old technology that should be allowed to retire faster
+*** reduce early retirement for technologies with additional characteristics that are difficult to represent in REMIND, eg. industries built around heating/CHP plants, or flexibility from ngt plants
+pm_regiEarlyRetiRate(t,regi,"ngt")     = 0.3 * pm_regiEarlyRetiRate(t,regi,"ngt");      !! ngt should only be phased out very slowly, as they provide flexibility - which REMIND is not too good at capturing endogeneously
+… (4 more lines, core/datainput.gms:792–795)
 ```
