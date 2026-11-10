@@ -237,6 +237,7 @@ Development files (`CLAUDE.md`, `.claude/skills/`, eval and sweep commands) assu
 
 ```powershell
 uv run python eval/retrieval_eval.py data/remind-bge.db   # recall@5 / MRR per mode (bm25, vector, hybrid), local and free
+uv run python eval/db_diff.py <old.db> <new.db> --symbol <name>   # what a rebuild changed, table by table
 uv run python eval/e2e_eval.py --remind ..\remind --model sonnet   # headless Claude, baseline vs RAG
 ```
 
