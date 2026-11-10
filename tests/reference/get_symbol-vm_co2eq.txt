@@ -8,7 +8,7 @@
 - 46_carbonpriceRegi/none: questionnaire
 - 80_optimization/negishi: ???
 - 80_optimization/testOneRegi: ???
-## Uses (18 lines)
+## Uses (20 lines)
 ### Declared (1 lines: 1 ✓; core)
 ### Assigned / fixed / loaded (6 lines: 2 ✓, 4 ⚠; 41_emicapregi, 80_optimization, core)
 - per file: modules/41_emicapregi/AbilityToPay/datainput.gms 2 ⚠, core/datainput.gms 1 ✓, modules/41_emicapregi/CandC/datainput.gms 1 ⚠, modules/41_emicapregi/PerCapitaConvergence/datainput.gms 1 ⚠, modules/80_optimization/nash/datainput.gms 1 ✓
@@ -20,9 +20,9 @@
     ⚠ module switched off by default (none)
 - modules/41_emicapregi/PerCapitaConvergence/datainput.gms:15 [41_emicapregi/PerCapitaConvergence/datainput] ⚠ not in a default run  Execute_Loadpoint "input_ref" p41_co2eq = vm_co2eq.l;
     ⚠ module switched off by default (none)
-### Used in equations (5 lines: 5 ✓; 21_tax, 80_optimization, core)
-- per file: core/equations.gms 3 ✓, modules/21_tax/on/equations.gms 1 ✓, modules/80_optimization/nash/equations.gms 1 ✓
-- equations: q_co2eq, q_co2eqGlob, q_emiCap, q21_taxrevGHG, q80_budgetPermRestr
+### Used in equations (7 lines: 7 ✓; 21_tax, 80_optimization, core)
+- per file: core/equations.gms 5 ✓, modules/21_tax/on/equations.gms 1 ✓, modules/80_optimization/nash/equations.gms 1 ✓
+- equations: q_co2eq, q_co2eqGlob, q_emiCap, qm_co2eqCum, q21_taxrevGHG, q80_budgetPermRestr
 - lines: get_symbol("vm_co2eq", role="equation"[, module="…"])
 ### Read (6 lines: 3 ✓, 3 ⚠; 21_tax, 46_carbonpriceRegi, core)
 - per file: modules/46_carbonpriceRegi/netZero/postsolve.gms 3 ⚠, core/presolve.gms 1 ✓, modules/21_tax/on/postsolve.gms 1 ✓, modules/21_tax/on/presolve.gms 1 ✓

@@ -10,7 +10,7 @@
 - 39_carbonUtilization/on: not used
 - 40_techpol/NPi2018: questionnaire
 - also: 40_techpol/NPi2025, 40_techpol/lowCarbonPush, 40_techpol/none
-## Uses (161 lines)
+## Uses (173 lines)
 ### Declared (1 lines: 1 ✓; core)
 ### Assigned / fixed / loaded (108 lines: 45 ✓, 63 ⚠; 05_initialCap, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 39_carbonUtilization, 40_techpol, 47_regipol, core)
 - per file: core/bounds.gms 49 (32 ✓, 17 ⚠), modules/47_regipol/regiCarbonPrice/bounds.gms 13 (5 ✓, 8 ⚠), modules/05_initialCap/on/preloop.gms 11 (8 ✓, 3 ⚠), modules/47_regipol/none/bounds.gms 11 ⚠, modules/40_techpol/coalPhaseout/bounds.gms 7 ⚠, modules/40_techpol/coalPhaseoutRegional/bounds.gms 7 ⚠, +5 more files
@@ -29,10 +29,10 @@
 - core/bounds.gms:293 [core/bounds] ⚠ not in a default run  vm_deltaCap.fx(t,regi,te,rlf) $ (t.val >= cm_startyear) = 0;
     ⚠ inside if c_biopyrOptions eq 0 → inactive by default
 - lines: get_symbol("vm_deltaCap", role="assigned"[, module="…"])
-### Used in equations (22 lines: 6 ✓, 16 ⚠; 21_tax, 22_subsidizeLearning, 40_techpol, core)
-- per file: core/equations.gms 5 ✓, modules/40_techpol/CombLowCandCoalPO/equations.gms 3 ⚠, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/40_techpol/coalPhaseout/equations.gms 3 ⚠, modules/40_techpol/coalPhaseoutRegional/equations.gms 3 ⚠, +2 more files
-- equations: q_windoff_low, qm_deltaCapCumNet, q_eqadj, q21_taxrevEI, q22_costSubsidizeLearningForeign, q40_CoalBound
+### Used in equations (25 lines: 9 ✓, 16 ⚠; 21_tax, 22_subsidizeLearning, 40_techpol, core)
+- per file: core/equations.gms 8 ✓, modules/40_techpol/CombLowCandCoalPO/equations.gms 3 ⚠, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/40_techpol/coalPhaseout/equations.gms 3 ⚠, modules/40_techpol/coalPhaseoutRegional/equations.gms 3 ⚠, +2 more files
+- equations: q_costInvTeDir, q_transPe2se, q_cap, q_windoff_low, qm_deltaCapCumNet, q_eqadj, q21_taxrevEI, q22_costSubsidizeLearningForeign, q40_CoalBound
 - lines: get_symbol("vm_deltaCap", role="equation"[, module="…"])
-### Read (30 lines: 24 ✓, 6 ⚠; 05_initialCap, 21_tax, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, core)
-- per file: modules/05_initialCap/on/preloop.gms 12 ✓, core/bounds.gms 6 ✓, core/postsolve.gms 4 ✓, modules/29_CES_parameters/calibrate/output.gms 2 ⚠, modules/29_CES_parameters/calibrate/preloop.gms 2 ⚠, modules/21_tax/on/postsolve.gms 1 ✓, +3 more files
+### Read (39 lines: 33 ✓, 6 ⚠; 05_initialCap, 21_tax, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 70_water, core)
+- per file: modules/05_initialCap/on/preloop.gms 17 ✓, core/bounds.gms 6 ✓, core/postsolve.gms 5 ✓, modules/30_biomass/magpie/bounds.gms 3 (2 ✓, 1 ⚠), modules/29_CES_parameters/calibrate/output.gms 2 ⚠, modules/29_CES_parameters/calibrate/preloop.gms 2 ⚠, +4 more files
 - lines: get_symbol("vm_deltaCap", role="read"[, module="…"])

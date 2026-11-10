@@ -9,7 +9,7 @@
 - 40_techpol/coalPhaseoutRegional: ???
 - 40_techpol/none: ???
 - 47_regipol/none: questionnaire
-## Uses (148 lines)
+## Uses (152 lines)
 ### Declared (1 lines: 1 ✓; core)
 ### Assigned / fixed / loaded (99 lines: 65 ✓, 2 ?, 32 ⚠; 32_power, 33_carbonRemoval, 37_industry, 39_carbonUtilization, 40_techpol, 47_regipol, core)
 - per file: core/bounds.gms 37 (31 ✓, 2 ?, 4 ⚠), modules/47_regipol/regiCarbonPrice/bounds.gms 20 (14 ✓, 6 ⚠), modules/40_techpol/NPi2025/bounds.gms 9 ✓, modules/40_techpol/NDC/bounds.gms 7 ⚠, modules/39_carbonUtilization/on/bounds.gms 6 (5 ✓, 1 ⚠), modules/40_techpol/NDCplus/bounds.gms 6 ⚠, +6 more files
@@ -29,9 +29,9 @@
 - modules/40_techpol/NDC/bounds.gms:11 [40_techpol/NDC/bounds] ⚠ not in a default run  vm_cap.lo(t,regi,"spv","1")$(t.val ge 2025) = p40_TechBound(t,regi,"spv")*0.001;  (same reason: also line 12)
     ⚠ non-default realization (default: NPi2025)
 - lines: get_symbol("vm_cap", role="assigned"[, module="…"])
-### Used in equations (37 lines: 27 ✓, 10 ⚠; 32_power, 33_carbonRemoval, 40_techpol, core)
-- per file: core/equations.gms 15 ✓, modules/32_power/IntC/equations.gms 8 ✓, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/33_carbonRemoval/portfolio/equations.gms 2 ✓, modules/40_techpol/NPi2018/equations.gms 2 ⚠, +3 more files
-- equations: q_costOM, q_limitCapSe, q_limitCapSe2se, q_limitCapFe, q_limitCapCCS, q_cap, q_capDistr, q_capNonDecreasing, q_capTotal, q_PE_histCap, q_PE_histCap_NGCC_2020_up, q_capH2BI, q_limitCapFeH2BI, q32_h2turbVREcapfromTestor, q32_h2turbVREcapfromTestorUp, q32_elh2capfromTestor, q32_limitCapTeGrid, q33_capconst, q33_EW_capconst, q40_NewRenBound, q40_ElecBioBound, q40_windBound, q40_ElCap_RenShare
+### Used in equations (41 lines: 31 ✓, 10 ⚠; 32_power, 33_carbonRemoval, 37_industry, 40_techpol, core)
+- per file: core/equations.gms 16 ✓, modules/32_power/IntC/equations.gms 9 ✓, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/33_carbonRemoval/portfolio/equations.gms 2 ✓, modules/37_industry/subsectors/equations.gms 2 ✓, +4 more files
+- equations: q_costOM, q_limitCapSe, q_limitCapSe2se, q_limitCapFe, q_limitCapCCS, q_cap, q_capDistr, q_capNonDecreasing, q_capTotal, q_PE_histCap, q_PE_histCap_NGCC_2020_up, q_capH2BI, q_limitCapFeH2BI, q32_limitCapTeStor, q32_h2turbVREcapfromTestor, q32_h2turbVREcapfromTestorUp, q32_elh2capfromTestor, q32_limitCapTeGrid, q33_capconst, q33_EW_capconst, q37_limitCapMatHist, q37_limitCapMat, q40_NewRenBound, q40_ElecBioBound, q40_windBound, q40_ElCap_RenShare
 - lines: get_symbol("vm_cap", role="equation"[, module="…"])
 ### Read (11 lines: 8 ✓, 3 ⚠; 40_techpol, 70_water, core)
 - per file: core/bounds.gms 5 ✓, modules/70_water/heat/output.gms 2 ✓, modules/40_techpol/NDC/bounds.gms 1 ⚠, modules/40_techpol/NDCplus/bounds.gms 1 ⚠, modules/40_techpol/NPi2018/bounds.gms 1 ⚠, modules/40_techpol/NPi2025/bounds.gms 1 ✓

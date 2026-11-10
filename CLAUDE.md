@@ -15,7 +15,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | Structure diagram, commands | `README.md` |
 | Code | `src/remind_rag/`, four groups, each importing only from the ones before it (map with one line per module: `src/remind_rag/__init__.py`): **reading sources** `gams`, `usage`, `chunkers`, `scenarios`, `gmsdata` → **building** `checkout`, `corpus`, `enrich`, `embeddings`, `preconditions`, `store`, `index` → **answering** `search`, `status`, `links`, `render`, `steering`, `server` → **reports** `hierarchy`, `doccheck` (and `preconditions`) |
 | Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output; `test_reference_output.py`: 15 fixed calls plus the server instructions and tool descriptions byte for byte against `tests/reference/` (refactoring safety net; regenerate with `--update` only for deliberate changes); `test_doctests.py`: the `>>>` examples in docstrings; `test_gams.py`: pure GAMS helpers, no index; `test_build.py`: build steps on a tiny hand-made index |
-| Evaluations | `eval/retrieval_eval.py` (local, free), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
+| Evaluations | `eval/retrieval_eval.py` (local, free), `eval/db_diff.py` (what a rebuild changed, table by table), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |
 
 ## Commands
@@ -25,6 +25,7 @@ $env:UV_SYSTEM_CERTS = 1                                 # PIK network intercept
 uv run pytest tests                                      # tool-output checks against data/remind-bge.db (or REMIND_RAG_DB)
 uv run ruff check; uv run ruff format --check            # lint + format (config in pyproject.toml); both clean before a commit
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
+uv run python eval/db_diff.py data/remind-bge-vN.db data/remind-bge-vM.db --symbol <name>   # rows added / removed / changed per table
 uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
 uv run python -m remind_rag.index --root ..\remind --db data/remind-bge-vN.db --reuse data/remind-bge.db --promote   # + copy to the pinned name if parser checks are clean and retrieval isn't lower
 uv run python -m remind_rag.embeddings download          # fill the model folder (REMIND_RAG_MODELS or data/models)
@@ -34,7 +35,7 @@ uv run python -m remind_rag.embeddings download          # fill the model folder
 
 - **Keep measured states reproducible.** Each index state gets a version: build into `data/remind-bge-vN.db` (next
   free N), verify, then copy it to `data/remind-bge.db` (`--promote` does both checks and the copy), which the MCP
-  registration, the tests and the hierarchy report use. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content); v6 = git-tracked files only; v7 = token cut (worse, unused); v8 = v6 + switch declarations counted as declared (#51); v9 = v8 with deterministic where-used order, contentless keyword index (#52, 28 → 23 MB) and `schema_version` 1 (the server refuses older indexes; rebuild with `--reuse` takes seconds).
+  registration, the tests and the hierarchy report use. Note numbers in `FINDINGS.md` or `eval/results/`. v3 = v2 + fixed where-used table; v4 = v3 + role fixes + `preconditions` table; v5 = v4 rebuilt through the embedding-reuse path (identical content); v6 = git-tracked files only; v7 = token cut (worse, unused); v8 = v6 + switch declarations counted as declared (#51); v9 = v8 with deterministic where-used order, contentless keyword index (#52, 28 → 23 MB) and `schema_version` 1 (the server refuses older indexes; rebuild with `--reuse` takes seconds); v10 = v9 code on REMIND `8d9052ef8` (the 2026-10-16 rebuild, saved under its number afterwards); v11 = v10 + indented `*` lines counted as uses, `$ontext` blocks not (FINDINGS 18). Since v0.11.0 the package version carries the index number.
 - **Parser changes:** the build must end with `parser checks: 0 warning(s)`, and `retrieval_eval.py` must not drop.
 - **Tool-output changes:** add or adjust a test in `tests/test_tool_output.py` that shows the information is present.
 - **Tool descriptions and server instructions** are part of every request Claude makes: change them deliberately,

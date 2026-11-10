@@ -449,3 +449,32 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
   chunkers, doccheck.
 - Seen on the way, REMIND behaviour rather than ours: `copyConfigFrom` also copies an empty description, so
   `SSP2-PkBudg1000` shows the text of `SSP2-PkBudg1050` ("peak budget of 1150 Gt").
+
+## 18. v0.11.0: indented `*` lines are code, `$ontext` blocks are not, index v11 (2026-11-10)
+
+- **Found in a REMIND session** (`../HANDOFF-261110-RAG_indented_asterisk_lines.md`): `get_symbol("pm_damage",
+  module="51")` said "No uses", though module 51 reads it on seven lines. `build_uses` skipped every line whose first non-blank
+  character is `*`, but in GAMS only a `*` in column 1 starts a comment; indented, it continues a formula
+  (`        * pm_damage(tall2,regi2) * …`, also `** x` powers). The rest of the code already used the
+  column-1 check (`gams.is_comment`). Second fix in the same rule: lines between `$onText` and `$offText`
+  (switched-off code) counted as uses; now they don't (`gams.in_text_block`).
+- **Index v10** = the pinned index as it was (v9 code, REMIND `8d9052ef8`, built 2026-10-16 but never saved under a
+  number; `--promote` would have overwritten the only copy). **v11** = v10 rebuilt with the fix (`--reuse`, all
+  4,731 embeddings reused, 0 parser warnings). The package version now carries the index number (0.9.0 → 0.11.0).
+- **What changed, v10 → v11** (`eval/db_diff.py`, new): `symbol_uses` 18,178 → 18,859, **+727 / −46, 0 changed**;
+  every other table identical. Added: 187 symbols in 79 files (equation 234, read 493; by phase equations 226,
+  postsolve 194, preloop 110, output 84, datainput 61); each added row checked to sit on an indented-`*` line, each
+  removed one inside `$onText` (3 files: 80_optimization/testOneRegi/preloop, 24_trade/se_trade/presolve,
+  37_industry/subsectors/datainput). Examples: `pm_damage` +7 reads in module 51; `vm_prodSe` +10 (now in
+  `q_costOM`, `q32_limitCapTeChp`, `q39_emiCCU`, `q40_RenShare_SE/FE`); `vm_cap` 3 more equations
+  (`q32_limitCapTeStor`, `q37_limitCapMat`, `q37_limitCapMatHist`); `vm_co2eq` in `qm_co2eqCum`;
+  `p24_XportsRegi` 7 → 1 (only its declaration is real code).
+- **Tool output**: the reference diff for v11 only adds (counts up, new equations and inputs; entries pushed into
+  the "… N more" tail). `get_links("pm_taxCO2eq")` gains `p15_forc_magicc`, `vm_fuExtr`, `vm_Xport`, `vm_Mport`
+  and grows 4,926 → 5,020 characters, so the links budget in `test_compact_output.py` is 5,500 now.
+- **Seen on the way**: 4 reference tests had been failing since the 2026-10-16 rebuild (REMIND changes: renamed
+  `standalone/template.gms`, shifted lines); their references are updated to v10 in a separate commit, so the v11
+  update holds only the fix. Retrieval unchanged (hybrid 81 % / 0.69, `eval/results/retrieval-v11-uses.txt`);
+  chunks always held the full text.
+- **Earlier audits**: no round-02/90–92 failure traces back to this bug; the one damages question (Q13) went wrong
+  on include logic. The question set never asks "which modules read X", the case this bug breaks.
