@@ -21,7 +21,17 @@ from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
 from .chunkers import chunk_file, path_meta
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
-from .gams import ENDIF_RE, IFTHEN_RE, code_part, decl_start, if_guards, is_comment, line_conditions, stmt_end
+from .gams import (
+    ENDIF_RE,
+    IFTHEN_RE,
+    code_part,
+    decl_start,
+    if_guards,
+    in_text_block,
+    is_comment,
+    line_conditions,
+    stmt_end,
+)
 from .usage import LOAD_RE, role
 
 
@@ -117,9 +127,9 @@ def _role(lines: list[str], i: int, name: str) -> str:
 
 
 def build_uses(db, files: list[tuple[str, str]]) -> int:
-    """Where-used: every non-comment GAMS/R line mentioning a known (non-set) symbol or switch, tagged with
-    the equation it sits in (if any), its role (declared / assigned / equation / read), the $ifthen conditions
-    it is compiled under and the run-time if(...) conditions guarding it."""
+    """Where-used: every non-comment GAMS/R line outside `$ontext` blocks mentioning a known (non-set) symbol or
+    switch, tagged with the equation it sits in (if any), its role (declared / assigned / equation / read), the
+    $ifthen conditions it is compiled under and the run-time if(...) conditions guarding it."""
     usable = {
         r[0]
         for r in db.execute(
@@ -145,7 +155,6 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
         if not rel.lower().endswith((".gms", ".r")):
             continue
         meta = path_meta(rel)
-        comment = "*" if is_gms else "#"
         ranges, decls = eq_ranges.get(rel, []), decl_ranges.get(rel, [])
         lines = text.splitlines()
         # main.gms declares its switches inside switch chunks (`parameter cm_x "…" ;` then `cm_x = 1;`)
@@ -157,8 +166,10 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
         ]
         conds = line_conditions(lines) if is_gms else [()] * len(lines)
         guards = if_guards(lines) if is_gms else [()] * len(lines)
+        off = in_text_block(lines) if is_gms else [False] * len(lines)
         for n, line in enumerate(lines, 1):
-            if line.lstrip().startswith(comment):
+            # GAMS: only a `*` in column 1 starts a comment; indented, it continues a formula (`  * p_x(t)`)
+            if off[n - 1] or (is_comment(line) if is_gms else line.lstrip().startswith("#")):
                 continue
             code = line.split("!!", 1)[0] if is_gms else line  # names in !! end-of-line comments aren't uses
             # in order of appearance (links lists a statement's inputs that way); a set made builds differ

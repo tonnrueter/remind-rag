@@ -53,3 +53,23 @@ def test_uses_in_order_of_appearance(tmp_path):
     index.build_uses(db, [("core/presolve.gms", "p_z(t) = p_m(t) * p_a(t) + cm_x;\n")])
     names = [r["name"] for r in db.execute("SELECT name FROM symbol_uses ORDER BY rowid")]
     assert names == ["p_z", "p_m", "p_a", "cm_x"]
+
+
+def test_indented_star_continues_a_formula(tmp_path):
+    # only `*` in column 1 starts a GAMS comment; `  * p_b(t)` multiplies (REMIND 51 KWlikeItr/postsolve.gms)
+    db = store.create(tmp_path / "t.db", 4)
+    db.executemany("INSERT INTO symbols (name, kind) VALUES (?, 'parameter')", [(n,) for n in ("p_a", "p_b", "p_c")])
+    text = "* p_c is mentioned in a comment\np_a(t) =\n    p_c(t)\n    * p_b(t)\n  ** 2;\n"
+    index.build_uses(db, [("core/postsolve.gms", text)])
+    rows = db.execute("SELECT name, line, role FROM symbol_uses ORDER BY line, name").fetchall()
+    assert [tuple(r) for r in rows] == [("p_a", 2, "assigned"), ("p_c", 3, "read"), ("p_b", 4, "read")]
+
+
+def test_ontext_blocks_are_no_uses(tmp_path):
+    # switched-off code between $onText and $offText (REMIND 24_trade/se_trade/presolve.gms) assigns nothing
+    db = store.create(tmp_path / "t.db", 4)
+    db.executemany("INSERT INTO symbols (name, kind) VALUES (?, 'parameter')", [(n,) for n in ("p_a", "p_b")])
+    text = "$onText\np_a(t) = p_b(t);\n$offText\np_b(t) = 1;\n"
+    index.build_uses(db, [("core/presolve.gms", text)])
+    rows = db.execute("SELECT name, line, role FROM symbol_uses").fetchall()
+    assert [tuple(r) for r in rows] == [("p_b", 4, "assigned")]

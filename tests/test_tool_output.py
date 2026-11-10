@@ -409,3 +409,24 @@ def test_search_shows_no_switch_test_from_a_comment():
     # q_limitCapEarlyReti's `!!` comment mentions "cm_startyear = 2005"; its code tests no switch
     out = server.search("q_limitCapEarlyReti", k=1)
     assert "switch tests in this code" not in out
+
+
+# ------------------------------------------------------------------ indented `*` and $onText (FINDINGS 18)
+
+
+def test_indented_star_line_is_a_use():
+    # `        * pm_damage(tall2,regi2) * ...` continues a formula; only `*` in column 1 is a GAMS comment
+    out = server.get_symbol("pm_damage", module="51")
+    assert "modules/51_internalizeDamages/KWlikeItr/postsolve.gms:24" in out
+
+
+def test_equation_member_on_indented_star_line():
+    # q_costOM multiplies by vm_prodSe on a line starting with `*` (core/equations.gms)
+    out = server.get_symbol("vm_prodSe", max_uses=80)
+    assert "q_costOM" in section(out, "Used in equations")
+
+
+def test_switched_off_code_is_no_use():
+    # se_trade/presolve.gms assigns p24_XportsRegi only between $onText and $offText
+    out = server.get_symbol("p24_XportsRegi")
+    assert "### Assigned" not in out and "presolve.gms" not in out

@@ -130,7 +130,7 @@ def test_per_file_counts_carry_default_status():
 
 # ------------------------------------------------------------------ finishing #35: core, every module, get_links
 
-LINKS_BUDGET = 5_000
+LINKS_BUDGET = 5_500  # 5,000 until indented `*` lines counted as uses (pm_taxCO2eq: 5,020)
 
 
 def _all_modules() -> list[str]:

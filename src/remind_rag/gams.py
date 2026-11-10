@@ -33,6 +33,24 @@ def is_comment(line: str) -> bool:
     return line.startswith("*")
 
 
+def in_text_block(lines: list[str]) -> list[bool]:
+    """For every line, whether it lies in a `$ontext ... $offtext` block, the directives included. GAMS doesn't
+    compile these lines; they hold prose or switched-off code.
+
+    >>> in_text_block(["p = 1;", "$onText", "p = 2;", "$offText", "p = 3;"])
+    [False, True, True, True, False]
+    """
+    out, inside = [], False
+    for line in lines:
+        if inside:
+            out.append(True)
+            inside = not OFFTEXT_RE.match(line)
+        else:
+            inside = bool(ONTEXT_RE.match(line))
+            out.append(inside)
+    return out
+
+
 def code_part(line: str) -> str:
     """The line without quoted strings and without its `!!` end-of-line comment, for finding `;` and `/`.
 
