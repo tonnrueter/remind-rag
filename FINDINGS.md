@@ -515,3 +515,28 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
   six bounds in `core/bounds.gms:257-264` that were listed as reads with ✓ and are assignments under
   `cm_GDPpopScen == "SSP1"` etc.; they can't be grouped (one condition each), so `get_symbol("vm_deltaCap")`
   grows to 4,706 characters and the symbol budget in `test_compact_output.py` is 5,000 now.
+
+## 20. v0.13.0: index v13 on REMIND `1e2dbd972`, tests tied to a baseline commit (2026-11-11)
+
+- **Why**: before the severe-bug review (`../CODE_REVIEW.md`) starts, so its reports cite current code. REMIND
+  `develop` went from `8d9052ef8` (3.7.1.dev59) to `1e2dbd972` (3.7.1.dev149): 90 commits, 71 files in `modules/`,
+  `core/`, `main.gms`, `config/`. No realization added or removed (no `--gms-export` needed); two scenario configs
+  deleted (`21_EU11_ARIADNE`, `IKEA`), 577 → 542 scenarios; `cm_NDC_version` and `cm_techcosts` removed.
+- **Build**: same indexing code as v12. 4,688 chunks (v12: 4,731), 4,356 embeddings reused, 0 parser
+  warnings. Retrieval unchanged: hybrid 81 % / 0.69 (`eval/results/retrieval-v13-remind-dev149.txt`).
+- **Tests**: 13 failures, all from REMIND changes. Reference outputs regenerated (line shifts, `vm_cap` bounds moved
+  from `vm_capCum` in PR #2489, config counts, the new NDC description). Three tests pinned content that is gone:
+  `core/bounds.gms:97` is now 99; STALE_COMMENTS #46 (`cm_NDC_version` "def = 2024_cond") was fixed upstream by
+  removing the switch, so its doccheck case is dropped; no scenario has a quote-only difference any more
+  (`KN2045_EasyRide` was in the deleted ARIADNE config), so that test (#42) is dropped. 230 pass.
+- **What that showed**: most tests assert on real REMIND output, so a REMIND update and a code regression failed
+  the same way, and only reading every diff told them apart. The suite also read two REMIND states at once:
+  `test_sweeps.py` the working tree, the rest the pinned index.
+- **Change**: `tests/baseline.py` names the REMIND commit the content tests were written for (`1e2dbd972`). Tests
+  on real output (`test_tool_output.py`, `test_compact_output.py`, the tool calls of `test_reference_output.py`)
+  are marked `remind` and skipped on an index built from any other commit; the header of the run names both
+  commits. On v12: 101 passed, 129 skipped. `--update` refuses another commit. `test_sweeps.py` unpacks REMIND at
+  the baseline commit with `git archive` (~4 MB, under a second), so the working tree no longer matters. The
+  synthetic role, switch-test and `eval_expr` cases moved from `test_tool_output.py` to `test_gams.py`, which
+  always runs. A deployment that indexes its own REMIND (the cluster) now gets a passing suite with the content
+  tests skipped instead of scattered failures. Moving the baseline is a step of its own, as above.
