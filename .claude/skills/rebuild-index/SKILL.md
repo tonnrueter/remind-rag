@@ -20,7 +20,10 @@ to a minute; a full one (`--no-reuse`, a new model, or a change to `make_header`
    Add `--gms-export` only when REMIND's module structure changed; it needs R with gms/goxygen in `r/library`.
    The log must show `parser checks: 0 warning(s)` and `codeCheck declarations: …, missed by our parser: 0`.
 4. **Verify** against the new file (the variable doesn't persist between shell calls, so set it on each command):
-   - `REMIND_RAG_DB=data/remind-bge-v<N>.db uv run pytest tests`: all pass.
+   - `REMIND_RAG_DB=data/remind-bge-v<N>.db uv run pytest tests`: all pass. For a parser change, build from the
+     baseline REMIND commit (`tests/baseline.py`), so the content tests run. If REMIND moved, the header says the
+     content tests were skipped: moving the baseline is its own step (`tests/baseline.py` says how), not part of a
+     code change.
    - `uv run python eval/retrieval_eval.py data/remind-bge-v<N>.db`: hybrid recall@5 / MRR not below the baseline
      (81 % / 0.69 at v2 and v3, 2026-09-25). Save it under `eval/results/`.
 5. **Promote:** add `--promote` to the build (it copies to `data/remind-bge.db` only with 0 parser warnings and

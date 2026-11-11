@@ -12,7 +12,7 @@ Only compiled if: not "%internalizeDamages%" == "off"
 	);
 ```
 
-[2] tutorials/12_Calibrating_CES_Parameters.md:252-276  (md_section)
+[2] tutorials/12_Calibrating_CES_Parameters.md:255-279  (md_section)
 tutorials/12_Calibrating_CES_Parameters.md
 Documentation section: Calibrating CES Parameters > Problems > Calibration Convergence Errors
 ```
@@ -28,7 +28,7 @@ that case
   possibly increase the number of calibration iterations
   (`c_CES_calibration_iterations`).
 - Check production factor prices.  
-… (13 more lines, tutorials/12_Calibrating_CES_Parameters.md:264–276)
+… (13 more lines, tutorials/12_Calibrating_CES_Parameters.md:267–279)
 ```
 
 [3] modules/02_welfare/ineqLognormal/equations.gms:259-263  (gams_block)

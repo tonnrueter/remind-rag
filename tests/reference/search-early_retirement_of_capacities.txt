@@ -1,4 +1,4 @@
-[1] core/bounds.gms:435-443  (gams_block)
+[1] core/bounds.gms:442-450  (gams_block)
 » switch tests in this code (with default values): not "%c_tech_earlyreti_rate%" == "off"  (default c_tech_earlyreti_rate = off) → false
 REMIND core, bounds (core/bounds.gms)
 ```
@@ -13,7 +13,7 @@ vm_capEarlyReti.up(t,regi,teEarlyReti) = 1;
 $ifthen.tech_earlyreti not "%c_tech_earlyreti_rate%" == "off"
 ```
 
-[2] core/equations.gms:968-974  (equation)
+[2] core/equations.gms:959-965  (equation)
 REMIND core, equations (core/equations.gms)
 Equation q_limitCapEarlyReti: constraint to avoid reactivation of retired capacities
 ```
@@ -26,7 +26,7 @@ q_limitCapEarlyReti(ttot,regi,te)$(ttot.val le 2100 AND pm_ttot_val(ttot) ge max
         vm_capEarlyReti(ttot-1,regi,te);
 ```
 
-[3] core/equations.gms:976-983  (equation)
+[3] core/equations.gms:967-974  (equation)
 REMIND core, equations (core/equations.gms)
 Equation q_smoothphaseoutCapEarlyReti: constraint to limit phase-out speed of early retirement from one time step to another
 ```
@@ -57,7 +57,7 @@ q_cap(ttot,regi,te2rlf(te,rlf))$(ttot.val ge cm_startyear)..
 ;
 ```
 
-[5] core/datainput.gms:780-795  (gams_block)
+[5] core/datainput.gms:767-782  (gams_block)
 REMIND core, datainput (core/datainput.gms)
 ```
 *** increase default early retirement rates by 2%/yr for EU subregions
@@ -72,5 +72,5 @@ REMIND core, datainput (core/datainput.gms)
 pm_regiEarlyRetiRate(t,regi,"pc")      = 1.2 * pm_regiEarlyRetiRate(t,regi,"pc");       !! standard coal power plants, pc, are a relatively old technology that should be allowed to retire faster
 *** reduce early retirement for technologies with additional characteristics that are difficult to represent in REMIND, eg. industries built around heating/CHP plants, or flexibility from ngt plants
 pm_regiEarlyRetiRate(t,regi,"ngt")     = 0.3 * pm_regiEarlyRetiRate(t,regi,"ngt");      !! ngt should only be phased out very slowly, as they provide flexibility - which REMIND is not too good at capturing endogeneously
-… (4 more lines, core/datainput.gms:792–795)
+… (4 more lines, core/datainput.gms:779–782)
 ```

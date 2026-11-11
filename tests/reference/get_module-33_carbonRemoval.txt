@@ -10,7 +10,7 @@ The 33_carbonRemoval module adds further options to remove CO2 from the atmosphe
 ### portfolio  [DEFAULT]
 - tests (run time, if / $()): cm_33_BCpriceForm (1), cm_33_OAE_limit_EEZ (0), cm_33_OAE_scen (1), cm_33DAC (1), cm_33EW (0), cm_33OAE (0)
 - reads: cm_33_EW_maxShareOfCropland (GLO 0.5), cm_33_EW_rockRemPot (0.3), cm_33_EW_shortTermLimit (0.005), cm_33_EW_upScalingRateLimit (0.2), cm_33_GDP_netNegCDR_maxShare (GLO 1), cm_33_maxFeShare (0.1), cm_33_OAE_eff (1.2), cm_33_OAE_startyr (2035), cm_frac_NetNegEmi (0.5), cm_startyear (2005)
-- in practice: 577 of 577 scenario configs select it (incl. those that leave the module switch empty); they set cm_startyear = 2025 (252), 2030 (103), 2005 (50); cm_frac_NetNegEmi = 0 (28), 0.5 (25), 0.75 (4); cm_33EW = 1 (37), 0 (6); cm_33OAE = 0 (35), 1 (8); cm_33_OAE_limit_EEZ = 5000 (8); cm_33_maxFeShare = 0.2 (6)
+- in practice: 542 of 542 scenario configs select it (incl. those that leave the module switch empty); they set cm_startyear = 2025 (239), 2030 (95), 2005 (37); cm_frac_NetNegEmi = 0.5 (25), 0 (9), 0.75 (4); cm_33EW = 1 (37); cm_33OAE = 0 (29), 1 (8); cm_33_OAE_limit_EEZ = 5000 (8)
 
 ## Interfaces: provides (outputs), 6
 - sm_capture_rate_cdrmodule -> used by core

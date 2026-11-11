@@ -15,6 +15,8 @@ import pytest
 
 from remind_rag import server
 
+pytestmark = pytest.mark.remind  # sizes and lines of real REMIND output: only on an index of the baseline commit
+
 # 4,000 until single-quoted $ifthen tests were decided (pm_taxCO2eqSum: 4,214); 4,500 until one-line $if
 # statements counted as assignments under their test (vm_deltaCap: 4,706, FINDINGS 19)
 SYMBOL_BUDGET = 5_000
@@ -109,7 +111,7 @@ def test_search_budget(query):
 
 def test_symbol_drill_down_by_role_and_module():
     out = server.get_symbol("vm_deltaCap", role="assigned", module="core")
-    assert "core/bounds.gms:44" in out and "core/bounds.gms:97" in out
+    assert "core/bounds.gms:44" in out and "core/bounds.gms:99" in out
     assert "05_initialCap" not in out  # filtered to core
 
 

@@ -1,29 +1,53 @@
 """Sweep checks: the mechanical sweeps over REMIND must re-find known defects from ../STALE_COMMENTS.md and must not
-report the noise we tuned away. Reads the REMIND checkout next to rag/ (read-only). No LLM, no index needed.
+report the noise we tuned away. Reads REMIND at the baseline commit (baseline.py) from the repository next to rag/,
+whatever its working tree holds; skipped if that repository lacks the commit. No LLM, no index needed.
 
     uv run pytest tests/test_sweeps.py
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import io
+import subprocess
+import tarfile
 
+import baseline
 import pytest
 
 from remind_rag import doccheck, preconditions
 
-REMIND = Path(__file__).resolve().parents[2] / "remind"
-pytestmark = pytest.mark.skipif(not (REMIND / "main.gms").exists(), reason="no REMIND checkout next to rag/")
+
+@pytest.fixture(scope="module")
+def remind(tmp_path_factory):
+    """REMIND's tracked files at the baseline commit, unpacked into a temporary folder (~4 MB, under a second)."""
+    try:
+        tar = subprocess.run(
+            ["git", "-C", str(baseline.REMIND_REPO), "archive", "--format=tar", baseline.REMIND_COMMIT],
+            capture_output=True,
+            check=True,
+            timeout=120,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pytest.skip(f"no REMIND repository with commit {baseline.REMIND_COMMIT[:9]} at {baseline.REMIND_REPO}")
+    root = tmp_path_factory.mktemp("remind")
+    with tarfile.open(fileobj=io.BytesIO(tar)) as t:
+        t.extractall(root, filter="data")
+    return root
 
 
 @pytest.fixture(scope="module")
-def docs():
-    return {(f.check, f.where, f.claim.lower()) for f in doccheck.sweep(REMIND)}
+def findings(remind):
+    return doccheck.sweep(remind)
 
 
 @pytest.fixture(scope="module")
-def pre():
-    found, _ctx = preconditions.sweep(REMIND)
+def docs(findings):
+    return {(f.check, f.where, f.claim.lower()) for f in findings}
+
+
+@pytest.fixture(scope="module")
+def pre(remind):
+    found, _ctx = preconditions.sweep(remind)
     return found
 
 
@@ -66,7 +90,6 @@ def test_default_abort_is_information_not_defect(pre):
         ("unknown name", "core/postsolve.gms:27", "cm_bunkerscen"),  # 23
         ("stated default", "main.gms:391", "initialspread10"),  # 14
         ("stated default", "modules/45_carbonprice/expoLinear/datainput.gms:9", "2060"),  # 15
-        ("stated default", "main.gms:1452", "2024_cond"),  # 46
         ("file pointer", "modules/15_climate/magicc7_ar6/postsolve.gms:87", "core/postsolve.gms"),  # 4
         ("file pointer", "main.gms:971", "ndc/postsolve.gms"),  # 19
         ("file pointer", "modules/45_carbonprice/exogenousExpo/declarations.gms:7", "ndcexpo"),
@@ -76,8 +99,8 @@ def test_known_defect_found(docs, check, where, claim):
     assert _has(docs, check, where, claim)
 
 
-def test_renamed_switch_points_to_rename_table():
-    f = next(f for f in doccheck.sweep(REMIND) if f.claim == "cm_taxCO2inc_after_peakBudgYr")
+def test_renamed_switch_points_to_rename_table(findings):
+    f = next(f for f in findings if f.claim == "cm_taxCO2inc_after_peakBudgYr")
     assert "readCheckScenarioConfig.R" in f.problem
 
 

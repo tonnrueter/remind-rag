@@ -283,12 +283,16 @@ uv run python -m remind_rag.hierarchy [--json out.json]             # module cou
 ## Development
 
 ```powershell
-uv run pytest tests                       # needs data/remind-bge.db (or REMIND_RAG_DB) and the REMIND checkout
+uv run pytest tests                       # needs data/remind-bge.db (or REMIND_RAG_DB)
 uv run ruff check; uv run ruff format     # lint and format (line length 120)
 uv run python tests/test_reference_output.py --update   # only for deliberate output changes, in the same commit
 ```
 
 - `tests/test_reference_output.py` compares 15 tool calls and the tool descriptions byte for byte with
   `tests/reference/`: the safety net for refactoring.
+- Tests that assert on real REMIND output (tool output, budgets, references) are written for one REMIND commit,
+  `tests/baseline.py`. On an index built from another commit (a deployment, or after REMIND moved) they are
+  skipped, and the first lines of the test run say so; the other tests still run. `test_sweeps.py` reads REMIND at
+  that commit from the repository next to `rag/` and is skipped where the repository lacks it.
 - Examples in docstrings (`>>>`) run as tests (`tests/test_doctests.py`).
 - `git config blame.ignoreRevsFile .git-blame-ignore-revs` hides the one formatting commit from `git blame`.

@@ -3,6 +3,7 @@ SSP2-PkBudg1050: This climate policy scenario follows the Shared Socioeconomic P
 ## Settings
 - start = 1,AMT,2
 - cm_rcp_scen = rcp26
+- cm_fgas_scen = MESSAGEKAFull
 - subsidizeLearning = globallyOptimal
 - cm_iterative_target_adj = 9
 - cm_budgetCO2from2020 = 1000
@@ -21,6 +22,7 @@ SSP2-PkBudg1050: This climate policy scenario follows the Shared Socioeconomic P
 - path_gdx_refpolicycost = SSP2-NPi2025
 ## Differs from main.gms
 - cm_rcp_scen: rcp45 -> rcp26
+- cm_fgas_scen: MESSAGEKAImplemented -> MESSAGEKAFull
 - subsidizeLearning: off -> globallyOptimal
 - cm_iterative_target_adj: 0 -> 9
 - cm_budgetCO2from2020: 0 -> 1000
@@ -35,4 +37,4 @@ SSP2-PkBudg1050: This climate policy scenario follows the Shared Socioeconomic P
 - cm_EDGEtr_scen: Mix2ICEban -> Mix3ICEban
 - c_changeProdCost: 5 -> 1
 - cm_startyear: 2005 -> 2030
-(also defined in: config/scenario_config_IKEA.csv, config/scenario_config_magpie.csv, config/scenario_config_magpie_NGFS_v6c2.csv, config/scenario_config_magpie_PRISMA.csv, config/scenario_config_NGFS_v6c2.csv, config/scenario_config_PRISMA.csv)
+(also defined in: config/scenario_config_magpie.csv, config/scenario_config_magpie_NGFS_v6c2.csv, config/scenario_config_magpie_PRISMA.csv, config/scenario_config_NGFS_v6c2.csv, config/scenario_config_PRISMA.csv)

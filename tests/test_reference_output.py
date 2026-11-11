@@ -5,7 +5,7 @@ commit, and the commit message says why:
 
     uv run python tests/test_reference_output.py --update
 
-Recorded with index v8 (2026-10-14), unchanged on v9; a rebuild that changes tool output shows up here too.
+The tool calls only run on an index of the baseline REMIND commit (baseline.py); `--update` refuses any other.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import re
 import sys
 from pathlib import Path
 
+import baseline
 import pytest
 
 from remind_rag import server, store
@@ -70,6 +71,7 @@ def compare(path: Path, actual: str, what: str) -> None:
         )
 
 
+@pytest.mark.remind
 @pytest.mark.parametrize("tool, arg", CALLS)
 def test_output_unchanged(tool, arg):
     compare(reference_file(tool, arg), call(tool, arg), f"{tool}({arg!r})")
@@ -83,6 +85,8 @@ def test_descriptions_unchanged(name):
 if __name__ == "__main__":
     if sys.argv[1:] != ["--update"]:
         sys.exit("usage: uv run python tests/test_reference_output.py --update")
+    if reason := baseline.mismatch():
+        sys.exit(f"not updated: {reason}. Moving the baseline is its own step, see tests/baseline.py")
     REFERENCE.mkdir(exist_ok=True)
     for tool, arg in CALLS:
         reference_file(tool, arg).write_text(call(tool, arg), encoding="utf-8", newline="\n")

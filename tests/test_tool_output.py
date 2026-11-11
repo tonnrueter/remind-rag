@@ -10,7 +10,9 @@ import re
 
 import pytest
 
-from remind_rag import server, usage
+from remind_rag import server
+
+pytestmark = pytest.mark.remind  # real REMIND lines and counts: only on an index of the baseline commit
 
 
 def section(text: str, title: str) -> str:
@@ -194,40 +196,7 @@ def test_if_condition_is_not_an_assignment():
 
 
 # ------------------------------------------------------------------ index v4: role fixes (real REMIND lines)
-
-
-@pytest.mark.parametrize(
-    "line, name, expected",
-    [
-        # `=` inside if( / elseif( / $( / break$( is a comparison
-        ("if(cm_nucscen = 5,", "cm_nucscen", "read"),
-        ("elseif(c_co2captureEnergy = 3), !! no bio carbon capture:", "c_co2captureEnergy", "read"),
-        ('if ( (pm_ffPolyCumEx(regi,enty,"max") = 0),', "pm_ffPolyCumEx", "read"),
-        ('loop(teNoLearn(te) $ (pm_data(regi,"tech_stat",te) = 2),', "pm_data", "read"),
-        (
-            "break$(p47_implicitQttyTargetActive_iter(iteration2,ext_regi) = 1);",
-            "p47_implicitQttyTargetActive_iter",
-            "read",
-        ),
-        # conditional assignments with a space after `$` are assignments
-        ('vm_cap.lo(t,regi,te,"1") $ (t.val >= 2030) = 1e-7;', "vm_cap", "assigned"),
-        (
-            'p_capCum("2015",regi,te) $ (p_capCum("2015",regi,te) = 0) = fm_dataglob("ccap0",te) / card(regi);',
-            "p_capCum",
-            "assigned",
-        ),
-        (
-            'pm_cesdata_sigma(ttot,in)$ (pm_ttot_val(ttot) le 2025  AND sameAs(in, "inco")) = 0.1;',
-            "pm_cesdata_sigma",
-            "assigned",
-        ),
-        # the loop variable of a for loop is assigned
-        ("for (sm_tmp = sm_tmp downto 0,", "sm_tmp", "assigned"),
-        ("if(cond, pm_x(regi) = 1);", "pm_x", "assigned"),
-    ],
-)
-def test_role(line, name, expected):
-    assert usage.role(line, name) == expected
+# (the line-by-line cases of usage.role are in test_gams.py)
 
 
 def test_bounds_with_spaced_condition_are_assignments():
@@ -322,42 +291,6 @@ def test_symbol_use_lines_carry_status():
     assert "core/postsolve.gms:51 [core/postsolve] ⚠ not in a default run" in assigned
 
 
-# ------------------------------------------------------------------ #50: switch tests come from code only
-
-DEFAULTS = {"cm_startyear": "2005", "cm_emiscen": "9", "carbonprice": "functionalForm"}
-
-
-@pytest.mark.parametrize(
-    "text, expected",
-    [
-        # prose in comments and messages is not a test
-        ("q_x(t)$(t.val ge 2010).. !! for cm_startyear = 2005 the equation should not be applied\n v_x(t) =g= 0;", []),
-        ("*** requires cm_emiscen = 1\np_x = 1;", []),
-        ("$ontext\nif(cm_emiscen eq 1, p_x = 1);\n$offtext\np_y = 2;", []),
-        ('if(cm_emiscen ne 9, abort "only compatible with cm_startyear = 2005");', ["cm_emiscen ne 9"]),
-        # code tests stay, including string tests and `!!` inside a string
-        ("if(cm_emiscen eq 9, p_x = 1); !! default", ["cm_emiscen eq 9"]),
-        ('$ifthen "%carbonprice%" == "functionalForm"', ['"%carbonprice%" == "functionalForm"']),
-        ('p_x$(cm_startyear gt 2005) = 1; p_s = "a !! b";', ["cm_startyear gt 2005"]),
-    ],
-)
-def test_switch_tests_ignore_comments_and_messages(text, expected):
-    assert [t.split("  (default")[0] for t, _ in usage.switch_tests(text, DEFAULTS)] == expected
-
-
-@pytest.mark.parametrize(
-    "cond, expected",
-    [
-        ("%carbonprice% == 'functionalForm'", True),
-        ("not (%carbonprice% == 'NDC')", True),
-        ("'%carbonprice%' == 'NDC'", False),
-    ],
-)
-def test_single_quoted_string_tests_are_decided(cond, expected):
-    # `$ifi not %damages% == 'DiceLike'` was read with an empty value and stayed undecided
-    assert usage.eval_expr(cond, DEFAULTS) is expected
-
-
 def test_get_module_takes_name_and_module():
     # Claude called get_module(name="30_biomass") and got a validation error (ERRORS.md, #43)
     out = server.get_module(name="45")
@@ -375,13 +308,6 @@ def test_scenario_search_keeps_code_compiled_in():
     scen = [(r["path"], r["line_start"]) for r in server.idx.search(q, k=10, scenario="SSP2-PkBudg1000")]
     assert chunk in plain
     assert chunk in scen
-
-
-def test_scenario_quote_only_difference_is_no_difference():
-    # main.gms writes cm_ind_energy_limit_manual in quotes, the KN2045 configs without; same value (#42)
-    out = server.get_scenario("KN2045_EasyRide")
-    assert "cm_ind_energy_limit_manual = 2050" in out
-    assert "- cm_ind_energy_limit_manual:" not in out
 
 
 # ------------------------------------------------------------------ #51: switch declarations in main.gms

@@ -18,21 +18,21 @@
 - modules/05_initialCap/on/preloop.gms:164 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.fx("2005",regi,te,rlf)$(te2rlf(te,rlf)) = 0;
 - modules/05_initialCap/on/preloop.gms:197 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.lo(ttot,regi,te,"1") = sm_tmp;
 - modules/05_initialCap/on/preloop.gms:198 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.up(ttot,regi,te,"1") = sm_tmp;
-- core/bounds.gms:223 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi_nucscen,"tnrs",rlf) $ (t.val > 2025) = 1e-6;
+- core/bounds.gms:230 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi_nucscen,"tnrs",rlf) $ (t.val > 2025) = 1e-6;
     ⚠ inside if cm_nucscen = 5 → inactive by default
-- core/bounds.gms:257 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SSP1" vm_deltaCap.fx(t,regi,"biotr","1") $ (t.val > 2020) = 0.5 * vm_deltaCap.lo(t,re…
+- core/bounds.gms:264 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SSP1" vm_deltaCap.fx(t,regi,"biotr","1") $ (t.val > 2020) = 0.5 * vm_deltaCap.lo(t,re…
     ⚠ $ifthen %cm_GDPpopScen% == "SSP1" → inactive by default
-- core/bounds.gms:258 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SSP5" vm_deltaCap.fx(t,regi,"biotr","1") $ (t.val > 2020) = 0.5 * vm_deltaCap.lo(t,re…
+- core/bounds.gms:265 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SSP5" vm_deltaCap.fx(t,regi,"biotr","1") $ (t.val > 2020) = 0.5 * vm_deltaCap.lo(t,re…
     ⚠ $ifthen %cm_GDPpopScen% == "SSP5" → inactive by default
-- core/bounds.gms:261 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+- core/bounds.gms:268 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
     ⚠ $ifthen %cm_GDPpopScen% == "SDP" → inactive by default
-- core/bounds.gms:262 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_EI" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+- core/bounds.gms:269 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_EI" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
     ⚠ $ifthen %cm_GDPpopScen% == "SDP_EI" → inactive by default
-- core/bounds.gms:263 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_MC" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+- core/bounds.gms:270 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_MC" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
     ⚠ $ifthen %cm_GDPpopScen% == "SDP_MC" → inactive by default
-- core/bounds.gms:264 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_RC" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+- core/bounds.gms:271 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_RC" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
     ⚠ $ifthen %cm_GDPpopScen% == "SDP_RC" → inactive by default
-- core/bounds.gms:269 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi,"bioftrec",rlf) $ (t.val > 2005) = 1e-6;  (same reason: also lines 270, 271)
+- core/bounds.gms:276 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi,"bioftrec",rlf) $ (t.val > 2005) = 1e-6;  (same reason: also lines 277, 278)
     ⚠ inside if c_bioliqscen = 0 → inactive by default
 - lines: get_symbol("vm_deltaCap", role="assigned"[, module="…"])
 ### Used in equations (25 lines: 9 ✓, 16 ⚠; 21_tax, 22_subsidizeLearning, 40_techpol, core)
