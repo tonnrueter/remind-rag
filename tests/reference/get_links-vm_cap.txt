@@ -1,23 +1,23 @@
 # Links of vm_cap — positive variable "net total capacities [TW] for energy conversion technologies, [GtC] for CCS chain in ccs2te (pipelines/injection)" [declared in core]
 One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · [module] = declared outside the statement's module.
-## Computed from (statements assigning vm_cap) (99 statements: 65 run by default, 2 depend on settings, 32 not in a default run)
+## Computed from (statements assigning vm_cap) (104 statements: 70 run by default, 2 depend on settings, 32 not in a default run)
 - core/bounds.gms:33 ✓ runs by default  constant or set-based (no symbol inputs)
 - core/bounds.gms:49 ✓ runs by default  constant or set-based (no symbol inputs)
+- core/bounds.gms:73 ✓ runs by default  from pm_histCap
+- core/bounds.gms:76 ✓ runs by default  from pm_histCap
+- core/bounds.gms:78 ✓ runs by default  from pm_histCap
+- core/bounds.gms:80 ✓ runs by default  from pm_histCap
+- core/bounds.gms:84 ✓ runs by default  from pm_histCap
 - core/bounds.gms:127 ✓ runs by default  from pm_eta_conv, pm_gdp
 - core/bounds.gms:129 ✓ runs by default  from pm_eta_conv, pm_gdp
 - core/bounds.gms:131 ✓ runs by default  from pm_eta_conv, pm_gdp
-- core/bounds.gms:134 ✓ runs by default  from sm_EJ_2_TWa, pm_gdp
-- core/bounds.gms:137 ✓ runs by default  from sm_EJ_2_TWa, pm_gdp
-- core/bounds.gms:138 ✓ runs by default  from sm_EJ_2_TWa, pm_gdp
-- core/bounds.gms:152 ✓ runs by default  constant or set-based (no symbol inputs)
-- core/bounds.gms:164 ✓ runs by default  constant or set-based (no symbol inputs)
 - core/bounds.gms:224 ⚠ not in a default run  constant or set-based (no symbol inputs)
     ⚠ inside if cm_nucscen = 5 → inactive by default
 - core/bounds.gms:376 ⚠ not in a default run  constant or set-based (no symbol inputs)
     ⚠ inside if cm_emiscen = 1 → inactive by default
 - core/bounds.gms:483 ⚠ not in a default run  constant or set-based (no symbol inputs); :484 constant or set-based (no symbol inputs)
     ⚠ $ifthen %c_SSP_forcing_adjust% == "forcing_SSP1" → inactive by default
-- ... 85 more (40_techpol 29, core 24, 47_regipol 20, 39_carbonUtilization 6, 33_carbonRemoval 4, 32_power 1, 37_industry 1): get_symbol("vm_cap", role=…, module=…) lists them
+- ... 90 more (core 29, 40_techpol 29, 47_regipol 20, 39_carbonUtilization 6, 33_carbonRemoval 4, 32_power 1, 37_industry 1): get_symbol("vm_cap", role=…, module=…) lists them
 ## Feeds into (statements reading vm_cap and assigning another symbol) (1 statements: 1 run by default)
 - modules/70_water/heat/output.gms:29 ✓ default realization  → p70_cap_vintages_share
 ## In equations (other symbols in the same equation) (34 equations: 24 run by default, 10 not in a default run)
@@ -60,4 +60,4 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
     parameters / switches: p40_NewRenBound
     ⚠ non-default realization (default: NPi2025)
 - ... 17 more (core 17): get_symbol("vm_cap", role=…, module=…) lists them
-## Other reads: 9 statements without an assignment (conditions, display, output; 40_techpol, core); see get_symbol
+## Other reads: 4 statements without an assignment (conditions, display, output; 40_techpol); see get_symbol

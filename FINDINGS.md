@@ -478,3 +478,40 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
   chunks always held the full text.
 - **Earlier audits**: no round-02/90–92 failure traces back to this bug; the one damages question (Q13) went wrong
   on include logic. The question set never asks "which modules read X", the case this bug breaks.
+
+## 19. v0.12.0: assignments the roles missed, conditions of one-line `$if`, index v12 (2026-11-11)
+
+- **Found while planning a code review** (`../CODE_REVIEW.md`): "parameters read but never assigned" listed 229
+  names (parameters, scalars, tables), and the five checked by hand were all assigned. For a review that is the
+  dangerous direction ("X is never set" is a bug claim). Five gaps, each simulated on v11 before the fix:
+  - **A** `x(…)$name(…) = …`: `role()` stepped over a bare `$name` but not over its index, so it never reached
+    the `=` (`p33_FE_limit`, and bounds such as `vm_cap.lo(…) $ pm_histCap(…) = …`, `core/bounds.gms:75-85`).
+    The bracketed form `$(…)` was always right.
+  - **B** a tab between name and `=` (`main.gms:1161`, `cm_sccConvergence<TAB>= 0.05;`).
+  - **C** the statement after a one-line `$if` / `$ifi` (`$if %cm_rcp_scen% == "none" s15_rcpCluster = 1;`): the
+    name doesn't start the line, so it never counted as an assignment.
+  - **D** a declaration with data (`/ … /`, `/ $include "….cs4r" /`, `/ %cm_x% /`, every `table`) gives the symbol
+    its values but was only `declared`. Now `assigned`; the declaration stays in `symbols`, and every such row sits
+    on its symbol's own declaration line (280 of 280), so "declared with data" is recoverable with a join. No new
+    role (decided 2026-11-11: little gain for a change in every tool and test).
+  - **D2** a switch inside another symbol's data (`/ %cm_incolearn% /`) was `declared`; now `read`.
+  - **E** a one-line `$if` added no condition to its line, so the line showed ✓ "runs by default" whatever the
+    test (`$if %cm_rcp_scen% == "rcp45" s15_rcpCluster = 0;`). `gams.line_conditions(single_if=True)` adds it,
+    for the where-used table only: chunks and the precondition sweep read the test themselves and stay unchanged.
+- **Survey first**: every one-line `$if` in REMIND has the form `[not] a == b` (quoted or `%switch%`), then the
+  statement (`gams.IF_LINE_RE`); `$not name(…)` on the left of an assignment occurs nowhere.
+- **What changed, v11 → v12** (`eval/db_diff.py`): only `symbol_uses`, 18,859 rows, **0 added / 0 removed /
+  1,148 changed**: declared → read 308, declared → assigned 280, read → assigned 202 (117 one-line `$if`, 2 tabs,
+  the rest `$name(…)`, 30 of them bounds), conditions on 475 lines. Roles: assigned 4,606 → 5,088, declared
+  2,790 → 2,202, read 8,952 → 9,058, equation 2,511 unchanged. All 4,731 embeddings reused, 0 parser warnings,
+  retrieval unchanged (hybrid 81 % / 0.69, `eval/results/retrieval-v12-roles.txt`).
+- **Never assigned: 229 → 23.** Left: 15 switches that `standalone/*.gms` also declares as parameters, 7 set
+  elements the declaration parser takes for symbols (`feh2_cement`, `level`, …; older, separate defect), and
+  **one REMIND defect**: `41_emicapregi/PerCapitaConvergence/datainput.gms:18` assigns `p41_shEmi20200`, declared
+  nowhere, and line 26 reads `p41_shEmi2020`, so the realization doesn't compile (not the default; no scenario
+  config selects it).
+- **Tool output**: the reference diff for v12 only moves lines between sections and fixes their marks.
+  `vm_cap` gains five assignments from `pm_histCap`, which `get_links` now shows as an input. `vm_deltaCap` gains
+  six bounds in `core/bounds.gms:257-264` that were listed as reads with ✓ and are assignments under
+  `cm_GDPpopScen == "SSP1"` etc.; they can't be grouped (one condition each), so `get_symbol("vm_deltaCap")`
+  grows to 4,706 characters and the symbol budget in `test_compact_output.py` is 5,000 now.

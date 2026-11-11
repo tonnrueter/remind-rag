@@ -12,27 +12,33 @@
 - also: 40_techpol/NPi2025, 40_techpol/lowCarbonPush, 40_techpol/none
 ## Uses (173 lines)
 ### Declared (1 lines: 1 ✓; core)
-### Assigned / fixed / loaded (108 lines: 45 ✓, 63 ⚠; 05_initialCap, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 39_carbonUtilization, 40_techpol, 47_regipol, core)
-- per file: core/bounds.gms 49 (32 ✓, 17 ⚠), modules/47_regipol/regiCarbonPrice/bounds.gms 13 (5 ✓, 8 ⚠), modules/05_initialCap/on/preloop.gms 11 (8 ✓, 3 ⚠), modules/47_regipol/none/bounds.gms 11 ⚠, modules/40_techpol/coalPhaseout/bounds.gms 7 ⚠, modules/40_techpol/coalPhaseoutRegional/bounds.gms 7 ⚠, +5 more files
+### Assigned / fixed / loaded (114 lines: 45 ✓, 69 ⚠; 05_initialCap, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 39_carbonUtilization, 40_techpol, 47_regipol, core)
+- per file: core/bounds.gms 55 (32 ✓, 23 ⚠), modules/47_regipol/regiCarbonPrice/bounds.gms 13 (5 ✓, 8 ⚠), modules/05_initialCap/on/preloop.gms 11 (8 ✓, 3 ⚠), modules/47_regipol/none/bounds.gms 11 ⚠, modules/40_techpol/coalPhaseout/bounds.gms 7 ⚠, modules/40_techpol/coalPhaseoutRegional/bounds.gms 7 ⚠, +5 more files
 - modules/05_initialCap/on/preloop.gms:163 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.fx(tsu,regi,te,rlf)$(te2rlf(te,rlf)) = 0;
 - modules/05_initialCap/on/preloop.gms:164 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.fx("2005",regi,te,rlf)$(te2rlf(te,rlf)) = 0;
 - modules/05_initialCap/on/preloop.gms:197 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.lo(ttot,regi,te,"1") = sm_tmp;
 - modules/05_initialCap/on/preloop.gms:198 [05_initialCap/on/preloop] ✓ default realization  vm_deltaCap.up(ttot,regi,te,"1") = sm_tmp;
 - core/bounds.gms:223 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi_nucscen,"tnrs",rlf) $ (t.val > 2025) = 1e-6;
     ⚠ inside if cm_nucscen = 5 → inactive by default
-- core/bounds.gms:269 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi,"bioftrec",rlf) $ (t.val > 2005) = 1e-6;  (same reason: also lines 270, 271, 272)
+- core/bounds.gms:257 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SSP1" vm_deltaCap.fx(t,regi,"biotr","1") $ (t.val > 2020) = 0.5 * vm_deltaCap.lo(t,re…
+    ⚠ $ifthen %cm_GDPpopScen% == "SSP1" → inactive by default
+- core/bounds.gms:258 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SSP5" vm_deltaCap.fx(t,regi,"biotr","1") $ (t.val > 2020) = 0.5 * vm_deltaCap.lo(t,re…
+    ⚠ $ifthen %cm_GDPpopScen% == "SSP5" → inactive by default
+- core/bounds.gms:261 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+    ⚠ $ifthen %cm_GDPpopScen% == "SDP" → inactive by default
+- core/bounds.gms:262 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_EI" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+    ⚠ $ifthen %cm_GDPpopScen% == "SDP_EI" → inactive by default
+- core/bounds.gms:263 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_MC" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+    ⚠ $ifthen %cm_GDPpopScen% == "SDP_MC" → inactive by default
+- core/bounds.gms:264 [core/bounds] ⚠ not in a default run  $if %cm_GDPpopScen% == "SDP_RC" vm_deltaCap.up(t,regi,"biotr","1") $ (t.val > 2020) = 0;
+    ⚠ $ifthen %cm_GDPpopScen% == "SDP_RC" → inactive by default
+- core/bounds.gms:269 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi,"bioftrec",rlf) $ (t.val > 2005) = 1e-6;  (same reason: also lines 270, 271)
     ⚠ inside if c_bioliqscen = 0 → inactive by default
-- core/bounds.gms:278 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi,"bioeths",rlf) $ (t.val > 2030) = 0;  (same reason: also line 279)
-    ⚠ inside if cm_1stgen_phaseout = 1 → inactive by default
-- core/bounds.gms:284 [core/bounds] ⚠ not in a default run  vm_deltaCap.up(t,regi,"bioh2",rlf) $ (t.val > 2005) = 1e-6;  (same reason: also line 285)
-    ⚠ inside if c_bioh2scen = 0 → inactive by default
-- core/bounds.gms:293 [core/bounds] ⚠ not in a default run  vm_deltaCap.fx(t,regi,te,rlf) $ (t.val >= cm_startyear) = 0;
-    ⚠ inside if c_biopyrOptions eq 0 → inactive by default
 - lines: get_symbol("vm_deltaCap", role="assigned"[, module="…"])
 ### Used in equations (25 lines: 9 ✓, 16 ⚠; 21_tax, 22_subsidizeLearning, 40_techpol, core)
 - per file: core/equations.gms 8 ✓, modules/40_techpol/CombLowCandCoalPO/equations.gms 3 ⚠, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/40_techpol/coalPhaseout/equations.gms 3 ⚠, modules/40_techpol/coalPhaseoutRegional/equations.gms 3 ⚠, +2 more files
 - equations: q_costInvTeDir, q_transPe2se, q_cap, q_windoff_low, qm_deltaCapCumNet, q_eqadj, q21_taxrevEI, q22_costSubsidizeLearningForeign, q40_CoalBound
 - lines: get_symbol("vm_deltaCap", role="equation"[, module="…"])
-### Read (39 lines: 33 ✓, 6 ⚠; 05_initialCap, 21_tax, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 70_water, core)
-- per file: modules/05_initialCap/on/preloop.gms 17 ✓, core/bounds.gms 6 ✓, core/postsolve.gms 5 ✓, modules/30_biomass/magpie/bounds.gms 3 (2 ✓, 1 ⚠), modules/29_CES_parameters/calibrate/output.gms 2 ⚠, modules/29_CES_parameters/calibrate/preloop.gms 2 ⚠, +4 more files
+### Read (33 lines: 27 ✓, 6 ⚠; 05_initialCap, 21_tax, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 70_water, core)
+- per file: modules/05_initialCap/on/preloop.gms 17 ✓, core/postsolve.gms 5 ✓, modules/30_biomass/magpie/bounds.gms 3 (2 ✓, 1 ⚠), modules/29_CES_parameters/calibrate/output.gms 2 ⚠, modules/29_CES_parameters/calibrate/preloop.gms 2 ⚠, modules/21_tax/on/postsolve.gms 1 ✓, +3 more files
 - lines: get_symbol("vm_deltaCap", role="read"[, module="…"])
