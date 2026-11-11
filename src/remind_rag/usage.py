@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from .gams import STRING_RE, code_part, strip_comments
+from .gams import IF_LINE_RE, STRING_RE, code_part, strip_comments
 
 # ------------------------------------------------------------------ roles
 
@@ -28,7 +28,7 @@ def _skip_group(s: str, k: int) -> int:
 
 
 def role(line: str, name: str) -> str:
-    """'assigned' if the line assigns, fixes, bounds or loads `name`, else 'read'. Only one line is looked at;
+    r"""'assigned' if the line assigns, fixes, bounds or loads `name`, else 'read'. Only one line is looked at;
     declarations and equation bodies are classified by the caller (index.build_uses) from the chunk kinds.
 
     >>> role("vm_cap.fx(t,regi,te) = 0;", "vm_cap"), role("p_x(t) = vm_cap.l(t);", "vm_cap")
@@ -37,8 +37,16 @@ def role(line: str, name: str) -> str:
     'read'
     >>> role("p_x(t)$(cm_startyear gt 2005) = 1;", "p_x")  # conditional assignment
     'assigned'
+    >>> role("vm_cap.lo(t,te) $ pm_histCap(t,te) = 0;", "vm_cap")  # condition without brackets, with an index
+    'assigned'
+    >>> role("cm_x\t= 0.05;", "cm_x")  # a tab before the =
+    'assigned'
+    >>> role('$if %cm_rcp_scen% == "none" s15_c = 1;', "s15_c")  # the statement after a one-line $if
+    'assigned'
     """
-    code = code_part(line)
+    if m := IF_LINE_RE.match(line):
+        line = m.group(2)
+    code = code_part(line).replace("\t", " ")
     if LOAD_RE.search(code):
         return "assigned"
     for m in re.finditer(rf"(?<![\w.%]){re.escape(name)}(?!\w)", code, re.I):
@@ -60,15 +68,18 @@ def role(line: str, name: str) -> str:
                 k = _skip_group(code, k)
         while k < len(code) and code[k] == " ":
             k += 1
-        if k < len(code) and code[k] == "$":  # conditional assignment x(t)$(cond) = ... or x(t) $ (cond) = ...
+        if k < len(code) and code[k] == "$":  # conditional assignment x(t)$(cond) = ..., x(t) $ p(t) = ...
             k += 1
             while k < len(code) and code[k] == " ":
                 k += 1
-            k = (
-                _skip_group(code, k)
-                if k < len(code) and code[k] == "("
-                else k + len(re.match(r"\w*", code[k:]).group())
-            )
+            if k < len(code) and code[k] == "(":
+                k = _skip_group(code, k)
+            else:  # $name, possibly with its index: $pm_histCap(t,regi,te)
+                k += len(re.match(r"\w*", code[k:]).group())
+                while k < len(code) and code[k] == " ":
+                    k += 1
+                if k < len(code) and code[k] == "(":
+                    k = _skip_group(code, k)
             while k < len(code) and code[k] == " ":
                 k += 1
         if code[k : k + 1] == "=" and code[k : k + 2] != "==" and not EQ_OPERATOR_RE.match(code, k):

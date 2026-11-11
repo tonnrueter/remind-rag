@@ -430,3 +430,51 @@ def test_switched_off_code_is_no_use():
     # se_trade/presolve.gms assigns p24_XportsRegi only between $onText and $offText
     out = server.get_symbol("p24_XportsRegi")
     assert "### Assigned" not in out and "presolve.gms" not in out
+
+
+# ------------------------------------------------------------------ assignments the roles missed (FINDINGS 19)
+
+
+def assigned_at(name: str) -> set[tuple[str, int]]:
+    rows = server.idx.db.execute(
+        "SELECT path, line FROM symbol_uses WHERE name = ? COLLATE NOCASE AND role = 'assigned'", (name,)
+    )
+    return {(r["path"], r["line"]) for r in rows}
+
+
+def test_condition_without_brackets_on_the_left():
+    # `p33_FE_limit(...)$p33_shfetot_up(...) = ...`: the $name's own index used to hide the `=`
+    assert {
+        ("modules/33_carbonRemoval/portfolio/preloop.gms", 10),
+        ("modules/33_carbonRemoval/portfolio/postsolve.gms", 13),
+    } <= assigned_at("p33_FE_limit")
+    assert ("core/bounds.gms", 75) in assigned_at("vm_cap")  # vm_cap.lo(...) $ pm_histCap(...) = ...
+
+
+def test_tab_before_equals():
+    assert ("main.gms", 1161) in assigned_at("cm_sccConvergence")  # `cm_sccConvergence<TAB>= 0.05;`
+
+
+def test_one_line_if_assigns_under_its_condition():
+    # `$if %cm_rcp_scen% == "rcp45" s15_rcpCluster = 0;` assigns, and only under rcp45
+    path = "modules/15_climate/magicc7_ar6/datainput.gms"
+    assert (path, 13) in assigned_at("s15_rcpCluster")
+    row = server.idx.db.execute(
+        "SELECT conditions FROM symbol_uses WHERE name = 's15_rcpCluster' AND path = ? AND line = 13", (path,)
+    ).fetchone()
+    assert "rcp45" in row["conditions"]
+
+
+def test_declaration_with_data_assigns():
+    assert ("modules/32_power/IntC/datainput.gms", 24) in assigned_at("p32_grid_factor")  # / $include ... /
+    assert ("core/datainput.gms", 60) in assigned_at("f_pop")  # table + $include
+    out = server.get_symbol("p32_grid_factor")
+    assert "datainput.gms:24" in section(out, "Assigned")
+
+
+def test_switch_in_declaration_data_is_read():
+    # parameter p_new_incolearn(all_te) "..." / %cm_incolearn% /;
+    row = server.idx.db.execute(
+        "SELECT role FROM symbol_uses WHERE name = 'cm_incolearn' AND path = 'core/datainput.gms' AND line = 267"
+    ).fetchone()
+    assert row and row["role"] == "read"

@@ -65,6 +65,36 @@ def test_indented_star_continues_a_formula(tmp_path):
     assert [tuple(r) for r in rows] == [("p_a", 2, "assigned"), ("p_c", 3, "read"), ("p_b", 4, "read")]
 
 
+def test_declarations_with_data_assign(tmp_path):
+    # a declaration with data gives the symbol its values; a switch inside the data is read (FINDINGS 19)
+    db = store.create(tmp_path / "t.db", 4)
+    db.executemany(
+        "INSERT INTO symbols (name, kind) VALUES (?, 'parameter')", [(n,) for n in ("p_a", "p_b", "p_c", "f_d")]
+    )
+    db.execute("INSERT INTO switches (name) VALUES ('cm_x')")
+    db.executemany(
+        "INSERT INTO chunks (path, kind, line_start, line_end) VALUES ('core/datainput.gms', 'declaration', ?, ?)",
+        [(1, 4), (5, 5), (6, 8)],
+    )
+    text = (
+        'parameters\n  p_a(t) "with data" / 2020 1 /\n  p_b(t) "without"\n;\n'
+        'parameter p_c(t) "switch carrier" / %cm_x% /;\n'
+        'table f_d(t,r) "table"\n$include "./f_d.cs4r"\n;\n'
+        '$if %cm_x% == "on" p_b(t) = 1;\n'
+    )
+    index.build_uses(db, [("core/datainput.gms", text)])
+    rows = db.execute("SELECT name, line, role, conditions FROM symbol_uses ORDER BY line, rowid").fetchall()
+    assert [tuple(r) for r in rows] == [
+        ("p_a", 2, "assigned", "[]"),
+        ("p_b", 3, "declared", "[]"),
+        ("p_c", 5, "assigned", "[]"),
+        ("cm_x", 5, "read", "[]"),
+        ("f_d", 6, "assigned", "[]"),
+        ("cm_x", 9, "read", '["%cm_x% == \\"on\\""]'),
+        ("p_b", 9, "assigned", '["%cm_x% == \\"on\\""]'),
+    ]
+
+
 def test_ontext_blocks_are_no_uses(tmp_path):
     # switched-off code between $onText and $offText (REMIND 24_trade/se_trade/presolve.gms) assigns nothing
     db = store.create(tmp_path / "t.db", 4)

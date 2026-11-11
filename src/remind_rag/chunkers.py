@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from itertools import pairwise
 from pathlib import PurePosixPath
 
-from .gams import code_part, decl_start, is_comment, line_conditions, stmt_end
+from .gams import WORD_RE, code_part, decl_start, is_comment, line_conditions, stmt_end
 
 TARGET_CHARS = 1200  # pack small segments up to roughly this size
 MAX_CHARS = 2500  # hard cap per chunk (~700 tokens)
@@ -240,6 +240,55 @@ def _parse_decl_block(path, lines, s, e, first_rest, kind, meta) -> list[Symbol]
         if code_part(line).count("/") % 2 == 1:
             in_data = not in_data
     return syms
+
+
+def declaration_entries(lines: list[str]) -> dict[int, tuple[dict[str, bool], set[str]]]:
+    """For every line of a declaration statement (0-based index): the names it declares (lower case), each with
+    whether its declaration carries data (`/ ... /`, a table body), and the names standing in data on the line
+    (`/ %cm_x% /`). The where-used table counts a declaration with data as an assignment, a name in data as read.
+
+    >>> e = declaration_entries(['parameters p_a(t) "a" / 2020 1 /', ' p_b "b"', ';'])
+    >>> e[0], e[1]
+    (({'p_a': True}, set()), ({'p_b': False}, set()))
+    >>> declaration_entries(['scalar s_x "x" / %cm_y% /;'])[0]
+    ({'s_x': True}, {'cm_y'})
+    >>> declaration_entries(['table f_x(t,r) "x"', '$include "./f_x.cs4r"', ';'])[0]
+    ({'f_x': True}, set())
+    """
+    out: dict[int, tuple[dict[str, bool], set[str]]] = {}
+    i = 0
+    while i < len(lines):
+        if not (m := decl_start(lines[i])):
+            i += 1
+            continue
+        e = stmt_end(lines, i)
+        table = _decl_kind(m.group(1)) == "table"
+        in_data = False
+        entries: dict[tuple[int, str], bool] = {}  # (line, name) -> carries data, in order of declaration
+        for j in range(i, e):
+            text = m.group(2) if j == i else lines[j]
+            if j > i and is_comment(lines[j]):
+                continue
+            code = code_part(text)
+            data: set[str] = set()
+            if table and entries:  # a table declares one symbol; what follows its name is the table body
+                data = {w.lower() for w in WORD_RE.findall(code)}
+            else:
+                if not in_data and (em := ENTRY_RE.match(text)) and em.group(1).lower() != "alias":
+                    entries[(j, em.group(1).lower())] = table
+                # slashes delimit data; a directive line ($include ./x/y.cs4r) holds none, whatever its path says
+                pieces = [code] if text.lstrip().startswith("$") else code.split("/")
+                for k, piece in enumerate(pieces):
+                    if in_data ^ (k % 2 == 1):
+                        data |= {w.lower() for w in WORD_RE.findall(piece)}
+                if len(pieces) > 1 and entries:
+                    entries[next(reversed(entries))] = True
+                in_data ^= len(pieces) % 2 == 0
+            out[j] = ({}, data)
+        for (j, name), has_data in entries.items():
+            out[j][0][name] = has_data
+        i = e
+    return out
 
 
 def chunk_gams(path: str, raw: str) -> ParsedFile:

@@ -15,7 +15,9 @@ import pytest
 
 from remind_rag import server
 
-SYMBOL_BUDGET = 4_500  # 4,000 until single-quoted $ifthen tests were decided (pm_taxCO2eqSum: 4,214)
+# 4,000 until single-quoted $ifthen tests were decided (pm_taxCO2eqSum: 4,214); 4,500 until one-line $if
+# statements counted as assignments under their test (vm_deltaCap: 4,706, FINDINGS 19)
+SYMBOL_BUDGET = 5_000
 MODULE_BUDGET = 6_000
 SEARCH_BUDGET = 5_000
 
@@ -38,10 +40,10 @@ def test_symbol_summary_lists_every_non_default_use_individually():
 
 
 def test_symbol_summary_counts_uses_per_role_and_file():
-    # vm_deltaCap: 108 assignments, 40 of them in core/bounds.gms; the summary says so instead of listing them
+    # vm_deltaCap: 114 assignments, 55 of them in core/bounds.gms; the summary says so instead of listing them
     out = server.get_symbol("vm_deltaCap")
-    assert re.search(r"[Aa]ssigned.*\b108\b", out)
-    assert re.search(r"core/bounds\.gms\D{0,20}\b4\d\b", out)  # per-file count
+    assert re.search(r"[Aa]ssigned.*\b114\b", out)
+    assert re.search(r"core/bounds\.gms\D{0,20}\b5\d\b", out)  # per-file count
     assert "✓" in out  # the positive default mark survives in the summary (smoke test 2026-09-26)
 
 

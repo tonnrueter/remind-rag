@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
-from .chunkers import chunk_file, path_meta
+from .chunkers import chunk_file, declaration_entries, path_meta
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 from .gams import (
@@ -164,7 +164,8 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
             for i in range(s - 1, min(e, len(lines)))
             if decl_start(lines[i])
         ]
-        conds = line_conditions(lines) if is_gms else [()] * len(lines)
+        conds = line_conditions(lines, single_if=True) if is_gms else [()] * len(lines)
+        entries = declaration_entries(lines) if is_gms else {}
         guards = if_guards(lines) if is_gms else [()] * len(lines)
         off = in_text_block(lines) if is_gms else [False] * len(lines)
         for n, line in enumerate(lines, 1):
@@ -185,7 +186,10 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
                 if not is_gms:
                     r = "read"  # R: no roles
                 elif in_decl:
-                    r = "declared"
+                    # a declaration with data (`/ ... /`, a table) also assigns; a name in the data is read
+                    declared, data = entries.get(n - 1, ({}, set()))
+                    low = ident.lower()
+                    r = "assigned" if declared.get(low) else "read" if low in data - declared.keys() else "declared"
                 elif ctx:
                     r = "equation"  # inside an equation body
                 else:

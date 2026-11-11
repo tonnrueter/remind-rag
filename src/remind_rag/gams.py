@@ -18,6 +18,13 @@ IFTHEN_RE = re.compile(r"^\s*\$ifthen[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re
 ELSEIF_RE = re.compile(r"^\s*\$elseif[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
 ELSE_RE = re.compile(r"^\s*\$else(?:\.(\w+))?\s*(?:!!.*)?$", re.I)
 ENDIF_RE = re.compile(r"^\s*\$endif(?:\.(\w+))?", re.I)
+# a one-line $if / $ifi / $ife: the test, then the statement it switches on (group 2), e.g.
+# `$ifi %banking% == "banking" p80_etaST("perm") = 0.2;`. REMIND only writes `[not] a == b` there
+IF_LINE_RE = re.compile(
+    r"""^\s*\$if[ei]?\s+((?:not\s+)?(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)\s*(?:==|<>|\beq\b|\bne\b)\s*"""
+    r"""(?:"[^"]*"|'[^']*'|[^\s"'=<>]+))\s+(.*)$""",
+    re.I,
+)
 ONTEXT_RE = re.compile(r"\s*\$ontext\b", re.I)
 OFFTEXT_RE = re.compile(r"\s*\$offtext\b", re.I)
 IF_OPEN_RE = re.compile(r"if\s*\(", re.I)
@@ -90,13 +97,16 @@ def decl_start(line: str) -> re.Match | None:
     return None
 
 
-def line_conditions(lines: list[str]) -> list[tuple[str, ...]]:
+def line_conditions(lines: list[str], single_if: bool = False) -> list[tuple[str, ...]]:
     """For every line, the $ifthen conditions it is compiled under, outermost first. An $elseif / $else branch
     is written as the negation of the earlier branches plus its own condition. The directive lines themselves
-    get the conditions around their block.
+    get the conditions around their block. With `single_if`, a one-line `$if` adds its test to its own line
+    (the where-used table wants it; chunks and the precondition sweep read that test themselves).
 
     >>> line_conditions(['$ifthen "%x%" == "a"', "p = 1;", "$else", "p = 2;", "$endif"])
     [(), ('"%x%" == "a"',), (), ('not ("%x%" == "a")',), ()]
+    >>> line_conditions(['$if %x% == "a" p = 1;', "p = 2;"], single_if=True)
+    [('%x% == "a"',), ()]
     """
     stack: list[list[str]] = []  # per open block: conditions of the branches seen so far
     current: list[str] = []  # effective condition per open block
@@ -121,6 +131,9 @@ def line_conditions(lines: list[str]) -> list[tuple[str, ...]]:
             out.append(tuple(current[:-1]))
             stack.pop()
             current.pop()
+            continue
+        if single_if and (m := IF_LINE_RE.match(line)):
+            out.append((*current, m.group(1)))
             continue
         out.append(tuple(current))
     return out
