@@ -481,7 +481,7 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
 
 ## 19. v0.12.0: assignments the roles missed, conditions of one-line `$if`, index v12 (2026-11-11)
 
-- **Found while planning a code review** (`../CODE_REVIEW.md`): "parameters read but never assigned" listed 229
+- **Found while planning a code review** (`../reviews/PLAYBOOK.md`): "parameters read but never assigned" listed 229
   names (parameters, scalars, tables), and the five checked by hand were all assigned. For a review that is the
   dangerous direction ("X is never set" is a bug claim). Five gaps, each simulated on v11 before the fix:
   - **A** `x(…)$name(…) = …`: `role()` stepped over a bare `$name` but not over its index, so it never reached
@@ -518,7 +518,7 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
 
 ## 20. v0.13.0: index v13 on REMIND `1e2dbd972`, tests tied to a baseline commit (2026-11-11)
 
-- **Why**: before the severe-bug review (`../CODE_REVIEW.md`) starts, so its reports cite current code. REMIND
+- **Why**: before the severe-bug review (`../reviews/PLAYBOOK.md`) starts, so its reports cite current code. REMIND
   `develop` went from `8d9052ef8` (3.7.1.dev59) to `1e2dbd972` (3.7.1.dev149): 90 commits, 71 files in `modules/`,
   `core/`, `main.gms`, `config/`. No realization added or removed (no `--gms-export` needed); two scenario configs
   deleted (`21_EU11_ARIADNE`, `IKEA`), 577 → 542 scenarios; `cm_NDC_version` and `cm_techcosts` removed.
