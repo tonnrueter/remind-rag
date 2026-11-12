@@ -48,6 +48,16 @@ def test_runtime_guard_inactive_by_default():
     assert postsolve and "cm_emiscen eq 6) → inactive by default" in postsolve[0]
 
 
+def test_elseif_head_of_the_default_branch_runs():
+    # R8: all three c_geoStorPotScen branch heads were ⚠, the default one (eq 3) included
+    out = server.get_switch("c_geoStorPotScen")
+    assert "core/datainput.gms:1210 ✓ runs by default  elseif (c_geoStorPotScen eq 3)," in out
+    assert "core/datainput.gms:1207 ⚠" in out
+    # a head after the default branch (cm_so2tax_scen = 1) holds none of that branch's code
+    out = server.get_switch("cm_so2tax_scen")
+    assert "modules/21_tax/on/datainput.gms:88 ✓" in out and "modules/21_tax/on/datainput.gms:90 ⚠" in out
+
+
 def test_roles_separate_declaring_and_assigning_modules():
     # Q10: 21_tax reads pm_taxCO2eqSum but never assigns it
     out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)

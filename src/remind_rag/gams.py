@@ -28,6 +28,7 @@ IF_LINE_RE = re.compile(
 ONTEXT_RE = re.compile(r"\s*\$ontext\b", re.I)
 OFFTEXT_RE = re.compile(r"\s*\$offtext\b", re.I)
 IF_OPEN_RE = re.compile(r"if\s*\(", re.I)
+BRANCH_START_RE = re.compile(r"\s*else(if)?\b", re.I)
 WORD_RE = re.compile(r"[A-Za-z_]\w*")
 
 
@@ -170,25 +171,33 @@ def _neg(conds: list[str]) -> str:
 def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
     """For every line, the conditions of the run-time `if(cond, ... elseif cond2, ... else ...)` blocks it
     sits in, outermost first. Later branches are written as the negation of the earlier ones. Comments,
-    strings and `$` directives don't open or close blocks. A line where the branch changes (`else`, `elseif`)
-    carries the conditions of both branches; so does everything on a one-line `if(c, a; else b;);`.
+    strings and `$` directives don't open or close blocks. A line where the branch changes (`else`, `elseif`,
+    `p = 1; else p = 2;`) runs if either branch does: one condition per block, the branches joined with `or`.
+    A line that opens with `elseif` / `else` belongs to the new branch only (../TODO.md #66: every
+    `elseif (cm_x eq 3),` head was marked as never running, the default branch included).
 
-    >>> if_guards(["if(cm_x eq 1,", "  p = 1;", "else", "  p = 2;", ");", "q = 1;"])
-    [('cm_x eq 1',), ('cm_x eq 1',), ('cm_x eq 1', 'not (cm_x eq 1)'), ('not (cm_x eq 1)',), ('not (cm_x eq 1)',), ()]
+    >>> if_guards(["if(cm_x eq 1,", "  p = 1;", "elseif cm_x eq 2,", "  p = 2;", ");", "q = 1;"])[1:4]
+    [('cm_x eq 1',), ('not (cm_x eq 1) and (cm_x eq 2)',), ('not (cm_x eq 1) and (cm_x eq 2)',)]
+    >>> if_guards(["if(cm_x eq 1, p = 1; else p = 2;);"])
+    [('(cm_x eq 1) or (not (cm_x eq 1))',)]
     """
     # Walks the code character by character, counting parentheses. An `if(` opens a block; its condition is
     # read up to the first comma at the block's own depth, and the matching `)` closes the block. Per open
     # block: depth = paren depth of its `if(`, conds = the conditions of its branches so far, reading = still
-    # inside a condition, current = the condition of the branch the code is in now.
+    # inside a condition, current = the condition of the branch the code is in now, n = a serial number.
     out: list[tuple[str, ...]] = []
     stack: list[dict] = []
-    depth = 0
+    depth = opened = 0
     for line in lines:
-        active = [b["current"] for b in stack if not b["reading"]]
+        # per block, in order of opening: the conditions of the branches the line has code in
+        active: dict[int, list[str]] = {b["n"]: [b["current"]] for b in stack if not b["reading"]}
         if is_comment(line) or line.lstrip().startswith("$"):
-            out.append(tuple(active))
+            out.append(tuple(c[0] for c in active.values()))
             continue
         code = code_part(line)
+        # a line that opens with `elseif` / `else` holds no code of the branch before it
+        if stack and not stack[-1]["reading"] and BRANCH_START_RE.match(code):
+            active.pop(stack[-1]["n"], None)
         k = 0
         while k < len(code):
             ch = code[k]
@@ -199,7 +208,7 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
                     top["conds"][-1] = " ".join(top["conds"][-1].split())
                     prev = _neg(top["conds"][:-1])
                     top["current"] = f"{prev} and ({top['conds'][-1]})" if prev else top["conds"][-1]
-                    active.append(top["current"])
+                    active.setdefault(top["n"], []).append(top["current"])
                     k += 1
                     continue
                 top["conds"][-1] += ch
@@ -210,7 +219,8 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
                 if low == "if" and IF_OPEN_RE.match(code, k):
                     k = IF_OPEN_RE.match(code, k).end()
                     depth += 1
-                    stack.append({"depth": depth, "conds": [""], "reading": True, "current": ""})
+                    opened += 1
+                    stack.append({"n": opened, "depth": depth, "conds": [""], "reading": True, "current": ""})
                     continue
                 if top and depth == top["depth"] and low in ("elseif", "else"):
                     if low == "elseif":
@@ -218,7 +228,7 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
                         top["reading"] = True
                     else:
                         top["current"] = _neg(top["conds"])
-                        active.append(top["current"])
+                        active.setdefault(top["n"], []).append(top["current"])
                     k += len(word)
                     continue
                 k += len(word)
@@ -230,6 +240,10 @@ def if_guards(lines: list[str]) -> list[tuple[str, ...]]:
                     stack.pop()
                 depth = max(0, depth - 1)
             k += 1
-        # conditions active at the start of the line plus those opened on it; dict.fromkeys drops repeats, keeps order
-        out.append(tuple(dict.fromkeys(active + [b["current"] for b in stack if not b["reading"]])))
+        for b in stack:
+            if not b["reading"]:
+                active.setdefault(b["n"], []).append(b["current"])
+        # dict.fromkeys drops repeats, keeps order
+        branches = [list(dict.fromkeys(c)) for c in active.values()]
+        out.append(tuple(c[0] if len(c) == 1 else " or ".join(f"({x})" for x in c) for c in branches))
     return out
