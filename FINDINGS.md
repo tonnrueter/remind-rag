@@ -540,3 +540,35 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
   synthetic role, switch-test and `eval_expr` cases moved from `test_tool_output.py` to `test_gams.py`, which
   always runs. A deployment that indexes its own REMIND (the cluster) now gets a passing suite with the content
   tests skipped instead of scattered failures. Moving the baseline is a step of its own, as above.
+
+## 21. The GAMS compiler as a check of the where-used table (`eval/compiler_eval.py`, index v13, 2026-11-12)
+
+- **Why**: `retrieval_eval.py` scores search, not the where-used table (`symbol_uses`), which `get_symbol`,
+  `get_links` and the ✓ / ⚠ marks rest on. The compiler is an independent reference: compiling `main.gms`
+  (`action=c rf=main.ref`) writes every symbol use it saw, with file, line and kind. Free, ~3 s; the script compiles
+  a `git archive` of the indexed commit, never the checkout. The 143 compile errors are missing input data (files
+  not in git); with empty stand-in files the 38,725 entries in tracked files stay identical, so they don't matter.
+- **Recall** = share of the compiler's entries the index has; **precision** = share of the index's rows on compiled
+  lines the compiler confirms. Headline on parameters, variables and equations (`eval/results/compiler-v13.txt`):
+  recall **91.7 %** on the exact line, **97.3 %** in the same statement; precision **93.4 % / 99.3 %**; where both
+  have a use, the role agrees in 99.8 %. Parameters and variables alone: recall 95.9 % / 99.4 % exact.
+- **The gaps, by size**: a multi-line statement whose use the index puts on another line of it (513 entries; same
+  statement, so harmless for the tools); `model hybrid /all/` in `core/preloop.gms:15`, which the compiler reports
+  as a use of all 240 equations (the index doesn't expand `/all/`); `$macro` bodies reported at the call (5). On the
+  precision side: switches used as `%name%` (793 rows, tracked on purpose, not GAMS symbols); names inside a quoted
+  label or `!!` comment counted as uses (98, mostly the set `power` in `"power"` labels); set-element labels taken
+  for symbols (54, `feh2_cement`; known since FINDINGS 19).
+- **Sets are left out of the headline**: the compiler reports every index position (`vm_cap(t,regi,te,rlf)` = four
+  set uses), and the index records set uses for 11 of the 425 sets by design (`USE_KINDS` in `enrich.py`). With sets,
+  overall reference recall is 23.9 %. Which set uses are worth recording: `../TODO.md` #61.
+- **The ✓ / ⚠ verdict**: the compiler decides realization selection and `$if` / `$ifthen` under the `main.gms`
+  defaults, so it can score that part of the mark. ✓ precision and ✓ recall 99.9 %: **12 wrong ✓** (lines
+  the compiler didn't see), **7 missed ✓** (lines marked ⚠ it did see). 13 of the 19 are `$$` double-dollar
+  directives, `$if … $include "…%x%…"` lines and `%switch%` data in declarations, where the script's "was this line
+  compiled" judgement fails, not the index. 6 are unchecked: `$ifthen.c_skip_output` at the end of `main.gms` (2),
+  `$ifthen.policy_scenario` in `37_industry/subsectors/bounds.gms:121` (3), a `$ifi %banking%` line in
+  `80_optimization/nash/datainput.gms:64` (1). Run-time guards (`if(…)`, `$(…)`) compile either way, so the compiler can't score
+  them: with them, 400 compiled rows carry ⚠ (21 %), which is a run-time statement, not a defect.
+- **Limits**: one configuration (the defaults), no run-time behaviour, no data files (`.inc`). A scenario's settings
+  (`../TODO.md` #56) could be compiled the same way by passing them as `--name=value`.
+- Re-running on the same index gives a byte-identical report.

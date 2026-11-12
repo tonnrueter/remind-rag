@@ -15,7 +15,7 @@ magpie-agent's? Argument and numbers: `../TODO.md` appendix A.
 | Structure diagram, commands | `README.md` |
 | Code | `src/remind_rag/`, four groups, each importing only from the ones before it (map with one line per module: `src/remind_rag/__init__.py`): **reading sources** `gams`, `usage`, `chunkers`, `scenarios`, `gmsdata` → **building** `checkout`, `corpus`, `enrich`, `embeddings`, `preconditions`, `store`, `index` → **answering** `search`, `status`, `links`, `render`, `steering`, `server` → **reports** `hierarchy`, `doccheck` (and `preconditions`) |
 | Tests (no LLM, no network) | `tests/test_tool_output.py`: each test replays a round-02 failure on the tool output; `test_reference_output.py`: 15 fixed calls plus the server instructions and tool descriptions byte for byte against `tests/reference/` (refactoring safety net; regenerate with `--update` only for deliberate changes); `test_doctests.py`: the `>>>` examples in docstrings; `test_gams.py`: pure GAMS helpers, no index; `test_build.py`: build steps on a tiny hand-made index. Tests on real REMIND output are marked `remind` and run only on an index of the baseline commit in `tests/baseline.py` (skipped otherwise, the run header says why); moving the baseline is a step of its own (FINDINGS 20) |
-| Evaluations | `eval/retrieval_eval.py` (local, free), `eval/db_diff.py` (what a rebuild changed, table by table), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
+| Evaluations | `eval/retrieval_eval.py` (local, free), `eval/db_diff.py` (what a rebuild changed, table by table), `eval/compiler_eval.py` (where-used table vs the GAMS compiler's reference file, local, free, needs GAMS), `eval/audit.py` (headless Sonnet + Opus grader, paid), `eval/audit/questions.yaml` + `rubric.md` |
 | Workspace siblings | `../remind/` (REMIND checkout, with the user's `remind-context/`), `../gms`, `../goxygen`, `../magpie/` (+ `magpie-agent/`) |
 
 ## Commands
@@ -26,6 +26,7 @@ uv run pytest tests                                      # tool-output checks ag
 uv run ruff check; uv run ruff format --check            # lint + format (config in pyproject.toml); both clean before a commit
 uv run python eval/retrieval_eval.py data/remind-bge.db  # recall@5 / MRR, compare with eval/results/*.txt
 uv run python eval/db_diff.py data/remind-bge-vN.db data/remind-bge-vM.db --symbol <name>   # rows added / removed / changed per table
+uv run python eval/compiler_eval.py --db data/remind-bge.db   # where-used recall / precision vs `gams action=c`, compare with eval/results/compiler-*.txt
 uv run python -m remind_rag.index --root ..\remind --db <new> --reuse <old>   # rebuild; unchanged embeddings reused (seconds), --no-reuse = full ~13 min
 uv run python -m remind_rag.index --root ..\remind --db data/remind-bge-vN.db --reuse data/remind-bge.db --promote   # + copy to the pinned name if parser checks are clean and retrieval isn't lower
 uv run python -m remind_rag.embeddings download          # fill the model folder (REMIND_RAG_MODELS or data/models)
