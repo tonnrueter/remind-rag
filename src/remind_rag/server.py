@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from functools import cache
 from typing import NamedTuple
 
 from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings, store
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
+from .scenarios import cfg_defaults, is_magpie_side, region_label
 from .search import Index, module_match
 from .status import DefaultRun, detail, equation_domain, rank
 from .steering import steering
@@ -40,7 +42,8 @@ server = MCPServer(
         + (_stale + " " if _stale else "")
         + (_model + " " if _model else "")
         + "Use get_symbol for exact GAMS identifiers (vm_*, pm_*, q33_*, s_*, ...) incl. which module declares "
-        "them and which modules consume them, get_switch for cm_*/c_* switches and module selections, "
+        "them and which modules consume them, get_switch for cm_*/c_* switches and module selections and for "
+        "which scenario configs set them, "
         "get_module for a module's realizations, interfaces and limitations, get_scenario for a scenario's "
         "settings, and search for conceptual questions (pass scenario=... only when the question is about a "
         "specific scenario). "
@@ -451,16 +454,150 @@ def get_links(name: str, max_links: int = 10) -> str:
     return "\n".join(out)
 
 
+class ConfigRow(NamedTuple):
+    name: str
+    where: str  # file:line, the file without "config/"
+    cells: dict[str, str]  # lower-case column (header spaces stripped, as R reads them) -> value, quotes dropped
+
+
+@cache
+def _config_rows() -> list[ConfigRow]:
+    """The REMIND rows of config/scenario_config*.csv (copyConfigFrom resolved at build; MAgPIE side left out)."""
+    return [
+        ConfigRow(
+            r["name"],
+            f"{r['path'].removeprefix('config/')}:{r['line']}",
+            {k.strip().lower(): v.strip().strip("\"'") for k, v in json.loads(r["settings"]).items()},
+        )
+        for r in idx.db.execute("SELECT * FROM scenarios ORDER BY path, line")
+        if not is_magpie_side(r["path"])
+    ]
+
+
+@cache
+def _config_defaults() -> dict[str, str]:
+    """Lower-case setting -> the value a config runs with when its cell is empty: main.gms for switches and
+    module selections, config/default.cfg for the R-side columns (regionmapping, ...)."""
+    cfg = "\n".join(r[0] for r in idx.db.execute("SELECT text FROM chunks WHERE path = 'config/default.cfg'"))
+    return {**cfg_defaults(cfg), **{k.lower(): v for k, v in default_run.defaults.items()}}
+
+
+CONFIG_GROUPS_LISTED = 8  # values (or value combinations) listed with their configs; the rest in one line
+CONFIG_EXAMPLES = 3  # example rows per listed value
+CONFIG_ROWS_LISTED = 20  # rows named when value= leaves one value
+CONFIG_VALUE_CHARS = 220  # whole values: long ones (cm_emiMktTarget, 214) differ only after the first 60
+EMPTY = '""'  # how an empty value is shown
+
+
+def _config_use(name: str, value: str | None = None, also: str | None = None) -> list[str]:
+    """Which REMIND scenario configs run with which value of `name` (and of the `also` settings), with counts per
+    region mapping and example rows. A config that leaves a cell empty runs with the default and counts there."""
+    rows, defaults = _config_rows(), _config_defaults()
+    key = name.lower()
+    others = [a.strip() for a in (also or "").split(",") if a.strip() and a.strip().lower() != key]
+
+    def val(row: ConfigRow, k: str) -> str | None:
+        return row.cells.get(k, defaults.get(k))
+
+    def label(k: str, v: str | None) -> str:
+        if v is None:
+            return "(unset)"
+        d = defaults.get(k)
+        return (short(v, CONFIG_VALUE_CHARS) or EMPTY) + (
+            " (default)" if d is not None and v.lower() == d.lower() else ""
+        )
+
+    def regions(group: list[ConfigRow]) -> str:
+        if key == "regionmapping" or "regionmapping" in (o.lower() for o in others):
+            return ""
+        c = Counter(region_label(val(r, "regionmapping") or "?") for r in group)
+        return (
+            f"  [all {next(iter(c))}]"
+            if len(c) == 1
+            else "  [" + " · ".join(f"{m} {n}" for m, n in c.most_common()) + "]"
+        )
+
+    def named(group: list[ConfigRow], n: int) -> str:
+        shown = ", ".join(f"{r.name} ({r.where})" for r in group[:n])
+        return shown + (f", +{len(group) - n} more" if len(group) > n else "")
+
+    n_set = [r for r in rows if key in r.cells]
+    out = []
+    if value is None:
+        head = f"## In scenario configs: set in {len(n_set)} of {len(rows)} REMIND configs"
+        files = Counter(r.where.split(":")[0] for r in n_set)
+        if 0 < len(files) <= 3:
+            head += " (" + ", ".join(f"{f} {n}" for f, n in files.most_common()) + ")"
+        if not n_set:
+            head += f"; all run with the default ({defaults.get(key) or EMPTY})" if not others else ""
+        selected, cols = rows, [name, *others]
+    else:
+        want = value.strip().strip("\"'").lower()
+        selected = [r for r in rows if (val(r, key) or "").lower() == want]
+        unset = sum(key not in r.cells for r in selected)
+        head = f"## In scenario configs: {name} = {value} in {len(selected)} of {len(rows)} REMIND configs"
+        head += f" ({unset} of them leave it empty: default)" if unset else ""
+        cols = others
+    out.append(head + (f"; by {' | '.join(cols)}" if others else ""))
+    for o in others:
+        if o.lower() not in defaults and not any(o.lower() in r.cells for r in rows):
+            out.append(f"- note: {o} is no main.gms switch and no config sets it")
+    if not selected or (value is None and not n_set and not others):
+        return out
+    if not cols:  # value= alone: the configs themselves
+        files = Counter(r.where.split(":")[0] for r in selected)
+        out.append(f"- by file: {', '.join(f'{f} {n}' for f, n in files.most_common())}{regions(selected)}")
+        out.append(f"- configs: {named(selected, CONFIG_ROWS_LISTED)}")
+        return out
+    keys = [c.lower() for c in cols]
+    groups: dict[tuple, list[ConfigRow]] = defaultdict(list)
+    for r in selected:
+        groups[tuple(val(r, k) for k in keys)].append(r)
+    ordered = sorted(groups.items(), key=lambda kv: (-len(kv[1]), [str(x) for x in kv[0]]))
+    for combo, group in ordered[:CONFIG_GROUPS_LISTED]:
+        text = " | ".join(label(k, v) for k, v in zip(keys, combo, strict=True))
+        unset = sum(keys[0] not in r.cells for r in group) if len(keys) == 1 and combo[0] is not None else 0
+        text += f": {len(group)}" + (f" ({unset} leave it empty)" if unset else "")
+        out.append(f"- {text}{regions(group)}  e.g. {named(group, CONFIG_EXAMPLES)}")
+    rest = ordered[CONFIG_GROUPS_LISTED:]
+    if rest:
+        listed = ", ".join(
+            f"{' | '.join(label(k, v) for k, v in zip(keys, c, strict=True))} ({len(g)})" for c, g in rest
+        )
+        out.append(f"- +{len(rest)} more in {sum(len(g) for _, g in rest)} configs: {short(listed, 300)}")
+    return out
+
+
 @server.tool()
-def get_switch(name: str) -> str:
-    """Look up a configuration switch (cm_*, c_*, or a module selection like "carbonprice") in main.gms:
-    its documentation, default and allowed values, and the GAMS and R lines that reference it with their default
-    status (✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role="read")."""
+def get_switch(name: str, value: str | None = None, also: str | None = None) -> str:
+    """Look up a configuration switch (cm_*, c_*, a module selection like "carbonprice", or a scenario-config
+    column like "regionmapping" / "path_gdx_ref"): its documentation, default and allowed values, which scenario
+    configs run with which value (counts per value and region mapping, example rows; copyConfigFrom resolved,
+    an empty cell counts as the default), and the GAMS and R lines that reference it with their default status
+    (✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role="read").
+    value="x": only the configs that run with x, named. also="a,b": split the configs by other settings, e.g.
+    get_switch("carbonprice", value="NDC", also="path_gdx_ref,path_gdx_bau"). With either, only the config part."""
     found = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     if not found:
+        key = name.lower()
+        if key in _config_defaults() or any(key in r.cells for r in _config_rows()):
+            d = _config_defaults().get(key)
+            head = f"## {name}  scenario-config column, not a main.gms switch (read by the R start scripts)"
+            head += f"  default (config/default.cfg): {d or EMPTY}" if d is not None else ""
+            return "\n".join([head, *_config_use(name, value, also)])
         similar = idx.db.execute("SELECT name FROM switches WHERE name LIKE ? LIMIT 15", (f"%{name}%",)).fetchall()
-        return f"Switch {name!r} not found in main.gms." + (
-            f" Similar: {', '.join(r[0] for r in similar)}" if similar else ""
+        columns = sorted({k for r in _config_rows() for k in r.cells if key in k} - {r[0].lower() for r in similar})
+        names = [r[0] for r in similar] + columns[:10]
+        return f"Switch {name!r} not found in main.gms or the scenario configs." + (
+            f" Similar: {', '.join(names)}" if names else ""
+        )
+    if value is not None or also:
+        sw = found[0]
+        return "\n".join(
+            [
+                f"## {sw['name']}  default: {sw['default_value']}  [{sw['path']}:{sw['line']}]",
+                *_config_use(sw["name"], value, also),
+            ]
         )
     out = []
     for sw in found:
@@ -486,6 +623,7 @@ def get_switch(name: str) -> str:
         out += [f"- {u['path']}:{u['line']} {default_run.mark(u, t)}  {short(u['snippet'], 110)}" for u, t in shown]
         if len(uses) > SWITCH_REFS_LISTED:
             out.append(f'- lines: get_symbol("{found[0]["name"]}", role="read"[, module="…"]) (also role="assigned")')
+    out += _config_use(found[0]["name"])
     return "\n".join(out)
 
 

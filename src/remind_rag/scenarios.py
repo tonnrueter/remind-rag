@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +31,28 @@ def is_magpie_side(path: str) -> bool:
     (True, False)
     """
     return "scenario_config_magpie" in path
+
+
+CFG_ASSIGN_RE = re.compile(r'^cfg\$(\w+)\s*<-\s*"?([^"#\n]*?)"?\s*(?:#.*)?$', re.M)
+
+
+def cfg_defaults(text: str) -> dict[str, str]:
+    """Plain `cfg$name <- value` lines of config/default.cfg: the value a config column takes when a scenario row
+    leaves it empty (lower-case name). Nested entries (`cfg$gms$…`, `cfg$files2export$…`) are skipped.
+
+    >>> cfg_defaults('cfg$regionmapping <- "config/regionmappingH12.csv"\\ncfg$gms$x <- 1\\ncfg$slurmConfig <- ""')
+    {'regionmapping': 'config/regionmappingH12.csv', 'slurmconfig': ''}
+    """
+    return {m.group(1).lower(): m.group(2).strip() for m in CFG_ASSIGN_RE.finditer(text)}
+
+
+def region_label(regionmapping: str) -> str:
+    """Short name of a region mapping file, as REMIND people say it.
+
+    >>> region_label("./config/regionmapping_21_EU11.csv"), region_label("config/regionmappingH12.csv")
+    ('21_EU11', 'H12')
+    """
+    return re.sub(r"^.*regionmapping_?|\.csv$", "", regionmapping) or regionmapping
 
 
 def read_scenarios(root: Path) -> list[Scenario]:

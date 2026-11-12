@@ -572,3 +572,27 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
 - **Limits**: one configuration (the defaults), no run-time behaviour, no data files (`.inc`). A scenario's settings
   (`../TODO.md` #56) could be compiled the same way by passing them as `--name=value`.
 - Re-running on the same index gives a byte-identical report.
+
+## 22. Reach: `get_switch` says which configs run with which value (`../TODO.md` #64, 2026-11-12)
+
+- **Why**: the review R1–R8 rated every finding's reach ("how many configs does this hit") with hand-written SQL on
+  `scenarios.settings`: 23 Python scripts in the transcripts (`../reviews/EFFICIENCY_LEARNINGS.md` counts 27), R8
+  alone 13. The MCP tools answered per scenario name only.
+- **What counts as a config**: a REMIND row of `config/scenario_config*.csv`, `copyConfigFrom` resolved (R5: 242 rows
+  where `git grep` finds 230). The nine `scenario_config_magpie*.csv` files (155 rows) are left out: they hold the
+  MAgPIE side of coupled runs, no REMIND setting; the REMIND side is the same-named row of a REMIND file. Counted,
+  each looked like a config that keeps every default: `get_module` said "NPi2025: 187 of 542 configs", really 32 of
+  387 (fixed in the commit before; set values were right). An empty cell runs with the default: `main.gms` for
+  switches and module selections, `config/default.cfg` (`cfg$x <- …`) for R-side columns such as `regionmapping`;
+  `path_gdx_*` have no plain default there and show as "(unset)".
+- **Output**: a section "In scenario configs" after the references: "set in N of 387", then per value the count
+  (with how many leave the cell empty), the split by region mapping (`[21_EU11 204 · H12 38]`, B25 and B35 needed it)
+  and three example rows `name (file:line)`; 8 values listed, the rest in one line. Values are shown whole (up to 220
+  characters): `cm_emiMktTarget`'s values differ only after character 60. `value="x"` lists the configs with x and
+  their files; `also="a,b"` groups by the combination (`carbonprice = exogenous` by `path_gdx_carbonprice` gives
+  B41's two rows in one call). Config-only columns (`regionmapping`, `path_gdx_ref`) are answered too.
+- **Coverage of the review queries** (`tests/test_tool_output.py`, one test per query shape): every one-setting or
+  setting-by-setting query is one call. Not one call: several switches at once (R6's 21, R7's 9 dead switches: one
+  call each, batchable) and substrings of values (R5 "grossEnCO2"; `search(kind="scenario")`).
+- **Cost**: tool description +450 characters, schema +330, server instructions +40 (about 200 tokens per request);
+  `get_switch("cm_emiscen")` 2,110 → 2,700 characters.

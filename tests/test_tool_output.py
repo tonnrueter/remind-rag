@@ -6,6 +6,7 @@ that the MCP tools now return the information whose absence led to it. No LLM in
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -415,3 +416,100 @@ def test_switch_in_declaration_data_is_read():
         "SELECT role FROM symbol_uses WHERE name = 'cm_incolearn' AND path = 'core/datainput.gms' AND line = 267"
     ).fetchone()
     assert row and row["role"] == "read"
+
+
+# ------------------------------------------------------------------ #64: which configs set a switch (reach)
+# The reviews R1–R8 answered "how many configs does this bug hit" with hand-written SQL on scenarios.settings
+# (reviews/EFFICIENCY_LEARNINGS.md). Each test replays one of those queries as one get_switch call. Not covered
+# by one call: several switches at once (R7's dead-switch list, R6's 21 switches: one call each, in parallel)
+# and a substring of any value (R5: rows mentioning "grossEnCO2"; that is search(..., kind="scenario")).
+
+
+def configs(name: str, value: str | None = None, also: str | None = None) -> str:
+    out = server.get_switch(name, value=value, also=also)
+    return out[out.index("## In scenario configs") :]
+
+
+def remind_rows_setting(key: str) -> tuple[int, int]:
+    """(REMIND config rows, rows with a cell for key), counted here without the server's code."""
+    rows = [
+        json.loads(r[1])
+        for r in server.idx.db.execute("SELECT path, settings FROM scenarios")
+        if "scenario_config_magpie" not in r[0]
+    ]
+    return len(rows), sum(any(k.strip().lower() == key.lower() for k in s) for s in rows)
+
+
+@pytest.mark.parametrize("name", ["c_tech_CO2capturerate", "cm_emiscen", "cm_CESMkup_ind", "cm_TCssp"])
+def test_switch_shows_how_many_configs_set_it(name):
+    # R1: get_switch("c_tech_CO2capturerate") said nothing about config use; R7/R8 checked dead switches by SQL
+    total, n = remind_rows_setting(name)
+    assert f"## In scenario configs: set in {n} of {total} REMIND configs" in configs(name)
+
+
+def test_config_use_in_one_file_names_the_file():
+    # R1: the column exists in one csv only
+    out = configs("c_tech_CO2capturerate")
+    assert "(scenario_config_21_EU11_2040_target.csv 200)" in out
+    assert "off (default): 187 (187 leave it empty)  [H12 131 · 21_EU11 56]" in out
+
+
+def test_never_set_switch_says_all_run_with_the_default():
+    # R7: cm_TCssp is set by no config (dead switch)
+    assert "set in 0 of 387 REMIND configs; all run with the default (SSP2)" in configs("cm_TCssp")
+
+
+def test_value_counts_by_region_mapping():
+    # R5 (B23): cm_CESMkup_ind = Elec_Push in 242 rows, 200 in one file; R6/R8 (B25, B35): H12 vs EU21
+    out = configs("cm_CESMkup_ind", value="Elec_Push")
+    assert "cm_CESMkup_ind = Elec_Push in 242 of 387 REMIND configs" in out
+    assert "scenario_config_21_EU11_2040_target.csv 200" in out and "[21_EU11 204 · H12 38]" in out
+    assert "- configs: SSP2-PkBudg650 (scenario_config.csv:9)" in out
+
+
+def test_long_values_stay_distinct():
+    # R4 (cm_emiMktTarget, 227 rows): the values differ only after the first 60 characters (2.092 vs 2.189)
+    out = configs("cm_emiMktTarget")
+    assert "intraRegBunker 2.092," in out and "intraRegBunker 2.189," in out
+
+
+def test_configs_split_by_a_second_setting():
+    # R8 (B41): carbonprice = exogenous rows without path_gdx_carbonprice
+    out = configs("carbonprice", value="exogenous", also="path_gdx_carbonprice")
+    assert "carbonprice = exogenous in 3 of 387 REMIND configs; by path_gdx_carbonprice" in out
+    assert "- (unset): 2  [all H12]  e.g. SSP2_dls1 (scenario_config_JustMIP.csv:6)" in out
+
+
+def test_configs_split_by_two_settings():
+    # R8 (B44): NDC rows whose path_gdx_ref differs from path_gdx_bau
+    out = configs("carbonprice", value="NDC", also="path_gdx_ref,path_gdx_bau")
+    assert "- SSP2-NPi2025 | SSP2-NPi2025: 11" in out
+    assert "- SSP2-NDC | SSP2-NPi2025: 1  [all H12]  e.g. SSP2-NDC-LTS-my (scenario_config.csv:5)" in out
+    # R8: cm_iterative_target_adj = 3 rows by carbonprice and cm_emiscen
+    out = configs("cm_iterative_target_adj", value="3", also="carbonprice,cm_emiscen")
+    assert "- NDC | 9 (default): 20" in out and "- NPi | 9 (default): 6  [all 21_EU11]" in out
+
+
+def test_non_default_rows_with_other_settings():
+    # R7: rows with damages or internalizeDamages switched on, with their climate realization
+    out = configs("damages", also="internalizeDamages,climate")
+    assert "- KotzWenz | KotzWenzItr | magicc7_ar6: 2  [all H12]" in out
+    assert (
+        "- KotzWenz | off (default) | magicc7_ar6: 1  [all H12]  e.g. M-SSP2-NPi-KLW (scenario_config_RIKEN.csv:5)"
+        in out
+    )
+
+
+def test_config_column_that_is_no_switch():
+    # R6/R8: regionmapping and path_gdx_* are read by the R start scripts, not main.gms
+    out = server.get_switch("regionmapping", also="extramappings_historic")
+    assert out.startswith("## regionmapping  scenario-config column, not a main.gms switch")
+    assert "default (config/default.cfg): config/regionmappingH12.csv" in out
+    assert "- ./config/regionmapping_21_EU11.csv | ./config/extramapping_EU27.csv: 256" in out
+    assert 'config/regionmappingH12.csv (default) | "" (default): 131' in out
+    assert "set in 3 of 387 REMIND configs" in server.get_switch("path_gdx_carbonprice")
+
+
+def test_unknown_second_setting_is_flagged():
+    out = configs("carbonprice", also="cm_no_such_switch")
+    assert "- note: cm_no_such_switch is no main.gms switch and no config sets it" in out
