@@ -173,7 +173,28 @@ DEF_RE = re.compile(r"def\s*=\s*(.*?)\s*(?:!!|$)")
 REGEXP_RE = re.compile(r"regexp\s*=\s*(.*?)\s*(?:!!|$)")
 
 # in main.gms, where the documentation of the next switch begins (its name, or a ----- separator)
-NEW_SWITCH_DOC_RE = re.compile(r"^\*+'?\s*(c_|cm_|c\d\d_)\w+|^\*'?-{5,}")
+NEW_SWITCH_DOC_RE = re.compile(r"^\*+'?\s*((?:c_|cm_|c\d\d_)\w+)|^\*'?-{5,}")
+
+
+def _doc_after(lines: list[str], i: int, name: str) -> int:
+    """End (exclusive) of the documentation that follows switch `name`'s assignment on line i-1: comment lines,
+    across blank lines, until code or the start of another switch's doc. A doc that opens with the switch's own
+    name stays with it (`cm_flex_tax`), and so does one after a blank line (`c_geoStorPotScen`; ../TODO.md #66).
+
+    >>> _doc_after(["cm_a = 1;", "", "*' (1) one", "", "parameter cm_b"], 1, "cm_a")
+    3
+    >>> _doc_after(["cm_a = 1;", "*' cm_a: one", "*' cm_b: two", "cm_b = 2;"], 1, "cm_a")
+    2
+    """
+    end = j = i
+    while j < len(lines) and (is_comment(lines[j]) or not lines[j].strip()):
+        if is_comment(lines[j]):
+            m = NEW_SWITCH_DOC_RE.match(lines[j])
+            if m and (m.group(1) or "").lower() != name.lower():
+                break
+            end = j + 1
+        j += 1
+    return end
 
 
 def _common_conditions(lines: list[str], conds: list[tuple[str, ...]], s: int, e: int) -> list[str]:
@@ -359,9 +380,8 @@ def chunk_gams(path: str, raw: str) -> ParsedFile:
         start = 0
         for idx, (ai, name, default, allowed, param_style, value) in enumerate(anchors):
             end = ai + 1
-            if param_style:  # the option list follows the assignment, until the next switch's doc starts
-                while end < len(lines) and is_comment(lines[end]) and not NEW_SWITCH_DOC_RE.match(lines[end]):
-                    end += 1
+            if param_style:  # the option list follows the assignment
+                end = _doc_after(lines, end, name)
             nxt = anchors[idx + 1][0] if idx + 1 < len(anchors) else len(lines)
             end = min(end, nxt)
             first = len(special)

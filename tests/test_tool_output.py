@@ -343,6 +343,21 @@ def test_switch_description_mentions_are_not_uses():
     assert row[0] == 0
 
 
+@pytest.mark.parametrize(
+    ("name", "neighbour", "doc"),
+    [
+        # R8: a blank line between the assignment and its doc gave c_export_tax_scen this text
+        ("c_geoStorPotScen", "c_export_tax_scen", "upper bound of the total geological storage potential"),
+        # the doc repeats the switch's own name, which read as the start of the next switch's doc
+        ("cm_flex_tax", "cm_H2targets", "inflexible technologies get a tax"),
+        ("cm_FlexTaxFeedback", "cm_VRE_supply_assumptions", "has to be matched by electrictiy price increase"),
+    ],
+)
+def test_doc_after_the_definition_stays_with_its_switch(name, neighbour, doc):
+    assert doc in server.get_switch(name)
+    assert doc not in server.get_switch(neighbour)
+
+
 def test_search_shows_no_switch_test_from_a_comment():
     # q_limitCapEarlyReti's `!!` comment mentions "cm_startyear = 2005"; its code tests no switch
     out = server.search("q_limitCapEarlyReti", k=1)
