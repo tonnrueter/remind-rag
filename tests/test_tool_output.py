@@ -110,6 +110,17 @@ def test_impossible_precondition_is_shown():
     assert "CAN NEVER BE MET" in block and "no realization 'magicc'" in block
 
 
+def test_config_counts_leave_out_the_magpie_side():
+    # the 155 rows of scenario_config_magpie*.csv hold MAgPIE settings only; counted, each "kept the default"
+    # carbonprice (NPi2025: 187 instead of 32 of 387)
+    rows = server.idx.db.execute("SELECT path FROM scenarios").fetchall()
+    remind = sum("scenario_config_magpie" not in r[0] for r in rows)
+    assert remind < len(rows)
+    out = server.get_module("45")
+    assert f"in practice: 32 of {remind} scenario configs select it" in out
+    assert f"296 of {remind} configs" in out
+
+
 def test_switch_use_kinds():
     block = steering("45", "functionalForm")
     assert re.search(r"branches on \(compile time.*cm_taxCO2_functionalForm \(linear\)", block)

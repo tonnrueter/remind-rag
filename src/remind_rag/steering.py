@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 from .render import short
+from .scenarios import is_magpie_side
 from .status import DefaultRun
 from .usage import STR_TEST_RE, TEST_RE
 
@@ -43,7 +44,7 @@ class Steering:
     common: set[str]  # switches every realization with switch uses shares
     active: list[str]  # realizations with switch uses
     preconditions: dict[str | None, list[sqlite3.Row]]  # realization -> abort preconditions
-    scens: list[dict[str, str]]  # settings of every scenario config
+    scens: list[dict[str, str]]  # settings of every REMIND scenario config (MAgPIE side left out)
     chosen: dict[str, list[dict[str, str]]]  # realization -> configs that select it
 
 
@@ -90,7 +91,7 @@ def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
         "SELECT * FROM preconditions WHERE module = ? AND category = 'precondition' ORDER BY path, line", (mod,)
     ):
         preconditions[p["realization"]].append(p)
-    scens = [json.loads(r[0]) for r in db.execute("SELECT settings FROM scenarios")]
+    scens = [json.loads(r[1]) for r in db.execute("SELECT path, settings FROM scenarios") if not is_magpie_side(r[0])]
     default = run.default_realization(mod) or ""
     # a config selects a realization through the module switch (e.g. carbonprice); left empty, it keeps the default
     chosen = {

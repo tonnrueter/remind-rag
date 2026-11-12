@@ -21,6 +21,17 @@ class Scenario:
     description: str
 
 
+def is_magpie_side(path: str) -> bool:
+    """A scenario_config_magpie*.csv file: the MAgPIE half of coupled runs (MAgPIE settings only; the REMIND half
+    is the row of the same name in a REMIND config, scripts/start/readCheckScenarioConfig.R). Counts of REMIND
+    configs leave these rows out, or every one of them would count as "keeps the main.gms default".
+
+    >>> is_magpie_side("config/scenario_config_magpie_RIKEN.csv"), is_magpie_side("config/scenario_config_RIKEN.csv")
+    (True, False)
+    """
+    return "scenario_config_magpie" in path
+
+
 def read_scenarios(root: Path) -> list[Scenario]:
     """Every scenario row of every config/scenario_config*.csv (`;`-separated), with copyConfigFrom resolved
     within its file. Commented-out (`#`) and empty rows are skipped; a scenario defined in several files

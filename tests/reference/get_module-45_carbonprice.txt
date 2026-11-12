@@ -8,19 +8,19 @@ This realization uses the carbon prices from the input (/p/projects/rd3mod/input
 
 ## Steered by  (switches in the module's code; values in parentheses = main.gms defaults)
 ### NPi2025  [DEFAULT]
-- in practice: 187 of 542 scenario configs select it (incl. those that leave the module switch empty)
+- in practice: 32 of 387 scenario configs select it (incl. those that leave the module switch empty)
 
 ## Alternatives (one in full: get_module("45_carbonprice", realization="..."))
-- realization exogenous  [not default]: This realization implements carbon price trajectories from an exogenous file (p45_tau_co2_tax.inc). · 3 of 542 configs
-- realization exogenousExpo  [not default]: This realization implements an exponential increase in carbon price from the tax level before cm_startyear. · 0 of 542 configs
-- realization expoLinear  [not default]: The exponential price path goes back to the “Hotelling rule”: a price path that rises exponentially with the discount rate is economically … · aborts under the defaults unless cm_taxCO2_startyear is changed · 0 of 542 configs
-- realization functionalForm  [not default]: Carbon price trajectory follows a prescribed functional form (linear/exponential) - either until peak year or until end-of-century - and ca… · aborts under the defaults unless cm_taxCO2_functionalForm, cm_taxCO2_peakBudgYr, cm_taxCO2_startyear are changed (set by 296 of 296 selecting configs) · 296 of 542 configs
-- realization functionalFormRegi  [not default]: Carbon price trajectory follows a prescribed functional form (linear/exponential) - either until peak year or until end-of-century. · aborts under the defaults unless cm_iterative_target_adj, cm_taxCO2_functionalForm, cm_taxCO2_peakBudgYr, cm_taxCO2_startyear are changed · 0 of 542 configs
-- realization NDC  [not default]: implements a carbon price trajectory consistent with the NDC emissions targets for 2030 and 2035 based on PBL target collection and own tar… · has limitations · 20 of 542 configs
-- realization none  [not default]: This realization is for runs without carbon prices. · 9 of 542 configs
-- realization NPi  [not default]: This realization takes the carbon prices until 2020 from the input data and implements as convergence scheme post 2020: parabolic convergen… · 27 of 542 configs
-- realization NPi2025expo  [not default]: This realization takes the carbon prices until 2025 from the input data (for EUR until 2030) and implements an exponentially growing path a… · 0 of 542 configs
-- realization temperatureNotToExceed  [not default]: This realization chooses a carbon price trajectory consistent with a (non-overshoot) temperature target by staying within a peak budget of … · ⚠ CAN NEVER BE MET: aborts if not %climate% == "magicc" (15_climate has no realization 'magicc' (available: magicc7_ar6, off)) · aborts under the defaults unless cm_magicc_temperatureImpulseResponse is changed · 0 of 542 configs
+- realization exogenous  [not default]: This realization implements carbon price trajectories from an exogenous file (p45_tau_co2_tax.inc). · 3 of 387 configs
+- realization exogenousExpo  [not default]: This realization implements an exponential increase in carbon price from the tax level before cm_startyear. · 0 of 387 configs
+- realization expoLinear  [not default]: The exponential price path goes back to the “Hotelling rule”: a price path that rises exponentially with the discount rate is economically … · aborts under the defaults unless cm_taxCO2_startyear is changed · 0 of 387 configs
+- realization functionalForm  [not default]: Carbon price trajectory follows a prescribed functional form (linear/exponential) - either until peak year or until end-of-century - and ca… · aborts under the defaults unless cm_taxCO2_functionalForm, cm_taxCO2_peakBudgYr, cm_taxCO2_startyear are changed (set by 296 of 296 selecting configs) · 296 of 387 configs
+- realization functionalFormRegi  [not default]: Carbon price trajectory follows a prescribed functional form (linear/exponential) - either until peak year or until end-of-century. · aborts under the defaults unless cm_iterative_target_adj, cm_taxCO2_functionalForm, cm_taxCO2_peakBudgYr, cm_taxCO2_startyear are changed · 0 of 387 configs
+- realization NDC  [not default]: implements a carbon price trajectory consistent with the NDC emissions targets for 2030 and 2035 based on PBL target collection and own tar… · has limitations · 20 of 387 configs
+- realization none  [not default]: This realization is for runs without carbon prices. · 9 of 387 configs
+- realization NPi  [not default]: This realization takes the carbon prices until 2020 from the input data and implements as convergence scheme post 2020: parabolic convergen… · 27 of 387 configs
+- realization NPi2025expo  [not default]: This realization takes the carbon prices until 2025 from the input data (for EUR until 2030) and implements an exponentially growing path a… · 0 of 387 configs
+- realization temperatureNotToExceed  [not default]: This realization chooses a carbon price trajectory consistent with a (non-overshoot) temperature target by staying within a peak budget of … · ⚠ CAN NEVER BE MET: aborts if not %climate% == "magicc" (15_climate has no realization 'magicc' (available: magicc7_ar6, off)) · aborts under the defaults unless cm_magicc_temperatureImpulseResponse is changed · 0 of 387 configs
 
 ## Interfaces: provides (outputs), 6
 - pm_NDCEmiTargetDeviation -> used by 80_optimization
