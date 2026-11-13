@@ -5,7 +5,7 @@ render.short to cut text), so the list doubles as a reading order.
 
 Reading REMIND's sources (no index needed)
     gams           GAMS line by line: comments, statement ends, $ifthen conditions, run-time if() blocks
-    usage          how a symbol is used on a line (role), switch and set tests, conditions evaluated against switches
+    usage          how a symbol is used on a line (role), switch tests, conditions evaluated against switch values
     chunkers       source files -> retrieval chunks, symbols and switches (GAMS, R, Markdown)
     scenarios      config/scenario_config*.csv: scenario rows as chunks, switch resolution (copyConfigFrom)
     gmsdata        the gms/goxygen export: module interfaces, limitations, not_used reasons
