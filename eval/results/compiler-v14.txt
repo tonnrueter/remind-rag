@@ -1,0 +1,379 @@
+GAMS compiler vs index: where-used agreement
+index: data/remind-bge-v14.db (meta.remind_commit 1e2dbd9724d9, built 2026-11-13 01:47:18)
+archive: git archive 1e2dbd9724d9 (= meta.remind_commit of the index; checkout HEAD 1e2dbd9724d9 matches)
+compiler: C:/GAMS/51/gams.exe main.gms action=c, 143 compile errors (missing input data, see docstring)
+reference entries in git-tracked files: 38,725; reftypes {'declared': 1782, 'defined': 727, 'assigned': 4633, 'ref': 24801, 'control': 6782}
+
+=== HEADLINE (parameters / variables / equations in files the index reads; sets and switches left out) ===
+recall    (compiler entry -> index row)   exact line / same statement, by compiler reftype:
+    declared   1,335 entries   100.0% / 100.0%
+    defined      398 entries    21.4% / 100.0%
+    assigned   2,307 entries    91.4% / 100.0%
+    ref        5,057 entries    95.1% /  95.2%
+    all        9,097 entries    91.7% /  97.3%
+precision (index row on a compiled line -> compiler entry)   exact / same statement, by index role:
+    declared   1,190 rows      100.0% / 100.0%
+    assigned   2,478 rows       89.0% /  99.4%
+    equation   1,622 rows       85.2% / 100.0%
+    read       3,245 rows       98.6% /  98.7%
+    all        8,535 rows       93.4% /  99.3%
+role agreement on exact hits:  99.8% of compiler entries found,  99.8% of index rows confirmed
+default verdict, compile-time part (rows in compiled files; compiled = the compiler read the line):
+    ✓ & compiled  9,694   ✓ & not compiled    12   (wrong ✓)
+    ⚠ & compiled      7   ⚠ & not compiled 1,505   (⚠ & compiled = missed ✓)
+    ? & compiled      0   ? & not compiled     0
+    rows in .gms files the compiler never compiled: 7,415, of which ✓: 506
+
+compiled files (>= 1 tracked entry): 163; index .gms rows in them: 11,218 of 18,633 .gms rows (18,827 rows incl. R); keys with more than one row: 0
+symbol type = the compiler's; symbols the compiler never saw get their kind from the index `symbols` table.
+`vocabulary` = symbol names that occur in symbol_uses at all (the index records declared symbols and switches; the compiler also reports functions, macros, files, models and local set indices).
+
+compiler keys in files the index does not read (no chunk): 2,145 by extension {'inc': 2145} (data include files such as .inc / .cs4r-derived tables); left out of every recall figure below.
+
+compiler entries as (symbol, file, line, reftype): 25,696; lines with only `control` (loop / sum indices, no counterpart in the index, not scored): 3,513; impl-asn: 0 (none: solve statements are not checked after error 257, so no variable counts as 'never assigned' here)
+
+=== 1+2. RECALL: compiler entries the index has ===
+recall exact = the index has a row for the same symbol on the same line; span = on any line of the same statement;
+`role ok|found` = of the exact hits, the index role is one the compiler reftype allows (declared->declared|assigned, assigned->assigned|declared, defined->equation (EQU) or assigned|declared, ref->read|equation;
+all reftypes on the line are pooled, so `x(i) = x(i) + 1` is fine as `assigned`).
+
+-- all compiler symbols, by reftype
+            entries  recall exact  recall span  role ok|found
+  ref         20699         23.9%        23.9%          99.7%
+  assigned     2488         84.8%        92.8%         100.0%
+  declared     1782         75.5%        75.5%         100.0%
+  defined       727         13.1%        56.3%         100.0%
+  all         25696         33.1%        35.1%          99.8%
+
+-- all compiler symbols, by symbol type
+             entries  recall exact  recall span  role ok|found
+  set          16206          0.9%         0.9%         100.0%
+  parameter     6490         95.9%       100.0%          99.8%
+  variable      1839         99.4%        99.9%         100.0%
+  equation       768         37.5%        68.8%         100.0%
+  functions      263          6.1%         6.1%         100.0%
+  files           75          0.0%         0.0%            n/a
+  models          38          0.0%         0.0%            n/a
+  macros          17          0.0%         0.0%            n/a
+  all          25696         33.1%        35.1%          99.8%
+
+-- all compiler symbols, reftype x type (parameter / variable / equation only)
+                      entries  recall exact  recall span  role ok|found
+  parameter/ref          3575         99.9%        99.9%          99.6%
+  parameter/assigned     1862         89.8%       100.0%         100.0%
+  variable/ref           1200         99.8%        99.8%         100.0%
+  parameter/declared      895        100.0%       100.0%         100.0%
+  variable/assigned       439         97.9%       100.0%         100.0%
+  equation/ref            282         14.9%        14.9%         100.0%
+  equation/declared       240        100.0%       100.0%         100.0%
+  equation/defined        240          0.0%       100.0%            n/a
+  variable/declared       200        100.0%       100.0%         100.0%
+  parameter/defined       158         53.8%       100.0%         100.0%
+  equation/assigned         6        100.0%       100.0%         100.0%
+  all                    9097         91.7%        97.3%          99.8%
+
+-- symbols in the index vocabulary, by reftype
+            entries  recall exact  recall span  role ok|found
+  ref          5198         95.2%        95.3%          99.7%
+  assigned     2308         91.4%       100.0%         100.0%
+  declared     1346        100.0%       100.0%         100.0%
+  defined       409         23.2%       100.0%         100.0%
+  all          9261         91.8%        97.4%          99.8%
+
+-- symbols in the index vocabulary, by symbol type
+             entries  recall exact  recall span  role ok|found
+  parameter     6490         95.9%       100.0%          99.8%
+  variable      1839         99.4%        99.9%         100.0%
+  equation       768         37.5%        68.8%         100.0%
+  set            148         99.3%       100.0%         100.0%
+  functions       16        100.0%       100.0%         100.0%
+  all           9261         91.8%        97.4%          99.8%
+
+-- symbols in the index vocabulary, reftype x type (parameter / variable / equation only)
+                      entries  recall exact  recall span  role ok|found
+  parameter/ref          3575         99.9%        99.9%          99.6%
+  parameter/assigned     1862         89.8%       100.0%         100.0%
+  variable/ref           1200         99.8%        99.8%         100.0%
+  parameter/declared      895        100.0%       100.0%         100.0%
+  variable/assigned       439         97.9%       100.0%         100.0%
+  equation/ref            282         14.9%        14.9%         100.0%
+  equation/declared       240        100.0%       100.0%         100.0%
+  equation/defined        240          0.0%       100.0%            n/a
+  variable/declared       200        100.0%       100.0%         100.0%
+  parameter/defined       158         53.8%       100.0%         100.0%
+  equation/assigned         6        100.0%       100.0%         100.0%
+  all                    9097         91.7%        97.3%          99.8%
+
+Sets are left out of the headline: the compiler reports every index position (`sum(t, ...)`, `loop(regi, ...)`,
+domains) of a set as ref / control, while symbol_uses holds rows for only 11 of the 425 sets
+the compiler saw. Their numbers stay in the tables above.
+
+=== 1+2. PRECISION: index rows the compiler confirms ===
+rows in compiled files: 11,218; of them on compiled lines (see compiled_line): 9,701. Rows on other lines are the verdict question (section 3).
+precision exact = the compiler has an entry (any reftype, `control` included) for the symbol on that line; span = in the same statement;
+`role ok|found` = the compiler reftypes allow the index role (control-only keys are not role-checked).
+
+-- all rows, by index role
+            rows  precision exact  precision span  role ok|found
+  read      4338            76.7%           76.8%         100.0%
+  assigned  2490            89.0%           99.4%          99.4%
+  equation  1662            84.4%           98.8%         100.0%
+  declared  1211            98.3%           98.3%          99.9%
+  all       9701            83.9%           89.1%          99.8%
+
+-- all rows, by symbol type
+             rows  precision exact  precision span  role ok|found
+  parameter  6177            95.2%           99.3%          99.8%
+  variable   1830            98.9%           99.4%         100.0%
+  switch      793             0.0%            0.0%            n/a
+  equation    528            54.5%          100.0%         100.0%
+  set         239            60.7%           60.7%         100.0%
+  table        81             0.0%            0.0%            n/a
+  functions    53            30.2%           30.2%         100.0%
+  all        9701            83.9%           89.1%          99.8%
+
+-- rows of symbols the compiler knows, by index role
+            rows  precision exact  precision span  role ok|found
+  read      3500            95.1%           95.2%         100.0%
+  assigned  2490            89.0%           99.4%          99.4%
+  equation  1647            85.1%           99.7%         100.0%
+  declared  1190           100.0%          100.0%          99.9%
+  all       8827            92.2%           97.9%          99.8%
+
+-- rows of symbols the compiler knows, by symbol type
+             rows  precision exact  precision span  role ok|found
+  parameter  6177            95.2%           99.3%          99.8%
+  variable   1830            98.9%           99.4%         100.0%
+  equation    528            54.5%          100.0%         100.0%
+  set         239            60.7%           60.7%         100.0%
+  functions    53            30.2%           30.2%         100.0%
+  all        8827            92.2%           97.9%          99.8%
+
+-- parameter / variable / equation rows, by index role x type
+                      rows  precision exact  precision span  role ok|found
+  parameter/read      2818            98.4%           98.6%         100.0%
+  parameter/assigned  2024            87.5%           99.7%          99.3%
+  variable/equation    797           100.0%          100.0%         100.0%
+  parameter/declared   750           100.0%          100.0%          99.9%
+  parameter/equation   585           100.0%          100.0%         100.0%
+  variable/assigned    448            95.8%           98.0%         100.0%
+  variable/read        385            99.5%           99.5%         100.0%
+  equation/declared    240           100.0%          100.0%         100.0%
+  equation/equation    240             0.0%          100.0%            n/a
+  variable/declared    200           100.0%          100.0%         100.0%
+  equation/read         42           100.0%          100.0%         100.0%
+  equation/assigned      6           100.0%          100.0%         100.0%
+  all                 8535            93.4%           99.3%          99.8%
+
+-- role confusion on exact hits (parameter / variable / equation): compiler reftypes on the line (rows) vs index role
+  compiler          declared  assigned  equation  read
+  ref                      1        13      1382  3132
+  assigned                 0      1830         0     0
+  declared              1189        64         0     0
+  assigned+ref             0       213         0    66
+  declared+defined         0        82         0     0
+  defined+ref              0         3         0     0
+
+=== 4. DISAGREEMENTS AND EXAMPLES ===
+
+-- A. compiler entry without an index row on the same line, parameters / variables / equations only: 758 of 9,097
+   (not listed: 16,436 entries of other types, {'set': 16059, 'functions': 247, 'files': 75, 'models': 38, 'macros': 17}; sets are not tracked as uses, functions / macros / files / models are not symbols of the index)
+     513  found on another line of the statement (multi-line)   [{'defined': 313, 'assigned': 198, 'ref': 2}]
+           p37_cesmkup_input (parameter) modules/37_industry/subsectors/declarations.gms:69  compiler=defined  | /
+           pm_shpppmer (parameter) core/datainput.gms:79  compiler=defined  | /
+           p_inco0 (parameter) core/datainput.gms:144  compiler=defined  | /
+           fm_dataglob (parameter) core/datainput.gms:155  compiler=assigned  | sameAs(te, "biopyrchp")) = %c_BCLearning%;
+           p_risk_premium_constr (parameter) core/datainput.gms:339  compiler=defined  | /
+           pm_inco0_t (parameter) core/datainput.gms:475  compiler=assigned  | = macro_interpolate(ttot.val, 2020, c_teNoLearnConvEndYr, p_inco0("2020",regi,te), fm_data
+           pm_share_ind_fesos (parameter) core/datainput.gms:515  compiler=defined  | /
+           pm_share_ind_fesos_bio (parameter) core/datainput.gms:522  compiler=defined  | /
+           p_histemimac (parameter) core/datainput.gms:581  compiler=defined  | /
+           p_histemisector (parameter) core/datainput.gms:590  compiler=defined  | /
+     240  symbol not on the line: model m /all/ (every equation reported)   [{'ref': 240}]
+           q_escapinv (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emico2sector (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emitedetail (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_macbase (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emimacsector (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emite (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emiall (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emicap (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_emimac (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+           q_co2eq (equation) core/preloop.gms:15  compiler=ref  | model hybrid /all/;
+       3  symbol not on the line: reported at the call of a $macro that uses it   [{'ref': 3}]
+           fm_dataglob (parameter) core/equations.gms:467  compiler=ref  | macro_clamped_interpolate(t.val, 2005, 2020, macro_costGlob, macro_costRegi) $ (t.val <= 2
+           vm_capcum (variable) core/equations.gms:467  compiler=ref  | macro_clamped_interpolate(t.val, 2005, 2020, macro_costGlob, macro_costRegi) $ (t.val <= 2
+           pm_capcumforeign (parameter) core/equations.gms:467  compiler=ref  | macro_clamped_interpolate(t.val, 2005, 2020, macro_costGlob, macro_costRegi) $ (t.val <= 2
+       2  symbol not on the line (continuation of an earlier statement or other expansion)   [{'ref': 2}]
+           vm_capcum (variable) core/equations.gms:476  compiler=ref  | + macro_costRegi $ (t.val > 2020)
+           pm_capcumforeign (parameter) core/equations.gms:476  compiler=ref  | + macro_costRegi $ (t.val > 2020)
+
+-- B. index row on a compiled line without a compiler entry on that line: 1,565 of 9,701
+     793  main.gms switch used as %name% (not a GAMS symbol, the index tracks switches on purpose)   [{'read': 757, 'declared': 21, 'equation': 15}]
+           cm_tradbio_phaseout core/bounds.gms:251  index=read  | $ifthen not %cm_tradbio_phaseout% == "fast" !! cm_tradbio_phaseout
+           c_tech_earlyreti_rate core/bounds.gms:450  index=read  | $ifthen.tech_earlyreti not "%c_tech_earlyreti_rate%" == "off"
+           c_SSP_forcing_adjust core/bounds.gms:486  index=read  | $ifthen %c_SSP_forcing_adjust% == "forcing_SSP1"
+           c_SSP_forcing_adjust core/bounds.gms:500  index=read  | $ifthen %c_SSP_forcing_adjust% == "forcing_SSP2"
+           cm_fgas_scen core/bounds.gms:544  index=read  | vm_emiFgas.fx(ttot,all_regi,all_enty) = f_emiFgas(ttot,all_regi,"%cm_fgas_scen%",all_enty)
+           c_techAssumptScen core/datainput.gms:161  index=read  | $ifthen.c_techAssumptScen "%c_techAssumptScen%" == "SSP1"
+           c_techAssumptScen core/datainput.gms:185  index=read  | $elseif.c_techAssumptScen "%c_techAssumptScen%" == "SSP3"
+           c_techAssumptScen core/datainput.gms:212  index=read  | $elseif.c_techAssumptScen "%c_techAssumptScen%" == "SSP5"
+           c_techAssumptScen core/datainput.gms:233  index=read  | $endif.c_techAssumptScen
+           cm_ccsinjeCost core/datainput.gms:250  index=read  | $if "%cm_ccsinjeCost%" == "high" fm_dataglob("inco0","ccsinjeon")  = 550;
+     504  compiler has it on another line of the same statement (multi-line)   [{'assigned': 258, 'equation': 240, 'read': 6}]
+           vm_co2CCS core/bounds.gms:368  index=assigned  (compiler has it elsewhere in the statement)  | vm_co2CCS.up(t,regi,"cco2","ico2","ccsinjeon","1") $ (t.val = 2035) =
+           fm_dataglob core/datainput.gms:154  index=assigned  (compiler has it elsewhere in the statement)  | fm_dataglob("learn", te)$(sameAs(te, "biopyronly") OR sameAs(te, "biopyrhe") OR
+           pm_data core/datainput.gms:403  index=assigned  (compiler has it elsewhere in the statement)  | pm_data(regi,"floorcost",teLearn(te)) =
+           pm_inco0_t core/datainput.gms:457  index=assigned  (compiler has it elsewhere in the statement)  | pm_inco0_t(ttot,regi,te) $ (ttot.val >= 2005 and ttot.val <= 2030)
+           pm_inco0_t core/datainput.gms:474  index=assigned  (compiler has it elsewhere in the statement)  | pm_inco0_t(ttot,regi,te)
+           pm_tsu2opTimeYr core/datainput.gms:834  index=assigned  (compiler has it elsewhere in the statement)  | pm_tsu2opTimeYr(ttot,opTimeYr) $ tsu2opTimeYr(ttot,opTimeYr) =
+           pm_shareWindPotentialOff2On core/datainput.gms:1068  index=assigned  (compiler has it elsewhere in the statement)  | pm_shareWindPotentialOff2On(regi) =
+           p_avCapFac2015 core/datainput.gms:1128  index=assigned  (compiler has it elsewhere in the statement)  | p_avCapFac2015(regi,te) =
+           p_aux_capacityFactorHistOverREMIND core/datainput.gms:1154  index=assigned  (compiler has it elsewhere in the statement)  | p_aux_capacityFactorHistOverREMIND(regi,teVRE) $ (p_histCapFac("2015",regi,teVRE) and p_av
+           pm_cf core/datainput.gms:1158  index=assigned  (compiler has it elsewhere in the statement)  | pm_cf(t,regi,teVRE) =
+      98  name only inside a string or !! comment   [{'read': 93, 'equation': 5}]
+           v05_INIcap0 modules/05_initialCap/on/preloop.gms:133  index=read  | put "v05_INIcap0.l:" /;
+           cm_APsource modules/11_aerosols/exoGAINS2025/datainput.gms:73  index=read  | abort "cm_APsource must be either CEDS or GAINS"
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:155  index=read  | p11_emiFacAP(ttot,regi,"pecoal",enty2,te,"power",emiExog);
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:162  index=read  | p11_emiFacAP(ttot,regi,"peoil",enty2,"dot","power",emiExog);
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:179  index=read  | p11_emiFacAP(ttot,regi,"pebiolc",enty2,te,"power",emiAP);
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:203  index=read  | p11_costpollution("pc",     "SO2","power")  = 768;
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:204  index=read  | p11_costpollution("coalchp","SO2","power")  = 768;
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:205  index=read  | p11_costpollution("coalhp", "SO2","power")  = 768;
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:206  index=read  | p11_costpollution("dot",    "SO2","power")  = 2262;
+           power modules/11_aerosols/exoGAINS2025/datainput.gms:210  index=read  | p11_costpollution("biOChp",  "BC", "power") = 117;
+      76  name used as %name% (GAMS text substitution, also declared as a symbol)   [{'read': 76}]
+           cm_GDPpopScen core/datainput.gms:65  index=read  | pm_pop(tall,all_regi) = f_pop(tall,all_regi,"%cm_GDPpopScen%") / 1000;  !! rescale unit fr
+           cm_GDPpopScen core/datainput.gms:73  index=read  | pm_lab(tall,all_regi) = f_lab(tall,all_regi,"%cm_GDPpopScen%") / 1000; !! rescale unit fro
+           cm_GDPpopScen core/datainput.gms:91  index=read  | pm_gdp(tall,all_regi) = f_gdp(tall,all_regi,"%cm_GDPpopScen%") * pm_shPPPMER(all_regi) / 1
+           cm_GDPpopScen core/datainput.gms:100  index=read  | p_developmentState(tall,all_regi) = f_developmentState(tall,all_regi,"%cm_GDPpopScen%");
+           cm_rcp_scen core/datainput.gms:1391  index=read  | $if  "%cm_rcp_scen%" == "rcp45"   sm_budgetCO2eqGlob = 420.0000;
+           cm_rcp_scen core/datainput.gms:1405  index=read  | $if  "%cm_rcp_scen%" == "rcp45"   sm_budgetCO2eqGlob = 1273.0000;
+           cm_LU_emi_scen core/datainput.gms:1497  index=read  | p_macBaseExo(ttot,regi,emiMacExo(enty))$(ttot.val ge 2005) = f_macBaseExo(ttot,regi,emiMac
+           cm_LU_emi_scen core/datainput.gms:1508  index=read  | pm_macBaseMagpie(ttot,regi,emiMacMagpie(enty))$(ttot.val ge 2005) = f_macBaseMagpie(ttot,r
+           cm_rcp_scen core/datainput.gms:1508  index=read  | pm_macBaseMagpie(ttot,regi,emiMacMagpie(enty))$(ttot.val ge 2005) = f_macBaseMagpie(ttot,r
+           cm_LU_emi_scen core/datainput.gms:1521  index=read  | p_co2lucSub(ttot,regi,emiMacMagpieCO2Sub(all_enty))$(ttot.val ge cm_startyear) = f_macBase
+      54  name unknown to the compiler (set-element label equal to a symbol name, or symbol of a non-default realization)   [{'read': 54}]
+           feh2_cement core/sets.gms:603  index=read  | feh2_cement             "hydrogen energy use of cement production"
+           feh2_chemicals core/sets.gms:614  index=read  | feh2_chemicals          "hydrogen energy use of chemicals production"
+           feelhth_chemicals core/sets.gms:615  index=read  | feelhth_chemicals       "high temperature heat electricity energy use of chemicals product
+           feh2_steel core/sets.gms:628  index=read  | feh2_steel              "hydrogen energy use of primary steel production"
+           feh2_otherInd core/sets.gms:639  index=read  | feh2_otherInd           "hydrogen energy use of other industry production"
+           feelhth_otherInd core/sets.gms:641  index=read  | feelhth_otherInd        "high temperature heat electricity energy use of other industry pr
+           level modules/29_CES_parameters/load/sets.gms:27  index=read  | level
+           feh2_cement modules/37_industry/subsectors/datainput.gms:317  index=read  | feh2_cement       . fega_cement          1e-5
+           feh2_chemicals modules/37_industry/subsectors/datainput.gms:318  index=read  | feh2_chemicals    . fega_chemicals       1e-5
+           feh2_otherInd modules/37_industry/subsectors/datainput.gms:322  index=read  | feh2_otherInd     . fega_otherInd        1e-5
+      19  compiler knows the symbol but not on this statement   [{'assigned': 14, 'read': 5}]
+           vm_capCum core/datainput.gms:333  index=assigned  | Execute_Loadpoint 'input' p_capCum = vm_capCum.l; !! read vm_capCum(t0,regi,teLearn) from 
+           vm_prodSe core/datainput.gms:1727  index=assigned  | execute_load "input_ref.gdx", p_prodSeReference = vm_prodSe.l;
+           vm_prodFe core/datainput.gms:1728  index=assigned  | execute_load "input_ref.gdx", pm_prodFEReference = vm_prodFe.l;
+           v_prodUe core/datainput.gms:1729  index=assigned  | execute_load "input_ref.gdx", p_prodUeReference = v_prodUe.l;
+           vm_co2CCS core/datainput.gms:1730  index=assigned  | execute_load "input_ref.gdx", p_co2CCSReference = vm_co2CCS.l;
+           pm_pvp core/loop.gms:65  index=assigned  | Execute_Loadpoint "input_ref" p_pvpRef = pm_pvp;
+           sm_budgetCO2eqGlob core/preloop.gms:47  index=assigned  | Execute_Loadpoint 'input' p_emi_budget1_gdx = sm_budgetCO2eqGlob;
+           trade core/sets.gms:894  index=read  | trade
+           power core/sets.gms:900  index=read  | power
+           trade core/sets.gms:931  index=read  | trade . %trade%
+      18  $ directive line   [{'read': 18}]
+           cm_LU_emi_scen core/datainput.gms:1024  index=read  | $if %cm_LU_emi_scen% == "SSP2"   p_efFossilFuelExtr(regi,"pebiolc","n2obio") = 0.0079/sm_E
+           pm_capCumForeign core/equations.gms:457  index=read  | $macro macro_capCumGlob (sum(regi2, vm_capCum(t,regi2,teLearn)) + pm_capCumForeign(t,regi,
+           vm_capCum core/equations.gms:457  index=read  | $macro macro_capCumGlob (sum(regi2, vm_capCum(t,regi2,teLearn)) + pm_capCumForeign(t,regi,
+           pm_data core/equations.gms:458  index=read  | $macro macro_costRegi   (pm_data(regi,"floorcost",teLearn) + pm_data(regi,"learnMult_wFC",
+           fm_dataglob core/equations.gms:459  index=read  | $macro macro_costGlob   (fm_dataglob("floorcost",teLearn) + fm_dataglob("learnMult_wFC",te
+           c_expname main.gms:234  index=read  | $setGlobal c_expname  default
+           c_description main.gms:235  index=read  | $setGlobal c_description  REMIND run with default settings
+           c_model_version main.gms:236  index=read  | $setGlobal c_model_version  REMIND model version will be automatically added during prepar
+           c_results_folder main.gms:237  index=read  | $setGlobal c_results_folder  REMIND results_folder will be automatically added during prep
+           trade main.gms:300  index=read  | $setglobal trade  standard           !! def = standard
+       3  name also appears in a quoted label   [{'read': 2, 'assigned': 1}]
+           power modules/11_aerosols/exoGAINS2025/sets.gms:24  index=read  | power        "emissions from power sector"
+           power modules/11_aerosols/exoGAINS2025/sets.gms:36  index=read  | power    "power"
+           p35_fe2es modules/35_transport/edge_esm/presolve.gms:22  index=assigned  | Execute_Loadpoint "p35_fe2es", p35_fe2es_aux = p35_fe2es;
+
+-- C. role mismatch on exact hits: 14 (compiler reftypes -> index role)
+      13  ref -> index assigned
+           pm_data (parameter) core/datainput.gms:435  | pm_data(regi,"learnMult_wFC",te) $ (pm_data(regi,"tech_stat",te) = 4)
+           p_histemimac (parameter) core/datainput.gms:580  | parameter p_histEmiMac(tall,all_regi,all_enty)    "historical emissions per MAC"
+           p_histemisector (parameter) core/datainput.gms:589  | parameter p_histEmiSector(tall,all_regi,all_enty,emi_sectors,sector_types)    "historical 
+           p32_grid_factor (parameter) modules/32_power/IntC/datainput.gms:24  | parameter p32_grid_factor(all_regi) "multiplicative factor that scales total grid requirem
+       1  ref -> index declared
+           cm_peakbudgyr (parameter) core/declarations.gms:700  | cm_peakBudgYr                "date of net-zero CO2 emissions for peak budget runs without 
+
+=== 3. DEFAULT VERDICT vs 'the compiler saw this line' ===
+Scored verdict = the compile-time part: realization (module switch value from main.gms) and `$ifthen` conditions
+(the `conditions` column); both are decided by the compiler's $if/$ifthen/$include handling. `guards` (`if(...)`
+blocks, `$(...)` conditions) are run-time and are compiled either way: left out here, shown in the second table.
+The verdict is DefaultRun.use_tags / mark from remind_rag.status (the same code the tools use); the scored
+variant calls it with guards removed. mark ✓ = no tag, ⚠ = a tag that keeps the code out of a default run,
+? = a condition the defaults do not decide. 'compiled' = compiled_line: a symbol entry on the line or an echo of the line in compile.lst.
+
+-- compile-time verdict (scored); rows in compiled files
+  verdict  compiled  not compiled  compiled share
+  ✓            9694            12           99.9%
+  ⚠               7          1505            0.5%
+  ?               0             0             n/a
+   ✓ precision (compiled | ✓)  99.9%; ✓ recall (✓ | compiled)  99.9%; ⚠ correct (not compiled | ⚠)  99.5%
+
+-- full verdict as the tools show it (run-time guards included); rows in compiled files
+  verdict  compiled  not compiled  compiled share
+  ✓            9284            10           99.9%
+  ⚠             396          1507           20.8%
+  ?              21             0          100.0%
+   ✓ precision (compiled | ✓)  99.9%; ✓ recall (✓ | compiled)  95.7%; ⚠ correct (not compiled | ⚠)  79.2%
+
+-- rows in tracked .gms files the compiler never compiled (non-default realizations, unused includes): 7,415, compile-time verdict {'⚠': 6909, '✓': 506}
+     ✓ but file never compiled:  296  standalone/trade/trade.gms
+     ✓ but file never compiled:  176  standalone/template.gms
+     ✓ but file never compiled:    1  modules/01_macro/module.gms
+     ✓ but file never compiled:    1  modules/02_welfare/module.gms
+     ✓ but file never compiled:    1  modules/04_PE_FE_parameters/module.gms
+     ✓ but file never compiled:    1  modules/05_initialCap/module.gms
+     ✓ but file never compiled:    1  modules/11_aerosols/module.gms
+     ✓ but file never compiled:    1  modules/15_climate/module.gms
+     ✓ but file never compiled:    1  modules/16_downscaleTemperature/module.gms
+     ✓ but file never compiled:    1  modules/20_growth/module.gms
+
+-- D. wrong ✓: index says runs by default (compile-time), compiler did not see the statement: 12
+       4  inside $ifthen.no_calibration, index lists a condition (judged active)
+           cm_ind_energy_limit modules/37_industry/subsectors/datainput.gms:173  index=read  [$ifthen.no_calibration "%ces_parameters%" == "load"   !! ces] | $$elseif.cm_ind_energy_limit "%cm_ind_energy_limit%" == "manual"
+           cm_ind_energy_limit modules/37_industry/subsectors/datainput.gms:177  index=read  [$ifthen.no_calibration "%ces_parameters%" == "load"   !! ces] | $$else.cm_ind_energy_limit
+           cm_ind_energy_limit modules/37_industry/subsectors/datainput.gms:178  index=read  [$ifthen.no_calibration "%ces_parameters%" == "load"   !! ces] | $$abort Unknown cm_ind_energy_limit value
+           cm_ind_energy_limit modules/37_industry/subsectors/datainput.gms:179  index=read  [$ifthen.no_calibration "%ces_parameters%" == "load"   !! ces] | $$endif.cm_ind_energy_limit
+       3  no open $if, index lists no condition
+           c_skip_output main.gms:2287  index=read  [] | $ifthen.c_skip_output %c_skip_output% == "off"
+           cm_subsec_model_steel modules/37_industry/subsectors/datainput.gms:100  index=read  [] | $$ifthen.cm_subsec_model_steel "%cm_subsec_model_steel%" == "ces"
+           cm_subsec_model_steel modules/37_industry/subsectors/datainput.gms:102  index=read  [] | $$endif.cm_subsec_model_steel
+       3  inside $ifthen.policy_scenario, index lists a condition (judged active)
+           p37_industry_quantity_targets modules/37_industry/subsectors/bounds.gms:121  index=read  [$ifthen.policy_scenario "%cm_indstexogscen_set%" == "yes"] | vm_cesIO.fx(t,regi,in)$( p37_industry_quantity_targets(t,regi,in) )
+           vm_cesIO modules/37_industry/subsectors/bounds.gms:121  index=assigned  [$ifthen.policy_scenario "%cm_indstexogscen_set%" == "yes"] | vm_cesIO.fx(t,regi,in)$( p37_industry_quantity_targets(t,regi,in) )
+           p37_industry_quantity_targets modules/37_industry/subsectors/bounds.gms:122  index=read  [$ifthen.policy_scenario "%cm_indstexogscen_set%" == "yes"] | = p37_industry_quantity_targets(t,regi,in);
+       1  inside $ifthen.c_skip_output, index lists no condition
+           c_skip_output main.gms:2290  index=read  [$ifthen.c_skip_output %c_skip_output% == "off"] | $endif.c_skip_output
+       1  no open $if, index lists a condition (judged active)
+           p80_etaST modules/80_optimization/nash/datainput.gms:64  index=assigned  [] | $ifi %banking% == "banking"  p80_etaST("perm") = 0.2;      !! in banki
+
+-- E. missed ✓: index says ⚠ or ? (compile-time), compiler read the line: 7
+   (a switch value the index takes from main.gms is overridden before the line, or the index misjudges the condition)
+       7  ⚠ $ifthen, single comparison   [{'read': 6, 'assigned': 1}]
+           cm_rcp_scen modules/15_climate/off/datainput.gms:18 [15_climate/off]  $ifthen %cm_rcp_scen% == "rcp37" → inactive by default  | $ifi  %cm_rcp_scen% == "rcp37"      $include "./mo
+           cm_rcp_scen modules/15_climate/off/datainput.gms:33 [15_climate/off]  $ifthen %cm_rcp_scen% == "rcp37" → inactive by default  | $if %cm_rcp_scen% == "rcp37"  $include "./modules/
+           cm_rcp_scen modules/15_climate/off/datainput.gms:44 [15_climate/off]  $ifthen %cm_rcp_scen% == "rcp37" → inactive by default  | $if %cm_rcp_scen% == "rcp37"  $include "./modules/
+           cm_CESMkup_ind_data modules/37_industry/subsectors/declarations.gms:71 [37_industry/subsectors]  $ifthen "%cm_CESMkup_ind%" == "manual" → inactive by default  | %cm_CESMkup_ind_data%
+           cm_fxIndUeReg modules/37_industry/subsectors/sets.gms:596 [37_industry/subsectors]  $ifthen "%cm_fxIndUe%" == "on" → inactive by default  | %cm_fxIndUeReg%
+           cm_implicitQttyTarget modules/47_regipol/regiCarbonPrice/declarations.gms:115 [47_regipol/regiCarbonPrice]  $ifthen "%cm_implicitQttyTargetType%" == "config" → inactive by default  | pm_implicitQttyTarget(ttot,ext_regi,taxType,target
+           pm_implicitQttyTarget modules/47_regipol/regiCarbonPrice/declarations.gms:115 [47_regipol/regiCarbonPrice]  $ifthen "%cm_implicitQttyTargetType%" == "config" → inactive by default  | pm_implicitQttyTarget(ttot,ext_regi,taxType,target
+
+=== WHAT THE COMPILER VIEW CANNOT JUDGE ===
+- Run-time behaviour: `if(...)` branches, `loop` bodies and `$(...)` conditions are compiled either way; whether they
+  execute (and which solve runs) is not visible. impl-asn entries are missing (error 257, solve not checked).
+- Other configurations: one run, main.gms defaults. A row that is ⚠ in the index but compiled would be a defect; a row
+  that is not compiled says nothing about a scenario that switches it on.
+- Compiled-line judgement is ours, not the compiler's: a line counts as read if it has a symbol entry, if a code line
+  has parameter / variable / equation entries somewhere in its statement, or (directives, labels, comments) if
+  compile.lst echoes it; false `$ifthen` lines are judged by their `$endif`. The few cases listed under D and E
+  (`$$` double-dollar directives, `$if ... $include "..%var%.."`, `%switch%` data in declarations) are mostly this
+  judgement failing, not index defects.
+- Data in files the index does not read (.inc, .cs4r) and the missing input data (143 compile errors).
+- Set-element lists, descriptions and `%name%` substitutions are not symbol uses for the compiler; the index
+  records some of them on purpose (switches).

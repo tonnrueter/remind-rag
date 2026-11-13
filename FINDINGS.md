@@ -596,3 +596,33 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
   call each, batchable) and substrings of values (R5 "grossEnCO2"; `search(kind="scenario")`).
 - **Cost**: tool description +450 characters, schema +330, server instructions +40 (about 200 tokens per request);
   `get_switch("cm_emiscen")` 2,110 → 2,700 characters.
+
+## 23. v0.14.0: index v14, the tool outputs that misled the reviews (`../TODO.md` #66, 2026-11-13)
+
+- **Why**: review pass 1 (`../reviews/EFFICIENCY_LEARNINGS.md` § "Where the index misled") listed outputs Claude
+  read wrong. Each fix is a general rule; none names a switch or file.
+- **Changes** (one commit each):
+  - `get_switch`: documentation after a definition stays with its switch (a blank line or another switch's name
+    ends it). 6 switch chunks changed (`c_export_tax_scen` had `c_geoStorPotScen`'s text).
+  - Marks: an `elseif` head carries its own branch only, not the negation of the earlier ones. 4 lines,
+    `c_geoStorPotScen eq 3` (the default) was ⚠.
+  - Marks: a ⚠ "inactive by default" reason says in how many REMIND configs its condition holds ("holds in 242 of
+    387 REMIND configs", R5 read the line as unused). Per condition, not per line: 44 % of these rows also sit in
+    a non-default realization (one count per code path is #57). Index-wide: 2,383 ⚠ rows whose condition some
+    config meets, 1,699 none, 9 undecided. Computed at query time (4.1 s for all rows, cached per condition).
+  - `get_symbol`: the read role is "Read outside equations", and a role drill-down points to the other one
+    (`vm_cap`: `(+41 in equations: role="equation")`; a review took the 6 reads for all).
+  - `get_scenario`: the REMIND row first, other REMIND rows as their differences to it, the MAgPIE side only
+    named. The row order had left it to chance (135 names have a MAgPIE row; `M-SSP2-NPi-KLW` returned only it).
+    `search(scenario=)` uses the same order.
+- **Tried and reverted**: "?" on run-time tests of a set's contents (`if(card(te_used33) eq 0`), 27 lines. A
+  stopgap with its own regex; it moved to #56 (parse conditions once), with the 6 unchecked verdict misses of § 21.
+  Not a RAG bug: `$ifthen not` (the error was sweep 05's check).
+- **Build**: 4,688 chunks, 4,682 embeddings reused, 0 parser warnings; codeCheck still reports 6 declarations
+  missed by our parser (`q_capCumNet` and five more): the gms export predates REMIND `1e2dbd972`, unchanged since v13.
+  Retrieval unchanged: hybrid 81 % / 0.69 (`eval/results/retrieval-v14-marks.txt`). Compiler check
+  (`eval/results/compiler-v14.txt`): ✓ 9,280 → 9,284, ⚠ 400 → 396, ⚠ correct 79.0 → 79.2 %.
+- **Cost**: tool descriptions and server instructions unchanged. Output: calls with ⚠ conditions +2–7 %,
+  `get_scenario` with several REMIND rows +14 %.
+- **What it showed**: fixing the reviews' cases one by one patched the same weak spot twice (conditions stored as
+  text, re-parsed by each reader). #56 comes before more mark fixes; #72 asks what each part of an answer is for.
