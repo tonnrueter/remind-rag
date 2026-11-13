@@ -89,7 +89,11 @@ class Settings:
 
     Settings.defaults(db): the values main.gms assigns. That is the whole default: config/default.cfg sets no GAMS
     switches (they moved to main.gms). settings.scenario(name): those values overridden by the scenario's first
-    REMIND row in config/scenario_config*.csv."""
+    REMIND row in config/scenario_config*.csv; settings.row(row) for any row.
+
+    Compile-time variables main.gms doesn't define come from the flags table ($set lines elsewhere, followed
+    wherever they stand); one defined nowhere stays its own text `%x%`, as in GAMS. Not followed: code that
+    reassigns a main.gms switch later (11_aerosols `$setGlobal cm_APssp`)."""
 
     def __init__(
         self,
@@ -97,6 +101,7 @@ class Settings:
         values: dict[str, str],
         names: dict[str, str],
         trees: Trees,
+        flags: dict[str, list[tuple[str, list[str]]]] | None = None,
         name: str | None = None,
         source: str | None = None,
         config: dict[str, str] | None = None,
@@ -105,6 +110,8 @@ class Settings:
         self.values = values  # lower-case switch or module name -> value, quotes dropped (as conditions.holds reads)
         self.names = names  # lower-case name -> the spelling in main.gms
         self.trees = trees
+        self.flags = flags or {}  # lower-case name -> (value as written, conditions) per line defining it
+        self._compile: dict[str, str | None] | None = None
         self.name = name  # the scenario; None for the defaults
         self.source = source  # where its row is: "config/scenario_config.csv:12"
         self.config = config or {}  # the row's other columns (R side: regionmapping, path_gdx_ref, ...)
@@ -116,7 +123,13 @@ class Settings:
     def defaults(cls, db: sqlite3.Connection) -> Settings:
         """The main.gms values."""
         d = switch_defaults(db)
-        return cls(db, lower(d), lower({k: k for k in d}), Trees(db))
+        flags: dict[str, list[tuple[str, list[str]]]] = {}
+        try:
+            for r in db.execute("SELECT name, value, conditions FROM flags ORDER BY path, line"):
+                flags.setdefault(r["name"].lower(), []).append((r["value"], json.loads(r["conditions"])))
+        except sqlite3.OperationalError:  # an index built before the flags table
+            pass
+        return cls(db, lower(d), lower({k: k for k in d}), Trees(db), flags)
 
     def scenario(self, name: str) -> Settings:
         """These settings overridden by the first REMIND row of that scenario (column names compared without case
@@ -128,19 +141,42 @@ class Settings:
                 where = ", ".join(f"{r['path']}:{r['line']}" for r in found)
                 raise ValueError(f"scenario {name!r} has only MAgPIE rows ({where}): no REMIND settings")
             raise ValueError(f"unknown scenario {name!r}")
-        row = rows[0]
+        return self.row(rows[0])
+
+    def row(self, row: sqlite3.Row) -> Settings:
+        """These settings overridden by one row of the scenarios table."""
         cells = {k.strip().lower(): v.strip().strip("\"'") for k, v in json.loads(row["settings"]).items()}
         s = Settings(
             self.db,
             {k: cells.get(k, v) for k, v in self.values.items()},
             self.names,
             self.trees,
+            self.flags,
             row["name"],
             f"{row['path']}:{row['line']}",
             {k: v for k, v in cells.items() if k not in self.values},
         )
         s.reach = self.reach
         return s
+
+    @property
+    def compile(self) -> dict[str, str | None]:
+        """Compile-time variables (lower-case) -> value: the settings, then each flag main.gms doesn't define:
+        the value of the last line whose conditions hold, None if the settings don't decide which (or the value
+        is computed, `%1`, `"%cm_GDPpopScen%"`); a flag none of whose lines runs is undefined (left out)."""
+        if self._compile is None:
+            out: dict[str, str | None] = dict(self.values)
+            for name, lines in self.flags.items():
+                if name in self.values:
+                    continue
+                runs = [holds(["and", *(self.trees[c] for c in conds)], self.values, self.values) for _, conds in lines]
+                if None in runs:
+                    out[name] = None
+                elif True in runs:
+                    value = [v for (v, _), r in zip(lines, runs, strict=True) if r][-1].strip().strip("\"'")
+                    out[name] = None if "%" in value else value
+            self._compile = out
+        return self._compile
 
     @property
     def as_written(self) -> dict[str, str]:
@@ -169,7 +205,7 @@ class Settings:
 
     def holds(self, cond: str) -> bool | None:
         """The condition's value under these settings: True, False, or None when they don't decide it."""
-        return holds(self.trees[cond], self.values)
+        return holds(self.trees[cond], self.values, self.compile)
 
     def realization_status(self, module: str | None, realization: str | None) -> str | None:
         """'realization X: DEFAULT' or 'realization X: NOT DEFAULT (...)' with the switch that selects it; None
@@ -237,7 +273,8 @@ class Settings:
             )
             tags.append(Reason(text, True))
         for c in json.loads(u["conditions"] or "[]"):
-            if (v := self.holds(c)) is False:
+            # an $ifthen the settings don't decide: "?" (it showed ✓ without a word, TODO 56)
+            if (v := self.holds(c)) is not True:
                 tags.append(self.reason(c, "$ifthen", v))
         for g in json.loads(u["guards"] or "[]"):
             v = self.holds(g)

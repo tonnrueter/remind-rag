@@ -15,11 +15,10 @@ from typing import NamedTuple
 from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings, store
-from .conditions import holds, lower
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .scenarios import cfg_defaults, is_magpie_side, region_label
 from .search import Index, module_match
-from .status import detail, equation_domain, rank
+from .status import Settings, detail, equation_domain, rank
 from .steering import steering
 
 idx = Index(store.default_db())
@@ -493,11 +492,10 @@ def _config_defaults() -> dict[str, str]:
 
 
 @cache
-def _config_settings() -> list[dict[str, str]]:
-    """Per REMIND config, the main.gms switch values it runs with (lower-case names): its cell, else the default."""
-    return [
-        lower({k: r.cells.get(k.lower(), v) for k, v in default_settings.as_written.items()}) for r in _config_rows()
-    ]
+def _config_settings() -> list[Settings]:
+    """Per REMIND config, the settings it runs with: its cells, else the defaults."""
+    rows = idx.db.execute("SELECT * FROM scenarios ORDER BY path, line").fetchall()
+    return [default_settings.row(r) for r in rows if not is_magpie_side(r["path"])]
 
 
 @cache
@@ -506,8 +504,7 @@ def _config_reach(cond: str) -> str | None:
     alone may leave it open in some ("undecided in K": the rest of the condition tests data). None: no configs."""
     if not (settings := _config_settings()):
         return None
-    tree = default_settings.trees[cond]
-    results = Counter(holds(tree, s) for s in settings)
+    results = Counter(s.holds(cond) for s in settings)
     open_ = f", undecided in {results[None]}" if results[None] else ""
     return f"holds in {results[True]} of {len(settings)} REMIND configs{open_}"
 

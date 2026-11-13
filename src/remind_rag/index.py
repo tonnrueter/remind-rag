@@ -24,6 +24,7 @@ from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
 from .gams import (
     ENDIF_RE,
     IFTHEN_RE,
+    SET_LINE_RE,
     code_part,
     decl_start,
     if_guards,
@@ -215,6 +216,25 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
     return len(uses)
 
 
+def build_flags(db, files: list[tuple[str, str]]) -> int:
+    """Every line outside main.gms that defines a compile-time variable ($set / $setglobal / $eval ..., also after
+    a one-line $if), with the conditions it is compiled under: Settings follows them for names main.gms doesn't
+    define (37_industry `$if ... $set cm_indstExogScen_set "YES"`). standalone/ models are not part of a run."""
+    rows = []
+    for rel, text in files:
+        if not rel.endswith(".gms") or rel == "main.gms" or rel.startswith("standalone/"):
+            continue
+        lines = text.splitlines()
+        conds = line_conditions(lines, single_if=True)
+        off = in_text_block(lines)
+        for n, line in enumerate(lines, 1):
+            if not off[n - 1] and (m := SET_LINE_RE.match(line)):
+                rows.append((rel, n, m.group(1), m.group(2), json.dumps(list(conds[n - 1]))))
+    db.executemany("INSERT INTO flags VALUES (?,?,?,?,?)", rows)
+    db.commit()
+    return len(rows)
+
+
 def build_conditions(db) -> int:
     """Parse every condition text the tables above store into the conditions table (conditions.py): $ifthen
     conditions and if() guards of uses and chunks, abort conditions, and equation $-conditions."""
@@ -225,6 +245,8 @@ def build_conditions(db) -> int:
         texts |= set(json.loads(c))
     for (a,) in db.execute("SELECT abort_if FROM preconditions"):
         texts |= set(json.loads(a))
+    for (c,) in db.execute("SELECT conditions FROM flags"):
+        texts |= set(json.loads(c))
     for text, name in db.execute("SELECT text, name FROM chunks WHERE kind = 'equation'"):
         if cond := equation_condition(text, name):
             texts.add(cond)
@@ -364,6 +386,7 @@ def build(
 
     n_uses = build_uses(db, files)
     n_pre = build_preconditions(db, root)
+    n_flags = build_flags(db, files)
     n_cond = build_conditions(db)
 
     t1 = time.perf_counter()
@@ -404,6 +427,7 @@ def build(
         "symbol_uses": n_uses,
         "preconditions": n_pre,
         "conditions": n_cond,
+        "flags": n_flags,
         "switches": len(switches),
         "scenarios": len(scens),
         "gms_export": bool(gms_export),

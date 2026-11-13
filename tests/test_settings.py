@@ -62,3 +62,30 @@ def test_scenario_with_only_magpie_rows_or_none(db):
         Settings.defaults(db).scenario("M1")
     with pytest.raises(ValueError, match="unknown scenario 'nope'"):
         Settings.defaults(db).scenario("nope")
+
+
+def _uses(db, cond):
+    return {"module": "core", "realization": None, "conditions": json.dumps([cond]), "guards": "[]"}
+
+
+def test_flags_and_names_defined_nowhere(tmp_path):
+    # 56: GAMS leaves an undefined %x% as its own text; a $set outside main.gms defines it where its $if holds
+    from remind_rag import index
+
+    db = store.create(tmp_path / "t.db", 4)
+    db.executemany("INSERT INTO switches (name, value) VALUES (?, ?)", [("cm_scen", "bal"), ("cm_other", "x")])
+    gms = '$if "%cm_scen%" == "bal" $set cm_flag "YES"\n$if "%cm_scen%" == "ens" $set cm_flag2 "YES"\n'
+    assert index.build_flags(db, [("core/bounds.gms", gms), ("standalone/t.gms", "$setglobal cm_gone on\n")]) == 2
+    s = Settings.defaults(db)
+    assert s.holds('"%cm_flag%" == "YES"') is True  # its $if holds
+    assert s.holds('"%cm_flag2%" == "YES"') is False  # its $if doesn't: undefined
+    assert s.holds('"%cm_gone%" == "on"') is False  # defined only in standalone/: stays "%cm_gone%"
+    assert s.holds('not "%cm_gone%" == "on"') is True
+    assert s.holds("cm_gone eq 1") is None  # a run-time name that isn't a switch: data
+
+
+def test_an_undecided_ifthen_is_marked(db):
+    # 56: an $ifthen the settings don't decide showed ✓ without a word
+    s = Settings.defaults(db)
+    tags = s.use_tags(_uses(db, 'exist "./input/x.inc"'))
+    assert len(tags) == 1 and not tags[0].off and s.mark(_uses(db, ""), tags).startswith("?")

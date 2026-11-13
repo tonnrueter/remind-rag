@@ -53,6 +53,9 @@ CREATE INDEX scenarios_name ON scenarios(name COLLATE NOCASE);
 -- every condition text stored above ($ifthen conditions, if() guards, abort_if, equation $-conditions) parsed
 -- once: tree = JSON (conditions.py)
 CREATE TABLE conditions (text TEXT PRIMARY KEY, tree TEXT);
+-- compile-time variables defined outside main.gms ($set, $setglobal, ... lines; standalone/ left out): name, the
+-- value as written, the conditions the line is compiled under (JSON list). main.gms defines the switches table
+CREATE TABLE flags (path TEXT, line INTEGER, name TEXT, value TEXT, conditions TEXT);
 """
 
 

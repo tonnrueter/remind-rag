@@ -27,6 +27,12 @@ _TEST = (
     rf"|{_OPERAND}\s*(?:==|<>|\beq\b|\bne\b)\s*{_OPERAND})"
 )
 DIRECTIVE_TEST_RE = re.compile(rf"({_TEST})(?:\s+(.*))?$", re.I | re.S)
+# a line defining a compile-time variable, possibly after a one-line $if test: its name (group 1) and value (2)
+SET_LINE_RE = re.compile(
+    rf"^\s*(?:\$if[ei]?\s+{_TEST}\s+)?\$(?:set|setglobal|setlocal|setenv|eval|evalglobal|evallocal)\s+(\w+)"
+    r"\s*(.*?)\s*(?:!!.*)?$",
+    re.I,
+)
 # a one-line $if / $ifi / $ife: the test, then the statement it switches on (group 2), e.g.
 # `$ifi %banking% == "banking" p80_etaST("perm") = 0.2;`. REMIND only writes `[not] a == b` there
 IF_LINE_RE = re.compile(

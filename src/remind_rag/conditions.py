@@ -176,9 +176,12 @@ def lower(values: dict[str, str]) -> dict[str, str]:
     return out
 
 
-def holds(tree: Tree, values: dict[str, str]) -> bool | None:
+def holds(tree: Tree, values: dict[str, str], compile: dict[str, str | None] | None = None) -> bool | None:
     """The tree's value under the settings `values` (lower-case name -> value, see lower()): True, False, or None
-    when they don't decide it. A test of a name that isn't a setting is undecided.
+    when they don't decide it. A test of a name that isn't a setting is undecided, unless `compile` is given: the
+    compile-time variables defined (lower-case name -> value, None if the settings don't decide it). Then a
+    compile-time test of a name defined nowhere compares its literal text, as GAMS does (`%cm_less_TS%` stays
+    `%cm_less_TS%`, so `"%cm_less_TS%" == "on"` is false), and `$if set x` is decided.
 
     >>> v = {"cm_emiscen": "9", "optimization": "nash"}
     >>> holds(parse("cm_emiscen eq 9 and not (%optimization% == 'negishi')"), v)
@@ -187,22 +190,31 @@ def holds(tree: Tree, values: dict[str, str]) -> bool | None:
     False
     >>> holds(parse("cm_emiscen eq 9 and sameas(t, '2005')"), v) is None  # depends on t
     True
+    >>> holds(parse('"%cm_gone%" == "on"'), v) is None, holds(parse('"%cm_gone%" == "on"'), v, compile=v)
+    (True, False)
     """
     # Kleene's three-valued logic: and is False if any part is, True if all are; or the other way round. Each
     # operand occurs once in the tree, so this is exactly "the same for every value of the unknowns".
     kind = tree[0]
     if kind in ("and", "or"):
-        parts = [holds(t, values) for t in tree[1:]]
+        parts = [holds(t, values, compile) for t in tree[1:]]
         stop = kind == "or"  # the value that decides: True for or, False for and
         if stop in parts:
             return stop
         return None if None in parts else not stop
     if kind == "not":
-        v = holds(tree[1], values)
+        v = holds(tree[1], values, compile)
         return None if v is None else not v
+    if kind == "sw" and tree[4] == "c" and compile is not None:
+        name = tree[1].lower()
+        value = compile[name] if name in compile else f"%{tree[1]}%"
+        return None if value is None else _compare(value, tree[2], tree[3])
     if kind == "sw":
         value = values.get(tree[1].lower())
         return None if value is None else _compare(value, tree[2], tree[3])
+    if kind == "def" and compile is not None:  # defined; None also when it may or may not be
+        name = tree[1].lower()
+        return None if name in compile and compile[name] is None else name in compile
     return None
 
 
