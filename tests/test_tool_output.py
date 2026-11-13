@@ -598,3 +598,13 @@ def test_scenario_marks_rest_on_its_settings():
 def test_unknown_scenario_names_similar_ones():
     out = server.get_links("vm_cap", scenario="PkBudg650")
     assert out.startswith("unknown scenario 'PkBudg650'. Similar: ") and "SSP2-PkBudg650" in out
+
+
+def test_get_module_with_a_scenario_shows_what_it_selects():
+    # the selected realization in full, the scenario's values in "Steered by", its abort checks judged against it
+    sc = "SSP2-PkBudg650"
+    out = server.get_module("45", scenario=sc)
+    assert out.startswith(f"Marks: {sc} settings") and f"{sc} selects functionalForm" in out
+    assert f"## realization functionalForm  [selected by {sc}]" in out and "[DEFAULT]" not in out
+    assert f"values in parentheses = {sc} values" in out and "cm_budgetCO2from2020 (650)" in out
+    assert "under the defaults" not in out and "realization NPi2025  [not selected]" in out

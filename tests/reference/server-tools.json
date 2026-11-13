@@ -233,7 +233,7 @@
  },
  {
   "name": "get_module",
-  "description": "A module (name e.g. \"33\", \"carbonRemoval\", \"core\"): description, the default realization with the switches\nthat steer it, every alternative realization in one line (with verdicts such as \"aborts under the defaults\" or\n\"CAN NEVER BE MET\" and how many scenario configs select it), and its interfaces (names; descriptions via\nget_symbol). Pass realization=\"...\" for one realization in full: its description, limitations, abort\npreconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set.\n(module= is the old name of name=.)",
+  "description": "A module (name e.g. \"33\", \"carbonRemoval\", \"core\"): description, the default realization with the switches\nthat steer it, every alternative realization in one line (with verdicts such as \"aborts under the defaults\" or\n\"CAN NEVER BE MET\" and how many scenario configs select it), and its interfaces (names; descriptions via\nget_symbol). Pass realization=\"...\" for one realization in full: its description, limitations, abort\npreconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set.\nscenario=\"SSP2-PkBudg1000\": the realization it selects in full, its values, abort checks against its settings.\n(module= is the old name of name=.)",
   "parameters": {
    "properties": {
     "name": {
@@ -271,6 +271,18 @@
      ],
      "default": null,
      "title": "Module"
+    },
+    "scenario": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scenario"
     }
    },
    "title": "get_moduleArguments",

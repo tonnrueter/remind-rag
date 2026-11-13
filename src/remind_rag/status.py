@@ -212,6 +212,10 @@ class Settings:
         """The condition's value under these settings: True, False, or None when they don't decide it."""
         return holds(self.trees[cond], self.values, self.compile)
 
+    def holds_all(self, conds: list[str]) -> bool | None:
+        """All conditions together (an abort's abort_if), three-valued."""
+        return holds(["and", *(self.trees[c] for c in conds)], self.values, self.compile)
+
     def realization_status(self, module: str | None, realization: str | None) -> str | None:
         """'realization X: DEFAULT' or 'realization X: NOT DEFAULT (...)' with the switch that selects it (a
         scenario: 'selected by S' / 'not selected by S (...)'); None for code outside a realization."""

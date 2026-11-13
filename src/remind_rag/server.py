@@ -45,8 +45,9 @@ server = MCPServer(
         "them and which modules consume them, get_switch for cm_*/c_* switches and module selections and for "
         "which scenario configs set them, "
         "get_module for a module's realizations, interfaces and limitations, get_scenario for a scenario's "
-        "settings, and search for conceptual questions. Pass scenario=... to search, get_symbol, get_links or "
-        "get_switch only when the question is about a specific scenario: marks then rest on its settings. "
+        "settings, and search for conceptual questions. Pass scenario=... to search, get_symbol, get_links, "
+        "get_switch or get_module only when the question is about a specific scenario: marks then rest on its "
+        "settings. "
         "For 'how does X affect Y' or 'where does this value come from', follow the chain with get_links: it "
         "shows what a symbol is computed from, what is computed from it and which equations it shares, one hop "
         "at a time; call it again on the linked symbol that leads toward the target. "
@@ -754,13 +755,20 @@ def _interfaces(mod: str) -> list[str]:
 
 
 @server.tool()
-def get_module(name: str | None = None, realization: str | None = None, module: str | None = None) -> str:
+def get_module(
+    name: str | None = None, realization: str | None = None, module: str | None = None, scenario: str | None = None
+) -> str:
     """A module (name e.g. "33", "carbonRemoval", "core"): description, the default realization with the switches
     that steer it, every alternative realization in one line (with verdicts such as "aborts under the defaults" or
     "CAN NEVER BE MET" and how many scenario configs select it), and its interfaces (names; descriptions via
     get_symbol). Pass realization="..." for one realization in full: its description, limitations, abort
     preconditions, compile-time branches, run-time tests, switches read, and what the configs that select it set.
+    scenario="SSP2-PkBudg1000": the realization it selects in full, its values, abort checks against its settings.
     (module= is the old name of name=.)"""
+    try:
+        st = _settings(scenario)
+    except ValueError as e:
+        return str(e)
     module = name or module  # name= like the other tools; module= until 1.0 (ERRORS.md: Claude called name=)
     if not module:
         return 'Pass the module as name="33" (or "carbonRemoval", "33_carbonRemoval", "core").'
@@ -773,7 +781,7 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
     if not rows and not is_core:
         return f"Module {module!r} not found."
     mod = "core" if is_core else rows[0]["module"]
-    default = default_settings.realization(mod) or ""
+    default = st.realization(mod) or ""
     docs: dict[str | None, list] = defaultdict(list)
     limits: dict[str | None, list] = defaultdict(list)
     for r in rows:
@@ -793,21 +801,25 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
             for r in limits[real]
         ]
 
-    out = []
+    out = _marks_line(st)
     if not is_core:
         sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
-        out.append(f"# {mod}" + (f"  (default realization in main.gms: {sel['value']})" if sel else ""))
-    steer = steering(idx.db, default_settings, mod) if not is_core else None
+        out.append(
+            f"# {mod}"
+            + (f"  (default realization in main.gms: {sel['value']})" if sel else "")
+            + (f"  {st.name} selects {default}" if st.name else "")
+        )
+    steer = steering(idx.db, st, mod) if not is_core else None
+    head = STEER_HEAD if not st.name else STEER_HEAD.replace("main.gms defaults", f"{st.name} values")
 
     if realization:  # drill-down: one realization in full
         reals = steer["reals"] if steer else []
         real = next((r for r in reals if r.lower() == realization.lower()), None)
         if real is None:
             return f"{mod} has no realization {realization!r}. Realizations: {', '.join(reals)}"
-        mark = "DEFAULT" if real.lower() == default.lower() else "not default"
-        out.append(f"## realization {real}  [{mark}]{where(real)}\n{described(real, 4000)}")
+        out.append(f"## realization {real}  [{steer['marks'][real]}]{where(real)}\n{described(real, 4000)}")
         out += limitations(real, 1500)
-        out.append("\n".join([STEER_HEAD, *steer["shared"], *steer["blocks"][real]]))
+        out.append("\n".join([head, *steer["shared"], *steer["blocks"][real]]))
         return "\n\n".join(out)
 
     out.append(f"## module{where(None)}\n{described(None, 700)}")
@@ -816,16 +828,19 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
         reals = steer["reals"]
         default_real = next((r for r in reals if r.lower() == default.lower()), None)
         if default_real:
-            out.append(f"## realization {default_real}  [DEFAULT]{where(default_real)}\n{described(default_real, 900)}")
+            out.append(
+                f"## realization {default_real}  [{steer['marks'][default_real]}]{where(default_real)}\n"
+                + described(default_real, 900)
+            )
             out += limitations(default_real, 400)
-            out.append("\n".join([STEER_HEAD, *steer["shared"], *steer["blocks"][default_real]]))
+            out.append("\n".join([head, *steer["shared"], *steer["blocks"][default_real]]))
         alts = [r for r in reals if r != default_real]
         if alts:
             lines = [f'## Alternatives (one in full: get_module("{mod}", realization="..."))']
             for r in alts:
                 lim = " · has limitations" if limits[r] else ""
                 lines.append(
-                    f"- realization {r}  [not default]: {first_sentence(described(r, 400), 140)}{lim}"
+                    f"- realization {r}  [{steer['marks'][r]}]: {first_sentence(described(r, 400), 140)}{lim}"
                     f" · {steer['alerts'][r]}"
                 )
             out.append("\n".join(lines))
