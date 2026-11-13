@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 
-from .status import DefaultRun, detail
+from .status import Settings, detail
 
 
 def short(text: str, n: int) -> str:
@@ -46,7 +46,7 @@ def doc_text(text: str) -> str:
     return " ".join(keep)
 
 
-def fmt_chunk(run: DefaultRun, r, rank: int | None = None, cut: int | None = None) -> str:
+def fmt_chunk(run: Settings, r, rank: int | None = None, cut: int | None = None) -> str:
     """A chunk with location, default status and header; with cut, at most that many text lines plus a pointer
     to the rest. The header's 'Uses:' line (symbol descriptions, there for the embedding) is left out."""
     where = f"{r['path']}:{r['line_start']}-{r['line_end']}"
@@ -61,7 +61,7 @@ def fmt_chunk(run: DefaultRun, r, rank: int | None = None, cut: int | None = Non
     return f"{head}  ({r['kind']}){status}\n{header}\n```\n{text}\n```"
 
 
-def use_line(run: DefaultRun, u, tags: list[str], also: list[int] | None = None, snippet: int | None = None) -> str:
+def use_line(run: Settings, u, tags: list[str], also: list[int] | None = None, snippet: int | None = None) -> str:
     """One where-used entry: "- path:line [module/realization/phase, in equation] mark  code", then the reasons.
     `also`: further lines with the same reasons, folded in; `snippet`: cut the code to that many characters."""
     ctx = "/".join(x for x in (u["module"], u["realization"], u["phase"]) if x)
@@ -72,7 +72,7 @@ def use_line(run: DefaultRun, u, tags: list[str], also: list[int] | None = None,
     return f"- {u['path']}:{u['line']} [{ctx}] {run.mark(u, tags)}  {text}{more}" + detail(tags)
 
 
-def grouped(run: DefaultRun, tagged: list) -> list[str]:
+def grouped(run: Settings, tagged: list) -> list[str]:
     """Summary lines: uses in the same file with the same reasons share one entry (first snippet shown)."""
     groups: dict[tuple, list] = {}  # (file, reasons) -> its use lines, in order
     for u, t in tagged:
@@ -80,14 +80,14 @@ def grouped(run: DefaultRun, tagged: list) -> list[str]:
     return [use_line(run, g[0][0], g[0][1], [u["line"] for u, _ in g[1:]], snippet=110) for g in groups.values()]
 
 
-def mark_split(run: DefaultRun, tagged: list) -> str:
+def mark_split(run: Settings, tagged: list) -> str:
     """'5 ✓, 1 ⚠': how many use lines run by default, depend on settings, don't run."""
     # the mark's first character is the symbol; "✓?⚠" is the display order
     marks = Counter(run.mark(u, t).split(" ")[0] for u, t in tagged)
     return ", ".join(f"{n} {m}" for m, n in sorted(marks.items(), key=lambda x: "✓?⚠".index(x[0])))
 
 
-def per_file(run: DefaultRun, tagged: list, limit: int = 6) -> str:
+def per_file(run: Settings, tagged: list, limit: int = 6) -> str:
     """'path n ✓' or 'path n (5 ✓, 1 ⚠)': every file with its default status, so a count never hides whether
     the file runs (FINDINGS 14: a bare '70_water/heat/output.gms 1' left an answer unsure about the default)."""
     marks: dict[str, Counter] = defaultdict(Counter)

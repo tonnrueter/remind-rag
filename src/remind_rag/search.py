@@ -10,9 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, store
-from .conditions import Trees, holds, lower
-from .scenarios import is_magpie_side
-from .status import switch_defaults
+from .status import Settings, scenario_rows
 
 # Reciprocal rank fusion: each ranking adds weight / (RRF_K + rank) to a chunk's score. Only ranks count, so
 # BM25 scores and vector distances, which live on different scales, never need to be compared. 60 is the
@@ -38,7 +36,7 @@ class Index:
         self.model = self.meta["model"]
         self.root = Path(self.meta["root"])
         self._scenario_names: list[str] | None = None
-        self.trees = Trees(self.db)
+        self._settings: Settings | None = None
 
     # ---------------------------------------------------------------- rankers
 
@@ -144,23 +142,16 @@ class Index:
 
     # ---------------------------------------------------------------- public
 
+    @property
+    def settings(self) -> Settings:
+        """The main.gms settings of this index, read once."""
+        if self._settings is None:
+            self._settings = Settings.defaults(self.db)
+        return self._settings
+
     def scenario_rows(self, scenario: str) -> list[sqlite3.Row]:
         """The config rows of that name: config/scenario_config.csv first, the MAgPIE side of a coupled run last."""
-        rows = self.db.execute(
-            "SELECT * FROM scenarios WHERE name = ? COLLATE NOCASE ORDER BY path = 'config/scenario_config.csv' DESC,"
-            " path, line",
-            (scenario,),
-        ).fetchall()
-        return sorted(rows, key=lambda r: is_magpie_side(r["path"]))
-
-    def scenario_values(self, scenario: str) -> tuple[dict[str, str], sqlite3.Row] | None:
-        """Switch values of a scenario: main.gms values overridden by its first scenario_config row."""
-        if not (rows := self.scenario_rows(scenario)):
-            return None
-        row = rows[0]
-        values = switch_defaults(self.db)
-        values.update(json.loads(row["settings"]))
-        return values, row
+        return scenario_rows(self.db, scenario)
 
     def search(
         self,
@@ -181,12 +172,7 @@ class Index:
         realizations it doesn't select are dropped and code its switches compile out ranks at 0.3x.
         mode="bm25" / "vector" uses one ranker alone (retrieval_eval). Raises ValueError for an unknown scenario.
         """
-        values = None
-        if scenario:
-            resolved = self.scenario_values(scenario)
-            if resolved is None:
-                raise ValueError(f"unknown scenario {scenario!r}")
-            values = resolved[0]
+        settings = self.settings.scenario(scenario) if scenario else None
         # filters apply after ranking, so a filtered search takes more candidates from each ranker to still
         # have k left once the filters are through
         filtered = bool(module or realization or kind or phase or scenario)
@@ -209,12 +195,11 @@ class Index:
             for rank, cid in enumerate(ranking):  # rank counts from 0 here, from 1 in the formula
                 scores[cid] = scores.get(cid, 0.0) + weight / (RRF_K + rank + 1)
         rows = self._rows(list(scores))
-        if values is not None:
-            low = lower(values)
+        if settings is not None:
             for cid, r in rows.items():
-                if _inactive_realization(r, values):
+                if settings.selected(r["module"], r["realization"]) is False:
                     scores[cid] = 0.0  # dropped below
-                elif r["conditions"] and any(holds(self.trees[c], low) is False for c in json.loads(r["conditions"])):
+                elif r["conditions"] and any(settings.holds(c) is False for c in json.loads(r["conditions"])):
                     scores[cid] *= 0.3  # code compiled out in this scenario: keep, but rank low
         ordered = sorted(scores, key=scores.__getitem__, reverse=True)
         out = []
@@ -240,14 +225,6 @@ class Index:
             return {}
         q = f"SELECT * FROM chunks WHERE id IN ({','.join('?' * len(ids))})"
         return {r["id"]: r for r in self.db.execute(q, ids)}
-
-
-def _inactive_realization(r: sqlite3.Row, values: dict[str, str]) -> bool:
-    """Chunk of a module realization that the scenario does not select (module switch = module name)."""
-    if not r["realization"] or not r["module"] or r["module"] == "core":
-        return False
-    selected = values.get(r["module"].partition("_")[2])
-    return selected is not None and selected.lower() != r["realization"].lower()
 
 
 def module_match(wanted: str, module: str | None) -> bool:

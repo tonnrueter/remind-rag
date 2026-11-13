@@ -1,13 +1,16 @@
-"""Does this code run in a default configuration? The main.gms switch values and the verdicts built on them: per
-chunk (» lines in search), per use line (✓ / ⚠ / ? in get_symbol, get_switch, get_links and the hierarchy report)."""
+"""Does this code run with given settings (the main.gms defaults, or a scenario's)? The settings and the verdicts
+built on them: per chunk (» lines in search), per use line (✓ / ⚠ / ? in get_symbol, get_switch, get_links and the
+hierarchy report)."""
 
 from __future__ import annotations
 
 import json
 import sqlite3
 from collections.abc import Callable
+from typing import NamedTuple
 
 from .conditions import Trees, holds, lower, tests_setting
+from .scenarios import is_magpie_side
 from .usage import switch_tests
 
 # the marks as Claude reads them in the tool output (the reference test records them)
@@ -39,23 +42,26 @@ def equation_condition(text: str, name: str) -> str | None:
     return head[head.index("$") + 1 :] if head and "$" in head else None
 
 
-def off(tag: str) -> bool:
-    """A reason that keeps the code out of a default run (the other reasons depend on settings)."""
-    return " → inactive by default" in tag or tag.startswith(("non-default realization", "module switched off"))
+class Reason(NamedTuple):
+    """Why a line may not run: `off` if it keeps the code out of a run with the settings, else the settings don't
+    decide it."""
+
+    text: str
+    off: bool
 
 
-def detail(tags: list[str]) -> str:
+def detail(tags: list[Reason]) -> str:
     """Reasons under an entry: ⚠ for what keeps it out of a default run, ? for conditions that depend on settings."""
-    return "".join(f"\n    {'⚠' if off(t) else '?'} {t}" for t in tags)
+    return "".join(f"\n    {'⚠' if t.off else '?'} {t.text}" for t in tags)
 
 
-def rank(tags: list[str]) -> int:
+def rank(tags: list[Reason]) -> int:
     """0 runs by default, 1 depends on settings, 2 not in a default run (sort order of links).
 
-    >>> rank([]), rank(["inside if cm_x eq 2: depends on non-default settings"]), rank(["non-default realization"])
+    >>> rank([]), rank([Reason("inside if cm_x eq 2: depends", False)]), rank([Reason("non-default realization", True)])
     (0, 1, 2)
     """
-    if any(off(t) for t in tags):
+    if any(t.off for t in tags):
         return 2
     return 1 if tags else 0
 
@@ -65,96 +71,149 @@ def switch_defaults(db: sqlite3.Connection) -> dict[str, str]:
     return {r["name"]: (r["value"] or "").strip().strip("\"'") for r in db.execute("SELECT name, value FROM switches")}
 
 
-def _inactive(verdict: str) -> str:
-    # the capitalized INACTIVE is for the callers' checks; in a reason shown to Claude it reads as a plain arrow
-    return verdict.replace(": INACTIVE by default", " → inactive by default")
+def scenario_rows(db: sqlite3.Connection, scenario: str) -> list[sqlite3.Row]:
+    """The config rows of that name: config/scenario_config.csv first, the MAgPIE side of a coupled run last."""
+    rows = db.execute(
+        "SELECT * FROM scenarios WHERE name = ? COLLATE NOCASE ORDER BY path = 'config/scenario_config.csv' DESC,"
+        " path, line",
+        (scenario,),
+    ).fetchall()
+    return sorted(rows, key=lambda r: is_magpie_side(r["path"]))
 
 
-class DefaultRun:
-    """Verdicts against the switch values of a default run, as assigned in main.gms. That is the whole default:
-    config/default.cfg sets no GAMS switches (they moved to main.gms). Scenario values: search(scenario=...).
+LABEL = {True: "active by default", False: "INACTIVE by default", None: "depends on non-default settings"}
 
-    The verdicts are text, and callers test it: use_tags and mark look for "INACTIVE", "NOT DEFAULT" and
-    "depends"; keep those words when rewording."""
 
-    def __init__(self, db: sqlite3.Connection):
+class Settings:
+    """Switch and module settings, and the verdicts against them: does a realization, a condition, a line run?
+
+    Settings.defaults(db): the values main.gms assigns. That is the whole default: config/default.cfg sets no GAMS
+    switches (they moved to main.gms). settings.scenario(name): those values overridden by the scenario's first
+    REMIND row in config/scenario_config*.csv."""
+
+    def __init__(
+        self,
+        db: sqlite3.Connection,
+        values: dict[str, str],
+        names: dict[str, str],
+        trees: Trees,
+        name: str | None = None,
+        source: str | None = None,
+        config: dict[str, str] | None = None,
+    ):
         self.db = db
-        self._defaults: dict[str, str] | None = None
-        self._values: dict[str, str] | None = None
-        self.trees = Trees(db)
+        self.values = values  # lower-case switch or module name -> value, quotes dropped (as conditions.holds reads)
+        self.names = names  # lower-case name -> the spelling in main.gms
+        self.trees = trees
+        self.name = name  # the scenario; None for the defaults
+        self.source = source  # where its row is: "config/scenario_config.csv:12"
+        self.config = config or {}  # the row's other columns (R side: regionmapping, path_gdx_ref, ...)
         # condition -> "holds in N of M REMIND configs", set by the server (status can't read the configs' rows);
         # None (the hierarchy report): reasons without a config count
         self.reach: Callable[[str], str | None] | None = None
 
-    @property
-    def defaults(self) -> dict[str, str]:
-        """Switch name (as written in main.gms) -> value, quotes dropped; read once per index."""
-        if self._defaults is None:
-            self._defaults = switch_defaults(self.db)
-        return self._defaults
+    @classmethod
+    def defaults(cls, db: sqlite3.Connection) -> Settings:
+        """The main.gms values."""
+        d = switch_defaults(db)
+        return cls(db, lower(d), lower({k: k for k in d}), Trees(db))
+
+    def scenario(self, name: str) -> Settings:
+        """These settings overridden by the first REMIND row of that scenario (column names compared without case
+        and surrounding spaces); ValueError if there is none."""
+        found = scenario_rows(self.db, name)
+        rows = [r for r in found if not is_magpie_side(r["path"])]
+        if not rows:
+            if found:  # a MAgPIE row's settings are MAgPIE's; they used to be read as REMIND values
+                where = ", ".join(f"{r['path']}:{r['line']}" for r in found)
+                raise ValueError(f"scenario {name!r} has only MAgPIE rows ({where}): no REMIND settings")
+            raise ValueError(f"unknown scenario {name!r}")
+        row = rows[0]
+        cells = {k.strip().lower(): v.strip().strip("\"'") for k, v in json.loads(row["settings"]).items()}
+        s = Settings(
+            self.db,
+            {k: cells.get(k, v) for k, v in self.values.items()},
+            self.names,
+            self.trees,
+            row["name"],
+            f"{row['path']}:{row['line']}",
+            {k: v for k, v in cells.items() if k not in self.values},
+        )
+        s.reach = self.reach
+        return s
 
     @property
-    def values(self) -> dict[str, str]:
-        """The defaults keyed by lower-case name, as conditions.holds reads them."""
-        if self._values is None:
-            self._values = lower(self.defaults)
-        return self._values
+    def as_written(self) -> dict[str, str]:
+        """The values keyed by their main.gms spelling."""
+        return {self.names[k]: v for k, v in self.values.items()}
 
     # ---------------------------------------------------------------- modules and conditions
 
-    def default_realization(self, module: str | None) -> str | None:
-        """The realization main.gms selects for a module folder name ("33_carbonRemoval" -> "portfolio"); None
-        for core, top-level files and unknown modules."""
+    def realization(self, module: str | None) -> str | None:
+        """The realization selected for a module folder name ("33_carbonRemoval" -> "portfolio"); None for core,
+        top-level files and unknown modules."""
         if not module or module == "core":
             return None
-        return self.defaults.get(module.partition("_")[2])
+        return self.values.get(module.partition("_")[2].lower())
 
-    def module_off_by_default(self, module: str | None) -> bool:
-        """The default realization is "off" or "none": the module does nothing in a default run."""
-        return (self.default_realization(module) or "").lower() in {"off", "none"}
+    def module_off(self, module: str | None) -> bool:
+        """The selected realization is "off" or "none": the module does nothing."""
+        return (self.realization(module) or "").lower() in {"off", "none"}
+
+    def selected(self, module: str | None, realization: str | None) -> bool | None:
+        """Whether the realization is the selected one; None for code outside a realization."""
+        chosen = self.realization(module)
+        if not realization or not chosen:
+            return None
+        return chosen.lower() == realization.lower()
+
+    def holds(self, cond: str) -> bool | None:
+        """The condition's value under these settings: True, False, or None when they don't decide it."""
+        return holds(self.trees[cond], self.values)
 
     def realization_status(self, module: str | None, realization: str | None) -> str | None:
         """'realization X: DEFAULT' or 'realization X: NOT DEFAULT (...)' with the switch that selects it; None
         for code outside a realization."""
-        default = self.default_realization(module)
-        if not realization or not default:
+        sel = self.selected(module, realization)
+        if sel is None:
             return None
-        if default.lower() == realization.lower():
+        if sel:
             return f"realization {realization}: DEFAULT"
-        if self.module_off_by_default(module):
+        chosen, switch = self.realization(module), module.partition("_")[2]
+        if self.module_off(module):
             return (
                 f"realization {realization}: NOT DEFAULT (module {module} is switched off by default: "
-                f"${module.partition('_')[2]} = {default})"
+                f"${switch} = {chosen})"
             )
-        return f"realization {realization}: NOT DEFAULT (default: {default}; selected by ${module.partition('_')[2]})"
+        return f"realization {realization}: NOT DEFAULT (default: {chosen}; selected by ${switch})"
 
     def condition_status(self, cond: str, what: str) -> str:
-        """'<what> <cond>: active by default' / 'INACTIVE by default' / 'depends on non-default settings',
-        from its tree under the defaults; `what` names the kind of condition ("$ifthen", "inside if", ...)."""
-        v = holds(self.trees[cond], self.values)
-        label = {True: "active by default", False: "INACTIVE by default"}.get(v, "depends on non-default settings")
-        return f"{what} {' '.join(cond.split())}: {label}"
+        """'<what> <cond>: active by default' / 'INACTIVE by default' / 'depends on non-default settings';
+        `what` names the kind of condition ("$ifthen", "inside if", ...)."""
+        return f"{what} {' '.join(cond.split())}: {LABEL[self.holds(cond)]}"
 
-    def off_reason(self, verdict: str, cond: str) -> str:
-        """A condition_status verdict as a reason; an INACTIVE one also says how many scenario configs run the code
-        (R5: ⚠ on a line 242 configs run read as "unused")."""
-        reason = _inactive(verdict)
-        if "INACTIVE" in verdict and self.reach and (r := self.reach(cond)):
-            reason += f"; {r}"
-        return reason
+    def reason(self, cond: str, what: str, value: bool | None) -> Reason:
+        """A condition that is false (off; with how many scenario configs run the code, R5: ⚠ on a line 242
+        configs run read as "unused") or that the settings don't decide."""
+        if value is not False:
+            return Reason(f"{what} {' '.join(cond.split())}: {LABEL[value]}", False)
+        text = f"{what} {' '.join(cond.split())} → inactive by default"
+        if self.reach and (r := self.reach(cond)):
+            text += f"; {r}"
+        return Reason(text, True)
 
     # ---------------------------------------------------------------- chunks (» lines)
 
     def chunk_status(self, r: sqlite3.Row, max_tests: int = 4) -> list[str]:
-        """Lines saying whether the chunk's code runs in a default configuration: realization, $ifthen
-        conditions, and switch tests inside the code (if(...) blocks, $(...) equation domains)."""
+        """Lines saying whether the chunk's code runs with these settings: realization, $ifthen conditions, and
+        switch tests inside the code (if(...) blocks, $(...) equation domains)."""
         out = []
         if s := self.realization_status(r["module"], r["realization"]):
             out.append(s)
         for c in json.loads(r["conditions"] or "[]"):
             out.append(self.condition_status(c, "compiled only if"))
         if r["kind"] in ("equation", "gams_block", "declaration"):
-            tests = switch_tests(r["text"], self.defaults)
+            tests = switch_tests(r["text"], self.as_written)
             if tests:
                 shown = [f"{t} → {TRUTH[v]}" for t, v in tests[:max_tests]]
                 more = f" (+{len(tests) - max_tests} more)" if len(tests) > max_tests else ""
@@ -163,53 +222,51 @@ class DefaultRun:
 
     # ---------------------------------------------------------------- use lines (✓ / ⚠ / ?)
 
-    def use_tags(self, u) -> list[str]:
-        """Why a use line may not run in a default configuration; [] means it runs. `u` is a symbol_uses row (or
-        any mapping with module, realization, conditions, guards). Reasons: a non-default or switched-off
-        realization, an $ifthen that is false, an if() guard that is false, or one whose switch tests don't
-        decide it (that one depends on settings; see off())."""
+    def use_tags(self, u) -> list[Reason]:
+        """Why a use line may not run with these settings; [] means it runs. `u` is a symbol_uses row (or any
+        mapping with module, realization, conditions, guards). Reasons: a realization that isn't selected or a
+        module switched off, an $ifthen that is false, an if() guard that is false, or one whose switch tests
+        don't decide it (that one depends on settings)."""
         tags = []
-        s = self.realization_status(u["module"], u["realization"])
-        if s and "NOT DEFAULT" in s:
-            default = self.default_realization(u["module"])
-            tags.append(
-                f"module switched off by default ({default})"
-                if self.module_off_by_default(u["module"])
-                else f"non-default realization (default: {default})"
+        if self.selected(u["module"], u["realization"]) is False:
+            chosen = self.realization(u["module"])
+            text = (
+                f"module switched off by default ({chosen})"
+                if self.module_off(u["module"])
+                else f"non-default realization (default: {chosen})"
             )
+            tags.append(Reason(text, True))
         for c in json.loads(u["conditions"] or "[]"):
-            if (v := self.condition_status(c, "$ifthen")) and "INACTIVE" in v:
-                tags.append(self.off_reason(v, c))
+            if (v := self.holds(c)) is False:
+                tags.append(self.reason(c, "$ifthen", v))
         for g in json.loads(u["guards"] or "[]"):
-            v = self.condition_status(g, "inside if")
-            if "INACTIVE" in v:
-                tags.append(self.off_reason(v, g))
+            v = self.holds(g)
             # an undecided if() counts only if it tests a switch: one over data (`if(p_x gt 0,`) says nothing
             # about settings, and marking it "?" would flag a large part of REMIND
-            elif "depends" in v and tests_setting(self.trees[g], self.values):
-                tags.append(v)
+            if v is False or (v is None and tests_setting(self.trees[g], self.values)):
+                tags.append(self.reason(g, "inside if", v))
         return tags
 
-    def mark(self, u, tags: list[str]) -> str:
+    def mark(self, u, tags: list[Reason]) -> str:
         """The status mark for the first line of an entry: ⚠ not in a default run, ? depends on settings, ✓ default
         realization (code in a module's selected realization) or ✓ runs by default. Always positive or negative,
         never blank: an entry without a mark was read as "unknown" (FINDINGS 10)."""
-        if any(off(t) for t in tags):
+        if any(t.off for t in tags):
             return OFF
         if tags:
             return DEPENDS
-        if u["realization"] and self.default_realization(u["module"]):
+        if u["realization"] and self.realization(u["module"]):
             return "✓ default realization"
         return ON
 
-    def equation_status(self, path: str, equation: str) -> list[str]:
-        """[] if the equation's domain $-condition holds in a default run or tests no switch, else the one reason
-        ('generated only if ... → inactive by default' or '... depends on non-default settings')."""
+    def equation_status(self, path: str, equation: str) -> list[Reason]:
+        """[] if the equation's domain $-condition holds with these settings or tests no switch, else the one
+        reason ('generated only if ... → inactive by default' or '... depends on non-default settings')."""
         row = self.db.execute(
             "SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE", (path, equation)
         ).fetchone()
         cond = equation_condition(row["text"], equation) if row else None
         if not cond or not tests_setting(self.trees[cond], self.values):
             return []
-        v = self.condition_status(cond, "generated only if")
-        return [] if v.endswith(": active by default") else [self.off_reason(v, cond)]
+        v = self.holds(cond)
+        return [] if v else [self.reason(cond, "generated only if", v)]

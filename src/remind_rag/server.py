@@ -19,7 +19,7 @@ from .conditions import holds, lower
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .scenarios import cfg_defaults, is_magpie_side, region_label
 from .search import Index, module_match
-from .status import DefaultRun, detail, equation_domain, rank
+from .status import detail, equation_domain, rank
 from .steering import steering
 
 idx = Index(store.default_db())
@@ -29,7 +29,7 @@ if (_schema := int(idx.meta.get("schema_version", 0))) < store.SCHEMA_VERSION:
         f"{store.SCHEMA_VERSION}); rebuild it, reusing its embeddings (seconds): uv run python -m "
         f"remind_rag.index --root <remind> --reuse {store.default_db()}"
     )
-default_run = DefaultRun(idx.db)
+default_settings = idx.settings
 _root = checkout.served_root(idx.meta)
 _where = f"the REMIND checkout at {_root}" if _root else "the REMIND checkout you are working in"
 _stale = checkout.staleness(idx.meta, _root)
@@ -113,7 +113,7 @@ def search(
         return str(e)
     if not rows:
         return "No results."
-    return "\n\n".join(fmt_chunk(default_run, r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
+    return "\n\n".join(fmt_chunk(default_settings, r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
 
 
 FULL_LIST_MAX = 15  # symbols with at most this many use lines get the full list instead of a summary
@@ -156,7 +156,7 @@ def get_symbol(
             + (f" in {module}" if module else "")
             + f", {offset + 1}–{offset + len(page)} of {len(matching)}{also}"
         ]
-        out += [use_line(default_run, u, default_run.use_tags(u)) for u in page]
+        out += [use_line(default_settings, u, default_settings.use_tags(u)) for u in page]
         if offset + len(page) < len(matching):
             out.append(f"- … next page: offset={offset + len(page)}")
         return "\n".join(out)
@@ -179,10 +179,10 @@ def get_symbol(
             elif reals:
                 loc += f"/{reals[0]}"
             # declared only in realizations a default run doesn't use: say so next to the declaration
-            default = default_run.default_realization(mod)
+            default = default_settings.realization(mod)
             note = ""
             if reals and default and default.lower() not in {x.lower() for x in reals}:
-                if default_run.module_off_by_default(mod):
+                if default_settings.module_off(mod):
                     note = f"  — module switched off by default ({default})"
                 else:
                     note = f"  — only in non-default realizations (default: {default})"
@@ -215,7 +215,7 @@ def get_symbol(
         out.append(
             "## Equation definition\n"
             + (f"Generated for (domain and $-condition): {head}\n" if head else "")
-            + fmt_chunk(default_run, r, cut=60)
+            + fmt_chunk(default_settings, r, cut=60)
         )
     if uses:
         groups: dict[str, list] = {}
@@ -228,16 +228,16 @@ def get_symbol(
             role_uses = groups.get(role_name, [])
             if not role_uses:
                 continue
-            tagged = [(u, default_run.use_tags(u)) for u in role_uses]
-            split = mark_split(default_run, tagged)
+            tagged = [(u, default_settings.use_tags(u)) for u in role_uses]
+            split = mark_split(default_settings, tagged)
             mods = sorted({u["module"] or u["path"] for u in role_uses})
             out.append(f"### {ROLE_LABELS[role_name]} ({len(role_uses)} lines: {split}; {', '.join(mods)})")
             if role_name == "declared" and not full:  # the declarations themselves are listed above
                 continue
             if full or len(role_uses) <= SHORT_ROLE:
-                out += [use_line(default_run, u, t) for u, t in tagged]
+                out += [use_line(default_settings, u, t) for u, t in tagged]
                 continue
-            out.append(f"- per file: {per_file(default_run, tagged)}")
+            out.append(f"- per file: {per_file(default_settings, tagged)}")
             if role_name == "equation":
                 names = Counter(u["context"] for u in role_uses if u["context"])
                 out.append(f"- equations: {', '.join(names)}")
@@ -248,7 +248,9 @@ def get_symbol(
             flagged = [(u, t) for u, t in tagged if t][:flagged_left]
             flagged_left = max(0, flagged_left - len(flagged))
             # each computation on its own line; uses that are off for the same reason share one
-            out += [use_line(default_run, u, t, snippet=110) for u, t in computed] + grouped(default_run, flagged)
+            out += [use_line(default_settings, u, t, snippet=110) for u, t in computed] + grouped(
+                default_settings, flagged
+            )
             if len(computed) + len(flagged) < len(role_uses):
                 out.append(f'- lines: get_symbol("{name}", role="{role_name}"[, module="…"])')
     if not out:
@@ -278,7 +280,7 @@ def _decl_module(name: str) -> str:
 
 def _kind(name: str) -> str:
     _decl_module(name)
-    return _KINDS.get(name.lower(), "switch" if name.lower() in {k.lower() for k in default_run.defaults} else "")
+    return _KINDS.get(name.lower(), "switch" if name.lower() in default_settings.values else "")
 
 
 def _names(names: list[str], home: str | None, limit: int = 12) -> str:
@@ -342,15 +344,15 @@ def get_links(name: str, max_links: int = 10) -> str:
 
     # an equation: its members
     for r in eq_chunks:
-        tags = default_run.use_tags(
+        tags = default_settings.use_tags(
             {"module": r["module"], "realization": r["realization"], "conditions": r["conditions"], "guards": "[]"}
-        ) + default_run.equation_status(r["path"], r["name"])
+        ) + default_settings.equation_status(r["path"], r["name"])
         members = equation_members(idx.db, r["path"], r["name"])
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
         out.append(
             f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
-            f" {default_run.mark(r, tags)}"
+            f" {default_settings.mark(r, tags)}"
             + detail(tags)
             + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
             + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}"
@@ -367,7 +369,7 @@ def get_links(name: str, max_links: int = 10) -> str:
         if not stmt or (stmt.path, stmt.start) in seen:  # a statement over several lines: once
             continue
         seen.add((stmt.path, stmt.start))
-        tags = default_run.use_tags(u)
+        tags = default_settings.use_tags(u)
         if u["role"] == "assigned" or name in stmt.assigned:
             inputs = [n for n in stmt.names_from(u["line"]) if n.lower() != name.lower() and n not in stmt.assigned]
             if is_load(stmt):
@@ -376,14 +378,14 @@ def get_links(name: str, max_links: int = 10) -> str:
                 src = "from " + _names(inputs, u["module"])
             else:
                 src = "constant or set-based (no symbol inputs)"
-            computed.append(Link(rank(tags), u["path"], stmt.start, default_run.mark(u, tags), src, tags))
+            computed.append(Link(rank(tags), u["path"], stmt.start, default_settings.mark(u, tags), src, tags))
         elif targets := [n for n in stmt.names if n in stmt.assigned and n.lower() != name.lower()]:
             feeds.append(
                 Link(
                     rank(tags),
                     u["path"],
                     stmt.start,
-                    default_run.mark(u, tags),
+                    default_settings.mark(u, tags),
                     f"→ {_names(targets, u['module'])}",
                     tags,
                 )
@@ -440,12 +442,12 @@ def get_links(name: str, max_links: int = 10) -> str:
 
     eq_items = []
     for (path, eq), u in equations.items():
-        tags = default_run.use_tags(u) + default_run.equation_status(path, eq)
+        tags = default_settings.use_tags(u) + default_settings.equation_status(path, eq)
         members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
         text = (
-            f"{eq}  {path} {default_run.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
+            f"{eq}  {path} {default_settings.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
             f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}"
         )
         eq_items.append(Link(rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
@@ -487,13 +489,15 @@ def _config_defaults() -> dict[str, str]:
     """Lower-case setting -> the value a config runs with when its cell is empty: main.gms for switches and
     module selections, config/default.cfg for the R-side columns (regionmapping, ...)."""
     cfg = "\n".join(r[0] for r in idx.db.execute("SELECT text FROM chunks WHERE path = 'config/default.cfg'"))
-    return {**cfg_defaults(cfg), **{k.lower(): v for k, v in default_run.defaults.items()}}
+    return {**cfg_defaults(cfg), **{k.lower(): v for k, v in default_settings.as_written.items()}}
 
 
 @cache
 def _config_settings() -> list[dict[str, str]]:
     """Per REMIND config, the main.gms switch values it runs with (lower-case names): its cell, else the default."""
-    return [lower({k: r.cells.get(k.lower(), v) for k, v in default_run.defaults.items()}) for r in _config_rows()]
+    return [
+        lower({k: r.cells.get(k.lower(), v) for k, v in default_settings.as_written.items()}) for r in _config_rows()
+    ]
 
 
 @cache
@@ -502,13 +506,13 @@ def _config_reach(cond: str) -> str | None:
     alone may leave it open in some ("undecided in K": the rest of the condition tests data). None: no configs."""
     if not (settings := _config_settings()):
         return None
-    tree = default_run.trees[cond]
+    tree = default_settings.trees[cond]
     results = Counter(holds(tree, s) for s in settings)
     open_ = f", undecided in {results[None]}" if results[None] else ""
     return f"holds in {results[True]} of {len(settings)} REMIND configs{open_}"
 
 
-default_run.reach = _config_reach
+default_settings.reach = _config_reach
 
 CONFIG_GROUPS_LISTED = 8  # values (or value combinations) listed with their configs; the rest in one line
 CONFIG_EXAMPLES = 3  # example rows per listed value
@@ -641,14 +645,16 @@ def get_switch(name: str, value: str | None = None, also: str | None = None) -> 
         "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path != 'main.gms' ORDER BY path, line", (name,)
     ).fetchall()
     if uses:
-        tagged = [(u, default_run.use_tags(u)) for u in uses]
-        split = mark_split(default_run, tagged)
+        tagged = [(u, default_settings.use_tags(u)) for u in uses]
+        split = mark_split(default_settings, tagged)
         out.append(f"## Referenced in ({len(uses)} lines: {split})")
         if len(uses) > SWITCH_REFS_LISTED:
-            out.append(f"- per file: {per_file(default_run, tagged)}")
+            out.append(f"- per file: {per_file(default_settings, tagged)}")
         # code that runs by default first: that is what the default value actually steers
         shown = sorted(tagged, key=lambda x: rank(x[1]))[:SWITCH_REFS_LISTED]
-        out += [f"- {u['path']}:{u['line']} {default_run.mark(u, t)}  {short(u['snippet'], 110)}" for u, t in shown]
+        out += [
+            f"- {u['path']}:{u['line']} {default_settings.mark(u, t)}  {short(u['snippet'], 110)}" for u, t in shown
+        ]
         if len(uses) > SWITCH_REFS_LISTED:
             out.append(f'- lines: get_symbol("{found[0]["name"]}", role="read"[, module="…"]) (also role="assigned")')
     out += _config_use(found[0]["name"])
@@ -721,7 +727,7 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
     if not rows and not is_core:
         return f"Module {module!r} not found."
     mod = "core" if is_core else rows[0]["module"]
-    default = default_run.default_realization(mod) or ""
+    default = default_settings.realization(mod) or ""
     docs: dict[str | None, list] = defaultdict(list)
     limits: dict[str | None, list] = defaultdict(list)
     for r in rows:
@@ -745,7 +751,7 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
     if not is_core:
         sel = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (mod.split("_", 1)[1],)).fetchone()
         out.append(f"# {mod}" + (f"  (default realization in main.gms: {sel['value']})" if sel else ""))
-    steer = steering(idx.db, default_run, mod) if not is_core else None
+    steer = steering(idx.db, default_settings, mod) if not is_core else None
 
     if realization:  # drill-down: one realization in full
         reals = steer["reals"] if steer else []
@@ -792,7 +798,7 @@ def get_scenario(name: str) -> str:
         ).fetchall()
         return f"Scenario {name!r} not found." + (f" Similar: {', '.join(r[0] for r in similar)}" if similar else "")
     written = {r["name"]: r["value"] for r in idx.db.execute("SELECT name, value FROM switches")}
-    defaults = default_run.defaults  # compared without quotes: `"a, b"` in main.gms equals `a, b` in a config
+    defaults = default_settings.as_written  # compared without quotes: `"a, b"` in main.gms equals `a, b` in a config
     out = []
     # the first REMIND row in full, other REMIND rows as their differences to it, the MAgPIE side only named: a
     # review got the MAgPIE row alone (TODO 66)

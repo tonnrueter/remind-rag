@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from .render import short
 from .scenarios import is_magpie_side
-from .status import DefaultRun
+from .status import Settings
 from .usage import STR_TEST_RE, TEST_RE
 
 SWITCH_REF_RE = re.compile(r"%(\w+)%")
@@ -48,12 +48,11 @@ class Steering:
     chosen: dict[str, list[dict[str, str]]]  # realization -> configs that select it
 
 
-def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
+def collect(db: sqlite3.Connection, run: Settings, mod: str) -> Steering:
     """Gather everything about one module (folder name, e.g. "45_carbonprice") that its blocks and alerts need.
     A switch's kind per realization: set (assigned), tested (in an if / $() test), read, or branched on
     ($ifthen around the code)."""
-    values = {k.lower(): v for k, v in run.defaults.items()}
-    canon = {k.lower(): k for k in run.defaults}
+    values, canon = run.values, run.names
     sel = mod.partition("_")[2].lower()
     reals = [
         r[0]
@@ -92,7 +91,7 @@ def collect(db: sqlite3.Connection, run: DefaultRun, mod: str) -> Steering:
     ):
         preconditions[p["realization"]].append(p)
     scens = [json.loads(r[1]) for r in db.execute("SELECT path, settings FROM scenarios") if not is_magpie_side(r[0])]
-    default = run.default_realization(mod) or ""
+    default = run.realization(mod) or ""
     # a config selects a realization through the module switch (e.g. carbonprice); left empty, it keeps the default
     chosen = {
         real: [s for s in scens if next((v for k, v in s.items() if k.lower() == sel), default).lower() == real.lower()]
@@ -199,7 +198,7 @@ def alert(s: Steering, real: str) -> str:
     return " · ".join(parts)
 
 
-def steering(db: sqlite3.Connection, run: DefaultRun, mod: str) -> dict:
+def steering(db: sqlite3.Connection, run: Settings, mod: str) -> dict:
     """Per realization the full block (drill-down) and a one-line alert (summary), plus the shared block."""
     s = collect(db, run, mod)
     shared = block(s, None, "### all realizations (module-level files)")

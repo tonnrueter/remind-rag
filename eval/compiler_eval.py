@@ -38,7 +38,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from remind_rag.gams import WORD_RE, code_part, in_text_block, is_comment
-from remind_rag.status import DefaultRun
+from remind_rag.status import Settings
 
 ARCHIVE_DIR = "remind_archive"  # the name is searched for in the paths of the reference file
 REFTYPES = {"declared", "defined", "assigned", "impl-asn", "ref", "control"}
@@ -665,11 +665,11 @@ def report(args, db, meta, remind, commit, head, work, ex_n) -> list[str]:
         "Scored verdict = the compile-time part: realization (module switch value from main.gms) and `$ifthen` conditions"
         "\n(the `conditions` column); both are decided by the compiler's $if/$ifthen/$include handling. `guards` (`if(...)`"
         "\nblocks, `$(...)` conditions) are run-time and are compiled either way: left out here, shown in the second table."
-        "\nThe verdict is DefaultRun.use_tags / mark from remind_rag.status (the same code the tools use); the scored"
+        "\nThe verdict is Settings.use_tags / mark from remind_rag.status (the same code the tools use); the scored"
         "\nvariant calls it with guards removed. mark ✓ = no tag, ⚠ = a tag that keeps the code out of a default run,"
         "\n? = a condition the defaults do not decide. 'compiled' = compiled_line: a symbol entry on the line or an echo of the line in compile.lst."
     )
-    run_ = DefaultRun(db)
+    run_ = Settings.defaults(db)
 
     def verdict(u, with_guards: bool) -> str:
         row = u if with_guards else {**u, "guards": "[]"}
@@ -730,7 +730,7 @@ def report(args, db, meta, remind, commit, head, work, ex_n) -> list[str]:
     cause = defaultdict(list)
     for u in missed:
         tags = run_.use_tags({**u, "guards": "[]"})
-        first = tags[0] if tags else ""
+        first = tags[0].text if tags else ""
         if first.startswith("$ifthen"):
             cond = first.removeprefix("$ifthen").split(" → ")[0].lower()
             compound = re.search(r"(?<!\w)(and|or)(?!\w)|\(", cond)
@@ -746,7 +746,7 @@ def report(args, db, meta, remind, commit, head, work, ex_n) -> list[str]:
         w(f"  {len(v):6,}  {c}   [{dict(Counter(u['role'] for u, _ in v).most_common())}]")
         for u, tags in v[:ex_n]:
             w(
-                f"           {u['name']} {u['path']}:{u['line']} [{u['module']}/{u['realization']}]  {tags[0][:90]}  | {u['snippet'][:50]}"
+                f"           {u['name']} {u['path']}:{u['line']} [{u['module']}/{u['realization']}]  {tags[0].text[:90]}  | {u['snippet'][:50]}"
             )
 
     # ============================================================ headline, placed after the header lines

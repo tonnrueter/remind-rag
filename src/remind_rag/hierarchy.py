@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 
 from . import store
 from .search import Index
-from .status import DefaultRun, rank
+from .status import rank
 
 PREFIXES = ("vm_", "pm_", "qm_", "fm_")
 # phases that run between solves (Nash iterations) or once before them; 'equations' is inside the optimization
@@ -28,7 +28,7 @@ BETWEEN = {"presolve", "postsolve", "loop", "solve"}
 ONCE = {"datainput", "preloop", "bounds", "sets_calculations", None, "module"}
 
 idx = Index(store.default_db())  # the pinned index (or REMIND_RAG_DB), as the server uses
-default_run = DefaultRun(idx.db)
+default_settings = idx.settings
 
 
 def _owners() -> dict[str, str]:
@@ -54,7 +54,9 @@ def collect() -> dict:
     for u in idx.db.execute(q, list(owners)):
         if u["role"] == "assigned" and _start_value(u["name"], u["snippet"]):
             continue
-        uses.append((u["name"], owners[u["name"]], u["module"], u["role"], u["phase"], rank(default_run.use_tags(u))))
+        uses.append(
+            (u["name"], owners[u["name"]], u["module"], u["role"], u["phase"], rank(default_settings.use_tags(u)))
+        )
     return {
         "owners": owners,
         "uses": uses,
@@ -223,7 +225,7 @@ def report(data: dict) -> str:
         "symbols it writes but does not own"
     )
     for m in rows:
-        real = "-" if m == "core" else default_run.default_realization(m)
+        real = "-" if m == "core" else default_settings.realization(m)
         owned = [f"{s['name']}->{s['users']}" for s in d["symbols"] if s["owner"] == m][:6]
         written = sorted(n for n, ws in d["writers"].items() if m in ws)
         out.append(f"- {m} [{real}] owns: {', '.join(owned) or '-'}; writes: {', '.join(written) or '-'}")
