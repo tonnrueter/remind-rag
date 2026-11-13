@@ -120,6 +120,8 @@ FULL_LIST_MAX = 15  # symbols with at most this many use lines get the full list
 FLAGGED_MAX = 10  # ⚠ / ? lines listed individually in a summary
 COMPUTED_MAX = 4  # ✓ assignments outside bounds listed individually: where the value is computed
 SHORT_ROLE = 3  # a role with at most this many lines is listed in full
+# an equation use reads the symbol too: role="read" alone was taken for every read (TODO 66)
+OTHER_READS = {"read": ("equation", "reads in equations"), "equation": ("read", "reads outside equations")}
 
 
 @server.tool()
@@ -141,13 +143,18 @@ def get_symbol(
         matching = [
             u for u in uses if (not role or u["role"] == role) and (not module or module_match(module, u["module"]))
         ]
+        also = ""
+        if role in OTHER_READS:
+            other, what = OTHER_READS[role]
+            n = sum(u["role"] == other and (not module or module_match(module, u["module"])) for u in uses)
+            also = f' (not counted: {n} {what}, role="{other}")' if n else ""
         if not matching:
-            return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + "."
+            return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + f".{also}"
         page = matching[offset : offset + max_uses]
         out = [
             f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
             + (f" in {module}" if module else "")
-            + f", {offset + 1}–{offset + len(page)} of {len(matching)}"
+            + f", {offset + 1}–{offset + len(page)} of {len(matching)}{also}"
         ]
         out += [use_line(default_run, u, default_run.use_tags(u)) for u in page]
         if offset + len(page) < len(matching):

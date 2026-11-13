@@ -58,6 +58,11 @@ def test_elseif_head_of_the_default_branch_runs():
     assert "modules/21_tax/on/datainput.gms:88 ✓" in out and "modules/21_tax/on/datainput.gms:90 ⚠" in out
 
 
+def test_read_role_names_the_reads_in_equations():
+    # a review took role="read" for every read of vm_cap; most of them sit in equations
+    assert 'reads in equations, role="equation")' in server.get_symbol("vm_cap", role="read").splitlines()[0]
+
+
 def test_roles_separate_declaring_and_assigning_modules():
     # Q10: 21_tax reads pm_taxCO2eqSum but never assigns it
     out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)
