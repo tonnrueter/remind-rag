@@ -6,8 +6,12 @@ A tree is a JSON list:
   ["and", a, b, ...] / ["or", a, b, ...] / ["not", a]
   ["sw", name, op, value, "c" | "r"]   a switch test: compile time (`"%x%" == "on"`) or run time (`cm_x eq 2`);
                                        op as in Python (==, !=, >=, ...), value without quotes
-  ["other", text]                      anything else (indexed symbols, sameas(), t.val, other comparisons):
-                                       unknown to the settings
+  ["sw2", name, op, text]              a switch compared with something that isn't a literal (`cm_startyear <=
+                                       t.val`): it tests a setting, but the setting alone doesn't decide it
+  ["def", name]                        `$if set name` and its kin: whether a compile-time variable is defined
+  ["env", text]                        `exist "file"`: the checkout, not the settings, decides it
+  ["other", text]                      anything else (indexed symbols, sameas(), t.val, arithmetic, comparisons
+                                       of data): unknown to the settings
   ["?", text, sw, ...]                 the whole condition didn't parse: undecided; the switch tests found in it
                                        are kept (a guard that tests a switch counts as depending on settings)"""
 
@@ -21,63 +25,80 @@ from .usage import OPS, STR_TEST_RE, TEST_RE, _compare
 
 Tree = list
 
+# strings, %switch%, numbers, names (with .val / .l suffixes), two-character operators, anything else one character
+TOKEN_RE = re.compile(
+    r"""\s*("[^"]*"|'[^']*'|%\w+%|(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?|[A-Za-z_][\w.]*|==|<>|<=|>=|\*\*|\S)""", re.I
+)
+UNSUPPORTED = {"xor", "eqv", "imp"}  # GAMS logic REMIND doesn't use in conditions: such a condition stays "?"
+DEF_RE = re.compile(r"(set|setglobal|setlocal|setenv)\s+(\w+)", re.I)
+# a switch-shaped name (as TEST_RE), not indexed, compared with an expression
+SW2_RE = re.compile(r"(c\w*?_\w+|s\d\d_\w+|sm_\w+)\s*(eq|ne|ge|le|gt|lt|<>|>=|<=|>|<|=)\s*(.+)", re.I)
+# compile-time directives inside a run-time condition (37_industry: `( YES $ifthen.x ... AND ... $endif.x )`):
+# which parts GAMS keeps depends on the compile, not on the text
+DIRECTIVE_RE = re.compile(r"\$(ifthen|elseif|else|endif|if[ei]?)\b", re.I)
+
 
 def parse(cond: str) -> Tree:
-    """The tree of one condition.
+    """The tree of one condition: and / or / not (not binds tighter than and, and than or, as in GAMS) over
+    operands. An operand runs to the next and / or / closing parenthesis outside brackets, so arithmetic and
+    calls stay inside it; one that is a whole parenthesized group is parsed as a condition itself.
 
     >>> parse("cm_emiscen eq 9 and not (%optimization% == 'negishi')")
     ['and', ['sw', 'cm_emiscen', '==', '9', 'r'], ['not', ['sw', 'optimization', '==', 'negishi', 'c']]]
-    >>> parse("sameas(t, '2005') or cm_x gt 1 or p_y(t) gt 0")
-    ['or', ['other', "sameas(t, '2005')"], ['sw', 'cm_x', '>', '1', 'r'], ['other', 'p_y(t) gt 0']]
+    >>> parse("sameas(t, '2005') or cm_x gt 1 or p_y(t) * 0.5 gt 0")
+    ['or', ['other', "sameas(t, '2005')"], ['sw', 'cm_x', '>', '1', 'r'], ['other', 'p_y(t) * 0.5 gt 0']]
+    >>> parse("((p_x(t) < -(0.1 + p_y(t))) AND (cm_peakBudgYr > 2040))")
+    ['and', ['other', 'p_x(t) < -(0.1 + p_y(t))'], ['sw', 'cm_peakBudgYr', '>', '2040', 'r']]
+    >>> parse('not set cm_x'), parse('exist "./in.inc"')
+    (['not', ['def', 'cm_x']], ['env', 'exist "./in.inc"'])
+    >>> parse("( t.val > 2010 ) AND ( cm_startyear <= t.val )")
+    ['and', ['other', 't.val > 2010'], ['sw2', 'cm_startyear', '<=', 't.val']]
     >>> parse("cm_x eq 1 xor cm_y eq 2")
     ['?', 'cm_x eq 1 xor cm_y eq 2', ['sw', 'cm_x', '==', '1', 'r'], ['sw', 'cm_y', '==', '2', 'r']]
     """
-    # Switch tests first, then everything else that isn't and/or/not/parentheses becomes an "other" operand
-    # (function calls and indexed symbols innermost first, then comparisons, then bare names). Each is replaced
-    # by a placeholder __tN; the skeleton left is parsed as and/or/not with Python's precedence.
-    leaves: list[Tree] = []
-    texts: list[str] = []
-
-    def leaf(node: Tree, text: str) -> str:
-        leaves.append(node)
-        texts.append(text)
-        return f" __t{len(leaves) - 1} "
-
-    def original(text: str) -> str:  # an operand's text with the placeholders inside it put back
-        return " ".join(re.sub(r"\s*__t(\d+)\s*", lambda m: f" {texts[int(m.group(1))]} ", text).split())
-
-    def string_test(m: re.Match) -> str:
-        node = ["sw", m.group(2), OPS[m.group(3).lower()], m.group(4), "c"]
-        return leaf(["not", node] if m.group(1) else node, m.group(0).strip())
-
-    def run_test(m: re.Match) -> str:
-        return leaf(["sw", m.group(1), OPS[m.group(2).lower()], m.group(3).strip("\"'"), "r"], m.group(0).strip())
-
-    def other(m: re.Match) -> str:
-        return leaf(["other", original(m.group(0))], original(m.group(0)))
-
-    expr = STR_TEST_RE.sub(string_test, cond)
-    expr = TEST_RE.sub(run_test, expr)
-    for _ in range(5):  # nested calls (up to 5 deep) from the inside out
-        new = re.sub(r"(?<!\w)(?!(?:and|or|not)\b)[A-Za-z_][\w.]*\s*\([^()]*\)", other, expr, flags=re.I)
-        if new == expr:
-            break
-        expr = new
-    expr = re.sub(r"(?<!\w)[\w.\"']+\s*(?:eq|ne|gt|lt|ge|le|<>|<=|>=|<|>|=)\s*[-\w.\"']+", other, expr, flags=re.I)
-    expr = re.sub(r"(?<!\w)(?!(?:and|or|not)\b)(?!__t\d)[A-Za-z_]\w*", other, expr, flags=re.I)
     try:
-        return _Skeleton(expr, leaves).tree()
+        if DIRECTIVE_RE.search(cond):
+            raise ValueError
+        return _Parser(cond).tree()
     except ValueError:
-        tests = [t for t in leaves if t[0] == "sw" or t[0] == "not" and t[1][0] == "sw"]
-        return ["?", " ".join(cond.split()), *tests]
+        return ["?", " ".join(cond.split()), *_tests_in(cond)]
 
 
-class _Skeleton:
-    """Recursive descent over placeholders, and/or/not and parentheses (not binds tighter than and, and than or)."""
+def _tests_in(text: str) -> list[Tree]:
+    """The switch tests anywhere in a text, for a condition that didn't parse."""
+    out = [_string_test(m) for m in STR_TEST_RE.finditer(text)]
+    return out + [_run_test(m) for m in TEST_RE.finditer(STR_TEST_RE.sub(" ", text))]
 
-    def __init__(self, expr: str, leaves: list[Tree]):
-        self.toks = [t.lower() for t in re.findall(r"\w+|\S", expr)]
-        self.leaves, self.i = leaves, 0
+
+def _string_test(m: re.Match) -> Tree:
+    node = ["sw", m.group(2), OPS[m.group(3).lower()], m.group(4), "c"]
+    return ["not", node] if m.group(1) else node
+
+
+def _run_test(m: re.Match) -> Tree:
+    return ["sw", m.group(1), OPS[m.group(2).lower()], m.group(3).strip("\"'"), "r"]
+
+
+def _operand(text: str) -> Tree:
+    """One operand: a switch test, $if set / exist, or something the settings don't know."""
+    if m := STR_TEST_RE.fullmatch(text):
+        return _string_test(m)
+    if m := TEST_RE.fullmatch(text):
+        return _run_test(m)
+    if m := SW2_RE.fullmatch(text):
+        return ["sw2", m.group(1), OPS[m.group(2).lower()], m.group(3)]
+    if m := DEF_RE.fullmatch(text):
+        return ["def", m.group(2)]
+    if re.match(r"d?exist\s", text, re.I):
+        return ["env", text]
+    return ["other", text]
+
+
+class _Parser:
+    def __init__(self, cond: str):
+        self.cond = cond
+        self.toks = [(m.group(1), m.start(1), m.end(1)) for m in TOKEN_RE.finditer(cond)]
+        self.i = 0
 
     def tree(self) -> Tree:
         t = self._or()
@@ -85,12 +106,12 @@ class _Skeleton:
             raise ValueError
         return t
 
-    def _peek(self) -> str | None:
-        return self.toks[self.i] if self.i < len(self.toks) else None
+    def _word(self) -> str | None:
+        return self.toks[self.i][0].lower() if self.i < len(self.toks) else None
 
     def _chain(self, op: str, operand) -> Tree:
         items = [operand()]
-        while self._peek() == op:
+        while self._word() == op:
             self.i += 1
             items.append(operand())
         if len(items) == 1:
@@ -104,20 +125,47 @@ class _Skeleton:
         return self._chain("and", self._not)
 
     def _not(self) -> Tree:
-        if self._peek() == "not":
+        if self._word() == "not":
             self.i += 1
             return ["not", self._not()]
-        tok = self._peek()
-        self.i += 1
-        if tok == "(":
-            t = self._or()
-            if self._peek() != ")":
+        return self._operand()
+
+    def _end(self, i: int) -> int:
+        """Index after the operand starting at token i: up to and / or / an unmatched ')' outside brackets."""
+        depth = 0
+        while i < len(self.toks):
+            w = self.toks[i][0].lower()
+            if depth == 0 and (w in ("and", "or") or w == ")"):
+                break
+            if depth == 0 and w in UNSUPPORTED:
                 raise ValueError
-            self.i += 1
+            depth += (w == "(") - (w == ")")
+            i += 1
+        return i
+
+    def _operand(self) -> Tree:
+        start, end = self.i, self._end(self.i)
+        if end == start:
+            raise ValueError
+        # a whole parenthesized group is a condition of its own: (a and b), (cm_x eq 1)
+        if self.toks[start][0] == "(" and self._close(start) == end - 1:
+            self.i = start + 1
+            t = self._or()
+            if self.i != end - 1:
+                raise ValueError
+            self.i = end
             return t
-        if tok and (m := re.fullmatch(r"__t(\d+)", tok)):
-            return self.leaves[int(m.group(1))]
-        raise ValueError
+        self.i = end
+        return _operand(" ".join(self.cond[self.toks[start][1] : self.toks[end - 1][2]].split()))
+
+    def _close(self, i: int) -> int:
+        """Index of the ')' matching the '(' at token i."""
+        depth = 0
+        for j in range(i, len(self.toks)):
+            depth += (self.toks[j][0] == "(") - (self.toks[j][0] == ")")
+            if depth == 0:
+                return j
+        return -1
 
 
 def lower(values: dict[str, str]) -> dict[str, str]:
@@ -160,7 +208,7 @@ def holds(tree: Tree, values: dict[str, str]) -> bool | None:
 
 def tests_setting(tree: Tree, values: dict[str, str]) -> bool:
     """The tree contains a test of a name in `values` (lower-case keys)."""
-    if tree[0] == "sw":
+    if tree[0] in ("sw", "sw2"):
         return tree[1].lower() in values
     if tree[0] == "?":
         return any(tests_setting(t, values) for t in tree[2:])

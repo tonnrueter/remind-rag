@@ -127,6 +127,16 @@ def test_every_condition_has_a_tree():
     assert texts and texts <= trees
 
 
+def test_every_condition_parses():
+    # 56: an unparsed condition stays undecided ("?"); only one with $ifthen inside it may (37_industry's
+    # q37_limit_secondary_steel_share: which parts GAMS keeps depends on the compile, not on the text)
+    from remind_rag.conditions import DIRECTIVE_RE
+
+    rows = server.idx.db.execute("SELECT text, tree FROM conditions").fetchall()
+    unparsed = [r["text"] for r in rows if json.loads(r["tree"])[0] == "?"]
+    assert rows and all(DIRECTIVE_RE.search(t) for t in unparsed), unparsed
+
+
 # ------------------------------------------------------------------ get_module: which switches steer a realization
 
 

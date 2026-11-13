@@ -19,13 +19,13 @@ TRUTH = {True: "true", False: "false", None: "?"}  # a switch test's value under
 
 
 def equation_domain(text: str, name: str) -> str | None:
-    r"""The `q(t,regi)$(cond)` part of an equation definition (before `..`), comments dropped, whitespace
-    collapsed; None if the name or `..` isn't found.
+    r"""The `q(t,regi)$(cond)` part of an equation definition (before `..`), comment lines and `!!` comments
+    dropped, whitespace collapsed; None if the name or `..` isn't found.
 
-    >>> equation_domain("* note\nq_x(t)$(t.val ge 2010)..\n  v_x(t) =g= 0;", "q_x")
-    'q_x(t)$(t.val ge 2010)'
+    >>> equation_domain("* note\nq_x(t)$(t.val ge 2010 !! from 2010 on\n  )..\n  v_x(t) =g= 0;", "q_x")
+    'q_x(t)$(t.val ge 2010 )'
     """
-    code = "\n".join(line for line in text.splitlines() if not line.startswith("*"))
+    code = "\n".join(line.split("!!", 1)[0] for line in text.splitlines() if not line.startswith("*"))
     i = code.lower().find(name.lower())
     j = code.find("..", i)
     return " ".join(code[i:j].split()) if i >= 0 and j > i else None
