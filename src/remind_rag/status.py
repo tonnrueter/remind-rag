@@ -87,9 +87,13 @@ class Settings:
     switches (they moved to main.gms). settings.scenario(name): those values overridden by the scenario's first
     REMIND row in config/scenario_config*.csv; settings.row(row) for any row.
 
-    Compile-time variables main.gms doesn't define come from the flags table ($set lines elsewhere, followed
-    wherever they stand); one defined nowhere stays its own text `%x%`, as in GAMS. Not followed: code that
-    reassigns a main.gms switch later (11_aerosols `$setGlobal cm_APssp`)."""
+    What acts when: module selections and $setglobal flags decide at compile time which code exists; scalar
+    switches (`cm_x = 1;` in main.gms) are read at run time. Compile-time variables main.gms doesn't define come
+    from the flags table ($set lines elsewhere, followed wherever they stand); one defined nowhere stays its own
+    text `%x%`, as in GAMS. Not followed: code that reassigns a main.gms switch later. At 1e2dbd972 that is one
+    flag (11_aerosols `$setGlobal cm_APssp`) and five scalars (cm_iteration_max in nash, cm_nash_mode,
+    cm_peakBudgYr, cm_solver_try_max, cm_taxCO2_startyear); a verdict resting on one of them uses the main.gms
+    value."""
 
     def __init__(
         self,

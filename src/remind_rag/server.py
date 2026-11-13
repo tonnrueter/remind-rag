@@ -604,7 +604,9 @@ def get_switch(name: str, value: str | None = None, also: str | None = None) -> 
     an empty cell counts as the default), and the GAMS and R lines that reference it with their default status
     (✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role="read").
     value="x": only the configs that run with x, named. also="a,b": split the configs by other settings, e.g.
-    get_switch("carbonprice", value="NDC", also="path_gdx_ref,path_gdx_bau"). With either, only the config part."""
+    get_switch("carbonprice", value="NDC", also="path_gdx_ref,path_gdx_bau"). With either, only the config part.
+    Module selections and $setglobal flags act at compile time (which code exists); scalar switches act at run
+    time, and code reassigns a few (cm_iteration_max, cm_peakBudgYr): marks use the main.gms value."""
     found = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     if not found:
         key = name.lower()
