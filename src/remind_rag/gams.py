@@ -18,12 +18,19 @@ IFTHEN_RE = re.compile(r"^\s*\$ifthen[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re
 ELSEIF_RE = re.compile(r"^\s*\$elseif[ei]?(?:\.(\w+))?\s+(.*?)\s*(?:!!.*)?$", re.I)
 ELSE_RE = re.compile(r"^\s*\$else(?:\.(\w+))?\s*(?:!!.*)?$", re.I)
 ENDIF_RE = re.compile(r"^\s*\$endif(?:\.(\w+))?", re.I)
+# the test of a $if / $ifthen / $elseif: [not] a == b, or a keyword with its operand (exist "file", set name).
+# GAMS reads one test; what follows on the line is code (GAMS 51: `$ifthen %x% == "a" or %y% == "b"` compiles
+# `or %y% == "b"` as code)
+_OPERAND = r"""(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)"""
+_TEST = (
+    rf"(?:not\s+)?(?:(?:exist|dexist|set|setglobal|setlocal|setenv|declared|defined)\s+{_OPERAND}"
+    rf"|{_OPERAND}\s*(?:==|<>|\beq\b|\bne\b)\s*{_OPERAND})"
+)
+DIRECTIVE_TEST_RE = re.compile(rf"({_TEST})(?:\s+(.*))?$", re.I | re.S)
 # a one-line $if / $ifi / $ife: the test, then the statement it switches on (group 2), e.g.
 # `$ifi %banking% == "banking" p80_etaST("perm") = 0.2;`. REMIND only writes `[not] a == b` there
 IF_LINE_RE = re.compile(
-    r"""^\s*\$if[ei]?\s+((?:not\s+)?(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)\s*(?:==|<>|\beq\b|\bne\b)\s*"""
-    r"""(?:"[^"]*"|'[^']*'|[^\s"'=<>]+))\s+(.*)$""",
-    re.I,
+    rf"""^\s*\$if[ei]?\s+((?:not\s+)?{_OPERAND}\s*(?:==|<>|\beq\b|\bne\b)\s*{_OPERAND})\s+(.*)$""", re.I
 )
 ONTEXT_RE = re.compile(r"\s*\$ontext\b", re.I)
 OFFTEXT_RE = re.compile(r"\s*\$offtext\b", re.I)
@@ -98,14 +105,31 @@ def decl_start(line: str) -> re.Match | None:
     return None
 
 
+def directive_test(rest: str) -> tuple[str, str]:
+    r"""What follows `$ifthen` / `$elseif`, split into its test and the code after it ("" if none). A form not
+    recognized stays whole.
+
+    >>> directive_test('%cm_oil_scen% == "highOil"\t  +(10)$(cm_startyear eq 2015)')
+    ('%cm_oil_scen% == "highOil"', '+(10)$(cm_startyear eq 2015)')
+    >>> directive_test('not "%x%" == "a"'), directive_test('exist "./in.inc"')
+    (('not "%x%" == "a"', ''), ('exist "./in.inc"', ''))
+    """
+    if m := DIRECTIVE_TEST_RE.match(rest):
+        return m.group(1), m.group(2) or ""
+    return rest, ""
+
+
 def line_conditions(lines: list[str], single_if: bool = False) -> list[tuple[str, ...]]:
     """For every line, the $ifthen conditions it is compiled under, outermost first. An $elseif / $else branch
     is written as the negation of the earlier branches plus its own condition. The directive lines themselves
-    get the conditions around their block. With `single_if`, a one-line `$if` adds its test to its own line
-    (the where-used table wants it; chunks and the precondition sweep read that test themselves).
+    get the conditions around their block, unless code follows the test on the line: then they get the branch's.
+    With `single_if`, a one-line `$if` adds its test to its own line (the where-used table wants it; chunks and
+    the precondition sweep read that test themselves).
 
     >>> line_conditions(['$ifthen "%x%" == "a"', "p = 1;", "$else", "p = 2;", "$endif"])
     [(), ('"%x%" == "a"',), (), ('not ("%x%" == "a")',), ()]
+    >>> line_conditions(['$ifthen %x% == "a"  + p', '$elseif %x% == "b"  + q', "$endif"])
+    [('%x% == "a"',), ('not (%x% == "a") and (%x% == "b")',), ()]
     >>> line_conditions(['$if %x% == "a" p = 1;', "p = 2;"], single_if=True)
     [('%x% == "a"',), ()]
     """
@@ -114,15 +138,18 @@ def line_conditions(lines: list[str], single_if: bool = False) -> list[tuple[str
     out: list[tuple[str, ...]] = []
     for line in lines:
         if m := IFTHEN_RE.match(line):
-            out.append(tuple(current))
-            stack.append([m.group(2)])
-            current.append(m.group(2))
+            test, code = directive_test(m.group(2))
+            stack.append([test])
+            current.append(test)
+            # code after the test on the directive line belongs to the branch (31_fossil/MOFEX q31_fuExtrInc)
+            out.append(tuple(current) if code else tuple(current[:-1]))
             continue
         if stack and (m := ELSEIF_RE.match(line)):
-            out.append(tuple(current[:-1]))
+            test, code = directive_test(m.group(2))
             prev = " and ".join(f"not ({c})" for c in stack[-1])
-            stack[-1].append(m.group(2))
-            current[-1] = f"{prev} and ({m.group(2)})"
+            stack[-1].append(test)
+            current[-1] = f"{prev} and ({test})"
+            out.append(tuple(current) if code else tuple(current[:-1]))
             continue
         if stack and ELSE_RE.match(line):
             out.append(tuple(current[:-1]))

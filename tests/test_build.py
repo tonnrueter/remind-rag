@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -133,3 +134,14 @@ def test_conditions_of_an_index_without_the_table_are_parsed_on_the_spot(tmp_pat
     db = store.connect(tmp_path / "old.db")
     db.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
     assert Trees(db)["not (cm_x eq 1)"] == ["not", ["sw", "cm_x", "==", "1", "r"]]
+
+
+def test_code_after_an_ifthen_test_runs_in_its_branch(tmp_path):
+    # 56: GAMS reads one test after $ifthen / $elseif and compiles the rest of the line in the branch (checked with
+    # GAMS 51); 31_fossil MOFEX / timeDepGrades write equation terms there. The condition used to swallow the code.
+    db = store.create(tmp_path / "t.db", 4)
+    db.execute("INSERT INTO symbols (name, kind) VALUES ('p_a', 'parameter'), ('p_b', 'parameter')")
+    gms = '$ifthen.s %x% == "a"\t  + p_a(t)\n$elseif.s %x% == "b"    + p_b(t)\n$endif.s\n'
+    index.build_uses(db, [("core/equations.gms", gms)])
+    conds = {r["name"]: json.loads(r["conditions"]) for r in db.execute("SELECT name, conditions FROM symbol_uses")}
+    assert conds == {"p_a": ['%x% == "a"'], "p_b": ['not (%x% == "a") and (%x% == "b")']}
