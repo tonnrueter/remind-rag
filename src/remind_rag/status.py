@@ -13,8 +13,7 @@ from .conditions import Trees, holds, lower, tests_setting
 from .scenarios import is_magpie_side
 from .usage import switch_tests
 
-# the marks as Claude reads them in the tool output (the reference test records them)
-OFF, DEPENDS, ON = "⚠ not in a default run", "? depends on settings", "✓ runs by default"
+UNDECIDED = "the settings don't decide it"  # "?": the switches allow the code, data or the period decide
 TRUTH = {True: "true", False: "false", None: "?"}  # a switch test's value under the defaults; None: undecided
 
 
@@ -56,7 +55,7 @@ def detail(tags: list[Reason]) -> str:
 
 
 def rank(tags: list[Reason]) -> int:
-    """0 runs by default, 1 depends on settings, 2 not in a default run (sort order of links).
+    """0 runs with the settings, 1 the settings don't decide it, 2 doesn't run (sort order of links).
 
     >>> rank([]), rank([Reason("inside if cm_x eq 2: depends", False)]), rank([Reason("non-default realization", True)])
     (0, 1, 2)
@@ -79,9 +78,6 @@ def scenario_rows(db: sqlite3.Connection, scenario: str) -> list[sqlite3.Row]:
         (scenario,),
     ).fetchall()
     return sorted(rows, key=lambda r: is_magpie_side(r["path"]))
-
-
-LABEL = {True: "active by default", False: "INACTIVE by default", None: "depends on non-default settings"}
 
 
 class Settings:
@@ -160,6 +156,11 @@ class Settings:
         return s
 
     @property
+    def label(self) -> str:
+        """How marks and reasons name these settings: "the default settings", "SSP2-PkBudg750 settings"."""
+        return f"{self.name} settings" if self.name else "the default settings"
+
+    @property
     def compile(self) -> dict[str, str | None]:
         """Compile-time variables (lower-case) -> value: the settings, then each flag main.gms doesn't define:
         the value of the last line whose conditions hold, None if the settings don't decide which (or the value
@@ -224,16 +225,19 @@ class Settings:
         return f"realization {realization}: NOT DEFAULT (default: {chosen}; selected by ${switch})"
 
     def condition_status(self, cond: str, what: str) -> str:
-        """'<what> <cond>: active by default' / 'INACTIVE by default' / 'depends on non-default settings';
-        `what` names the kind of condition ("$ifthen", "inside if", ...)."""
-        return f"{what} {' '.join(cond.split())}: {LABEL[self.holds(cond)]}"
+        """'<what> <cond>: holds with the default settings' / '→ off with ...' / ': the settings don't decide it';
+        `what` names the kind of condition ("compiled only if", ...)."""
+        v, text = self.holds(cond), f"{what} {' '.join(cond.split())}"
+        return {True: f"{text}: holds with {self.label}", False: f"{text} → off with {self.label}"}.get(
+            v, f"{text}: {UNDECIDED}"
+        )
 
     def reason(self, cond: str, what: str, value: bool | None) -> Reason:
         """A condition that is false (off; with how many scenario configs run the code, R5: ⚠ on a line 242
         configs run read as "unused") or that the settings don't decide."""
         if value is not False:
-            return Reason(f"{what} {' '.join(cond.split())}: {LABEL[value]}", False)
-        text = f"{what} {' '.join(cond.split())} → inactive by default"
+            return Reason(f"{what} {' '.join(cond.split())}: {UNDECIDED}", False)
+        text = f"{what} {' '.join(cond.split())} → off with {self.label}"
         if self.reach and (r := self.reach(cond)):
             text += f"; {r}"
         return Reason(text, True)
@@ -285,20 +289,21 @@ class Settings:
         return tags
 
     def mark(self, u, tags: list[Reason]) -> str:
-        """The status mark for the first line of an entry: ⚠ not in a default run, ? depends on settings, ✓ default
-        realization (code in a module's selected realization) or ✓ runs by default. Always positive or negative,
-        never blank: an entry without a mark was read as "unknown" (FINDINGS 10)."""
+        """The status mark for the first line of an entry: ⚠ doesn't run with these settings, ? the settings don't
+        decide it, ✓ default realization / realization selected by a scenario (code in the selected realization)
+        or ✓ runs with these settings. Always positive or negative, never blank: an entry without a mark was read
+        as "unknown" (FINDINGS 10). "?" said "depends on settings", the opposite of what it means (TODO 56)."""
         if any(t.off for t in tags):
-            return OFF
+            return f"⚠ doesn't run with {self.label}"
         if tags:
-            return DEPENDS
+            return f"? {UNDECIDED}"
         if u["realization"] and self.realization(u["module"]):
-            return "✓ default realization"
-        return ON
+            return f"✓ realization selected by {self.name}" if self.name else "✓ default realization"
+        return f"✓ runs with {self.label}"
 
     def equation_status(self, path: str, equation: str) -> list[Reason]:
         """[] if the equation's domain $-condition holds with these settings or tests no switch, else the one
-        reason ('generated only if ... → inactive by default' or '... depends on non-default settings')."""
+        reason ('generated only if ... → off with the default settings' or '...: the settings don't decide it')."""
         row = self.db.execute(
             "SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE", (path, equation)
         ).fetchone()

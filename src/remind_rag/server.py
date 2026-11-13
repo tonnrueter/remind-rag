@@ -53,9 +53,9 @@ server = MCPServer(
         "Results cite path:line; read the file for more context when needed. "
         "Results carry default status (» lines in search; ✓ / ⚠ / ? on each entry of get_symbol and get_links): "
         "whether the code's realization is the default and whether its $ifthen / if(...) / $(...) switch "
-        "conditions hold in a default run. ✓ means it runs in a default run, ⚠ that it doesn't, ? that it depends "
-        "on settings. Only ⚠ entries are alternatives. Lead with what a default "
-        "run does; describe non-default realizations or inactive branches as alternatives and name the switch "
+        "conditions hold in a default run. ✓ means it runs with the default settings, ⚠ that it doesn't, ? that "
+        "the settings don't decide it (data or the period do). Only ⚠ entries are alternatives. Lead with what a "
+        "default run does; describe non-default realizations or inactive branches as alternatives and name the switch "
         "that enables them. get_symbol separates where a symbol is declared, assigned, used in equations and read; "
         "codeCheck's interface owner is the declaring module, not necessarily where values are computed."
     ),
@@ -294,7 +294,7 @@ def _names(names: list[str], home: str | None, limit: int = 12) -> str:
 class Link(NamedTuple):
     """One entry of a get_links section: a statement (path, line) or an equation (path None, line = its name)."""
 
-    rank: int  # 0 runs by default, 1 depends on settings, 2 not in a default run
+    rank: int  # 0 ✓ runs, 1 ? the settings don't decide it, 2 ⚠ doesn't run
     path: str | None
     line: int | str
     mark: str
@@ -337,8 +337,7 @@ def get_links(name: str, max_links: int = 10) -> str:
     out = [
         f"# Links of {name}"
         + (f' — {decl["kind"]} "{decl["description"]}" [declared in {decl["module"] or "core"}]' if decl else ""),
-        "One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · "
-        "[module] = declared outside the statement's module.",
+        "One hop. Reasons for ⚠ / ? below the entry · [module] = declared outside the statement's module.",
     ]
 
     # an equation: its members
@@ -402,9 +401,9 @@ def get_links(name: str, max_links: int = 10) -> str:
         items.sort(key=lambda x: (x.rank, x.path or "", x.line if isinstance(x.line, int) else 0, str(x.line)))
         counts = [sum(1 for it in items if it.rank == r) for r in range(3)]
         out.append(
-            f"## {title} ({len(items)} {unit}: {counts[0]} run by default"
-            + (f", {counts[1]} depend on settings" if counts[1] else "")
-            + (f", {counts[2]} not in a default run" if counts[2] else "")
+            f"## {title} ({len(items)} {unit}: {counts[0]} ✓"
+            + (f", {counts[1]} ?" if counts[1] else "")
+            + (f", {counts[2]} ⚠" if counts[2] else "")
             + ")"
         )
         groups: dict[tuple, list[Link]] = {}

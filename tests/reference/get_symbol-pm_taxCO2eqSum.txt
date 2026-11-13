@@ -11,26 +11,26 @@
 ### Declared (2 lines: 1 ✓, 1 ⚠; 46_carbonpriceRegi)
 ### Assigned / fixed / loaded (13 lines: 3 ✓, 10 ⚠; 47_regipol, core)
 - per file: modules/47_regipol/regiCarbonPrice/postsolve.gms 5 ⚠, core/postsolve.gms 3 ⚠, core/presolve.gms 2 (1 ✓, 1 ⚠), core/datainput.gms 1 ✓, core/preloop.gms 1 ✓, modules/47_regipol/regiCarbonPrice/presolve.gms 1 ⚠
-- core/datainput.gms:13 [core/datainput] ✓ runs by default  pm_taxCO2eqSum(ttot,regi) = 0;
-- core/preloop.gms:44 [core/preloop] ✓ runs by default  pm_taxCO2eqSum(t,regi) = 0;
-- core/presolve.gms:10 [core/presolve] ✓ runs by default  pm_taxCO2eqSum(ttot,regi) = pm_taxCO2eq(ttot,regi) + pm_taxCO2eqRegi(ttot,regi) + pm_taxCO2eqSCC(ttot,regi);
-- core/postsolve.gms:51 [core/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi) = abs((abs(q_co2eq.m(ttot,regi)) / pm_ts(ttot)) / (pm_pvp(ttot,"good") + sm_eps));
-    ⚠ $ifthen %optimization% == 'negishi' → inactive by default; holds in 0 of 387 REMIND configs
-    ⚠ inside if (cm_emiscen eq 6) → inactive by default; holds in 0 of 387 REMIND configs
-- core/postsolve.gms:53 [core/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi) = abs( abs(q_co2eq.m(ttot,regi)) / (abs(qm_budget.m(ttot,regi))+ sm_eps) );
-    ⚠ inside if (cm_emiscen eq 6) → inactive by default; holds in 0 of 387 REMIND configs
-- core/postsolve.gms:56 [core/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi)$(ttot.val < 2025) = pm_taxCO2eq(ttot,regi);
-    ⚠ inside if not ((cm_emiscen eq 6)) and ((cm_emiscen eq 1)) → inactive by default; holds in 0 of 387 REMIND configs
-- core/presolve.gms:15 [core/presolve] ⚠ not in a default run  pm_taxCO2eqSum("2030",regi) = min(
-    ⚠ $ifthen not "%cm_CO2PriceLimit%" == "off" → inactive by default; holds in 3 of 387 REMIND configs
-- modules/47_regipol/regiCarbonPrice/postsolve.gms:151 [47_regipol/regiCarbonPrice/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(t,regi) = 0;
-    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default; holds in 227 of 387 REMIND configs
-- modules/47_regipol/regiCarbonPrice/postsolve.gms:962 [47_regipol/regiCarbonPrice/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi)$(regi_group(ext_regi,regi) and (ttot.val ge cm_startyear)) = 0;  (same reason: also line 976)
-    ⚠ $ifthen not "%cm_regiExoPrice%" == "off" → inactive by default; holds in 12 of 387 REMIND configs
-- modules/47_regipol/regiCarbonPrice/postsolve.gms:986 [47_regipol/regiCarbonPrice/postsolve] ⚠ not in a default run  pm_taxCO2eqSum(ttot,regi)$(ttot.val ge cm_startyear) = 0;  (same reason: also line 1001)
-    ⚠ $ifthen not "%cm_regiExoPrice_fromFile%" == "off" → inactive by default; holds in 0 of 387 REMIND configs
-- modules/47_regipol/regiCarbonPrice/presolve.gms:24 [47_regipol/regiCarbonPrice/presolve] ⚠ not in a default run  pm_taxCO2eqSum(t,regi) = 0;
-    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default; holds in 227 of 387 REMIND configs
+- core/datainput.gms:13 [core/datainput] ✓ runs with the default settings  pm_taxCO2eqSum(ttot,regi) = 0;
+- core/preloop.gms:44 [core/preloop] ✓ runs with the default settings  pm_taxCO2eqSum(t,regi) = 0;
+- core/presolve.gms:10 [core/presolve] ✓ runs with the default settings  pm_taxCO2eqSum(ttot,regi) = pm_taxCO2eq(ttot,regi) + pm_taxCO2eqRegi(ttot,regi) + pm_taxCO2eqSCC(ttot,regi);
+- core/postsolve.gms:51 [core/postsolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(ttot,regi) = abs((abs(q_co2eq.m(ttot,regi)) / pm_ts(ttot)) / (pm_pvp(ttot,"good") + sm_eps));
+    ⚠ $ifthen %optimization% == 'negishi' → off with the default settings; holds in 0 of 387 REMIND configs
+    ⚠ inside if (cm_emiscen eq 6) → off with the default settings; holds in 0 of 387 REMIND configs
+- core/postsolve.gms:53 [core/postsolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(ttot,regi) = abs( abs(q_co2eq.m(ttot,regi)) / (abs(qm_budget.m(ttot,regi))+ sm_eps) );
+    ⚠ inside if (cm_emiscen eq 6) → off with the default settings; holds in 0 of 387 REMIND configs
+- core/postsolve.gms:56 [core/postsolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(ttot,regi)$(ttot.val < 2025) = pm_taxCO2eq(ttot,regi);
+    ⚠ inside if not ((cm_emiscen eq 6)) and ((cm_emiscen eq 1)) → off with the default settings; holds in 0 of 387 REMIND configs
+- core/presolve.gms:15 [core/presolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum("2030",regi) = min(
+    ⚠ $ifthen not "%cm_CO2PriceLimit%" == "off" → off with the default settings; holds in 3 of 387 REMIND configs
+- modules/47_regipol/regiCarbonPrice/postsolve.gms:151 [47_regipol/regiCarbonPrice/postsolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(t,regi) = 0;
+    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → off with the default settings; holds in 227 of 387 REMIND configs
+- modules/47_regipol/regiCarbonPrice/postsolve.gms:962 [47_regipol/regiCarbonPrice/postsolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(ttot,regi)$(regi_group(ext_regi,regi) and (ttot.val ge cm_startyear)) = 0;  (same reason: also line 976)
+    ⚠ $ifthen not "%cm_regiExoPrice%" == "off" → off with the default settings; holds in 12 of 387 REMIND configs
+- modules/47_regipol/regiCarbonPrice/postsolve.gms:986 [47_regipol/regiCarbonPrice/postsolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(ttot,regi)$(ttot.val ge cm_startyear) = 0;  (same reason: also line 1001)
+    ⚠ $ifthen not "%cm_regiExoPrice_fromFile%" == "off" → off with the default settings; holds in 0 of 387 REMIND configs
+- modules/47_regipol/regiCarbonPrice/presolve.gms:24 [47_regipol/regiCarbonPrice/presolve] ⚠ doesn't run with the default settings  pm_taxCO2eqSum(t,regi) = 0;
+    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → off with the default settings; holds in 227 of 387 REMIND configs
 ### Used in equations (7 lines: 7 ✓; 21_tax, 33_carbonRemoval)
 - per file: modules/21_tax/on/equations.gms 6 ✓, modules/33_carbonRemoval/portfolio/equations.gms 1 ✓
 - equations: q21_taxrevGHG, q21_taxrevCO2Sector, q21_taxrevCO2luc, q21_taxrevImport, q21_taxrevCDR, q33_carbonRemovalspending

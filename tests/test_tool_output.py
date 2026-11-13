@@ -45,13 +45,13 @@ def test_runtime_guard_inactive_by_default():
     assigned = section(out, "Assigned")
     assert "core/presolve.gms:10" in assigned
     postsolve = [line for line in assigned.split("\n- ") if line.startswith("core/postsolve.gms:51")]
-    assert postsolve and "cm_emiscen eq 6) → inactive by default" in postsolve[0]
+    assert postsolve and "cm_emiscen eq 6) → off with the default settings" in postsolve[0]
 
 
 def test_elseif_head_of_the_default_branch_runs():
     # R8: all three c_geoStorPotScen branch heads were ⚠, the default one (eq 3) included
     out = server.get_switch("c_geoStorPotScen")
-    assert "core/datainput.gms:1210 ✓ runs by default  elseif (c_geoStorPotScen eq 3)," in out
+    assert "core/datainput.gms:1210 ✓ runs with the default settings  elseif (c_geoStorPotScen eq 3)," in out
     assert "core/datainput.gms:1207 ⚠" in out
     # a head after the default branch (cm_so2tax_scen = 1) holds none of that branch's code
     out = server.get_switch("cm_so2tax_scen")
@@ -89,7 +89,7 @@ def test_module_off_by_default_is_named():
 def test_ifthen_condition_inactive_by_default():
     # Q9/Q13-type: code under $ifthen of a switch that is off by default
     out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)
-    assert 'not "%cm_CO2PriceLimit%" == "off" → inactive by default' in out
+    assert 'not "%cm_CO2PriceLimit%" == "off" → off with the default settings' in out
 
 
 def test_budget_equation_marked_inactive():
@@ -317,7 +317,7 @@ def test_links_equations_with_variables():
 
 def test_links_of_an_equation_show_domain_condition():
     out = server.get_links("q_budgetCO2eqGlob")
-    assert "generated only if (cm_emiscen=6) → inactive by default" in out
+    assert "generated only if (cm_emiscen=6) → off with the default settings" in out
     assert "v_co2eqCum" in out and out.count("## ") == 1  # its members, not itself again
 
 
@@ -341,14 +341,14 @@ def test_links_default_realization_marked_positively():
 def test_links_non_default_marked_on_first_line():
     eqs = links_section(server.get_links("pm_taxCO2eq"), "In equations")
     line = next(x for x in eqs.splitlines() if x.startswith("- q02_taxrev_Add"))
-    assert line.endswith("⚠ not in a default run")
-    assert "1 run by default, 1 not in a default run" in eqs.splitlines()[0]
+    assert line.endswith("⚠ doesn't run with the default settings")
+    assert "1 ✓, 1 ⚠" in eqs.splitlines()[0]
 
 
 def test_symbol_use_lines_carry_status():
     assigned = section(server.get_symbol("pm_taxCO2eqSum", max_uses=60), "Assigned")
-    assert "core/presolve.gms:10 [core/presolve] ✓ runs by default" in assigned
-    assert "core/postsolve.gms:51 [core/postsolve] ⚠ not in a default run" in assigned
+    assert "core/presolve.gms:10 [core/presolve] ✓ runs with the default settings" in assigned
+    assert "core/postsolve.gms:51 [core/postsolve] ⚠ doesn't run with the default settings" in assigned
 
 
 def test_get_module_takes_name_and_module():

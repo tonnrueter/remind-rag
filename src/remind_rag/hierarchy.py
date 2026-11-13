@@ -4,8 +4,9 @@
 
 Prints the tables for MODULE_HIERARCHY docs (team and Claude versions). Every number comes from the index:
 the owner of a symbol is gms::codeCheck's interface owner (= declaring module), uses are the symbol_uses rows
-(declared / assigned / used in equations / read), each with its default status (✓ runs by default, ? depends on
-settings, ⚠ not in a default run) exactly as get_symbol shows it. Regenerate after a rebuild; never hand-edit.
+(declared / assigned / used in equations / read), each with its default status (✓ runs with the default
+settings, ? the settings don't decide it, ⚠ doesn't run) exactly as get_symbol shows it. Regenerate after a
+rebuild; never hand-edit.
 
 Interface symbols here are vm_ (variables), pm_ (parameters), qm_ (equations) and fm_ (input data). Switches
 (cm_) and scalar constants (sm_) are left out: every module reads cm_startyear, which says nothing about coupling.
@@ -67,7 +68,7 @@ def collect() -> dict:
 
 
 def analyse(data: dict, max_rank: int) -> dict:
-    """max_rank 0: only uses that run in a default run; 1: plus 'depends on settings'; 2: all code."""
+    """max_rank 0: only uses that run with the default settings; 1: plus the undecided ones; 2: all code."""
     owners, uses = data["owners"], [u for u in data["uses"] if u[5] <= max_rank]
     # fmt: off
     readers = defaultdict(set)      # symbol -> modules using it (read / in equations / assigned), owner excluded

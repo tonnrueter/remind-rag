@@ -1,26 +1,26 @@
 # Links of vm_cap — positive variable "net total capacities [TW] for energy conversion technologies, [GtC] for CCS chain in ccs2te (pipelines/injection)" [declared in core]
-One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on settings · [module] = declared outside the statement's module.
-## Computed from (statements assigning vm_cap) (108 statements: 71 run by default, 2 depend on settings, 35 not in a default run)
-- core/bounds.gms:33 ✓ runs by default  constant or set-based (no symbol inputs)
-- core/bounds.gms:49 ✓ runs by default  constant or set-based (no symbol inputs)
-- core/bounds.gms:73 ✓ runs by default  from pm_histCap
-- core/bounds.gms:76 ✓ runs by default  from pm_histCap
-- core/bounds.gms:77 ✓ runs by default  from pm_histCap
-- core/bounds.gms:78 ✓ runs by default  from pm_histCap
-- core/bounds.gms:80 ✓ runs by default  from pm_histCap
-- core/bounds.gms:82 ✓ runs by default  from pm_histCap
-- core/bounds.gms:86 ✓ runs by default  from pm_histCap
-- core/bounds.gms:125 ✓ runs by default  from pm_eta_conv, pm_gdp
-- core/bounds.gms:176 ⚠ not in a default run  constant or set-based (no symbol inputs); :177 constant or set-based (no symbol inputs); :178 constant or set-based (no symbol inputs)
-    ⚠ $ifthen not "%c_BCLearning%" == 0 → inactive by default; holds in 0 of 387 REMIND configs
-- core/bounds.gms:231 ⚠ not in a default run  constant or set-based (no symbol inputs)
-    ⚠ inside if cm_nucscen = 5 → inactive by default; holds in 8 of 387 REMIND configs
-- core/bounds.gms:383 ⚠ not in a default run  constant or set-based (no symbol inputs)
-    ⚠ inside if cm_emiscen = 1 → inactive by default; holds in 0 of 387 REMIND configs
+One hop. Reasons for ⚠ / ? below the entry · [module] = declared outside the statement's module.
+## Computed from (statements assigning vm_cap) (108 statements: 71 ✓, 2 ?, 35 ⚠)
+- core/bounds.gms:33 ✓ runs with the default settings  constant or set-based (no symbol inputs)
+- core/bounds.gms:49 ✓ runs with the default settings  constant or set-based (no symbol inputs)
+- core/bounds.gms:73 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:76 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:77 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:78 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:80 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:82 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:86 ✓ runs with the default settings  from pm_histCap
+- core/bounds.gms:125 ✓ runs with the default settings  from pm_eta_conv, pm_gdp
+- core/bounds.gms:176 ⚠ doesn't run with the default settings  constant or set-based (no symbol inputs); :177 constant or set-based (no symbol inputs); :178 constant or set-based (no symbol inputs)
+    ⚠ $ifthen not "%c_BCLearning%" == 0 → off with the default settings; holds in 0 of 387 REMIND configs
+- core/bounds.gms:231 ⚠ doesn't run with the default settings  constant or set-based (no symbol inputs)
+    ⚠ inside if cm_nucscen = 5 → off with the default settings; holds in 8 of 387 REMIND configs
+- core/bounds.gms:383 ⚠ doesn't run with the default settings  constant or set-based (no symbol inputs)
+    ⚠ inside if cm_emiscen = 1 → off with the default settings; holds in 0 of 387 REMIND configs
 - ... 93 more (core 32, 40_techpol 29, 47_regipol 20, 39_carbonUtilization 6, 33_carbonRemoval 4, 32_power 1, 37_industry 1): get_symbol("vm_cap", role=…, module=…) lists them
-## Feeds into (statements reading vm_cap and assigning another symbol) (1 statements: 1 run by default)
+## Feeds into (statements reading vm_cap and assigning another symbol) (1 statements: 1 ✓)
 - modules/70_water/heat/output.gms:29 ✓ default realization  → p70_cap_vintages_share
-## In equations (other symbols in the same equation) (34 equations: 24 run by default, 10 not in a default run)
+## In equations (other symbols in the same equation) (34 equations: 24 ✓, 10 ⚠)
 - q32_elh2capfromTestor  modules/32_power/IntC/equations.gms ✓ default realization
     variables: -
     parameters / switches: p32_storageCap, p32_phaseInElh2cap
@@ -51,11 +51,11 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
 - q40_ElecBioBound  modules/40_techpol/NPi2025/equations.gms ✓ default realization
     variables: -
     parameters / switches: p40_ElecBioBound
-- q40_ElCap_RenShare  modules/40_techpol/NDC/equations.gms ⚠ not in a default run
+- q40_ElCap_RenShare  modules/40_techpol/NDC/equations.gms ⚠ doesn't run with the default settings
     variables: -
     parameters / switches: p40_ElCap_RenShare
     ⚠ non-default realization (default: NPi2025)
-- q40_NewRenBound  modules/40_techpol/CombLowCandCoalPO/equations.gms ⚠ not in a default run
+- q40_NewRenBound  modules/40_techpol/CombLowCandCoalPO/equations.gms ⚠ doesn't run with the default settings
     variables: -
     parameters / switches: p40_NewRenBound
     ⚠ non-default realization (default: NPi2025)

@@ -18,8 +18,9 @@ from remind_rag import server
 pytestmark = pytest.mark.remind  # sizes and lines of real REMIND output: only on an index of the baseline commit
 
 # 4,000 until single-quoted $ifthen tests were decided (pm_taxCO2eqSum: 4,214); 4,500 until one-line $if
-# statements counted as assignments under their test (vm_deltaCap: 4,706, FINDINGS 19)
-SYMBOL_BUDGET = 5_000
+# statements counted as assignments under their test (vm_deltaCap: 4,706, FINDINGS 19); 5,000 until the marks named
+# the settings (TODO 56: "✓ runs with the default settings", vm_deltaCap: 5,213; the wording is reviewed in 72)
+SYMBOL_BUDGET = 5_500
 MODULE_BUDGET = 6_000
 SEARCH_BUDGET = 5_000
 
@@ -38,7 +39,7 @@ def test_symbol_summary_lists_every_non_default_use_individually():
     # Q10: the overwrite in core/postsolve.gms:51 only runs with cm_emiscen = 6; a count alone would hide that
     out = server.get_symbol("pm_taxCO2eqSum")
     line = next((x for x in out.splitlines() if "core/postsolve.gms:51" in x), "")
-    assert "⚠" in line or "cm_emiscen eq 6) → inactive by default" in out
+    assert "⚠" in line or "cm_emiscen eq 6) → off with the default settings" in out
 
 
 def test_symbol_summary_counts_uses_per_role_and_file():
@@ -169,7 +170,7 @@ def test_links_merged_entries_keep_each_line():
         "modules/21_tax/on/postsolve.gms:21 ✓ default realization  → pm_taxrevGHG0; :22 → pm_taxrevCO2Sector0" in feeds
     )
     # default computations are never merged: each is a different way the value is computed
-    assert re.search(r"^- core/presolve\.gms:10 ✓ runs by default  from pm_taxCO2eq", feeds, re.M)
+    assert re.search(r"^- core/presolve\.gms:10 ✓ runs with the default settings  from pm_taxCO2eq", feeds, re.M)
 
 
 def test_switch_references_are_counted_not_silently_cut():

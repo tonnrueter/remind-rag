@@ -14,16 +14,16 @@ parameter
 ```
 ## Referenced in (53 lines: 13 ✓, 40 ⚠)
 - per file: modules/02_welfare/ineqLognormal/datainput.gms 9 ⚠, core/bounds.gms 3 (2 ✓, 1 ⚠), modules/80_optimization/nash/bounds.gms 3 (2 ✓, 1 ⚠), modules/80_optimization/nash/preloop.gms 3 (1 ✓, 2 ⚠), core/datainput.gms 2 ⚠, core/postsolve.gms 2 ⚠, +22 more files
-- core/bounds.gms:361 ✓ runs by default  if(not cm_emiscen = 1, !! cm_emiscen 1 = BAU
-- core/bounds.gms:501 ✓ runs by default  if(cm_emiscen > 1,
-- core/equations.gms:838 ✓ runs by default  q_budgetCO2eqGlob$(cm_emiscen=6)..
+- core/bounds.gms:361 ✓ runs with the default settings  if(not cm_emiscen = 1, !! cm_emiscen 1 = BAU
+- core/bounds.gms:501 ✓ runs with the default settings  if(cm_emiscen > 1,
+- core/equations.gms:838 ✓ runs with the default settings  q_budgetCO2eqGlob$(cm_emiscen=6)..
 - modules/24_trade/standard/bounds.gms:18 ✓ default realization  if (cm_emiscen = 1 or cm_emiscen = 9,
 - modules/80_optimization/nash/bounds.gms:20 ✓ default realization  vm_Xport.fx(ttot,regi,"perm")$(cm_emiscen eq 6) = 0;
 - modules/80_optimization/nash/bounds.gms:21 ✓ default realization  vm_Mport.fx(ttot,regi,"perm")$(cm_emiscen eq 6) = 0 ;
 - modules/80_optimization/nash/equations.gms:47 ✓ default realization  q80_budgetPermRestr(regi)$(cm_emiscen=6 OR cm_emiscen = 4) ..
 - modules/80_optimization/nash/preloop.gms:73 ✓ default realization  if((cm_emiscen eq 1) or (cm_emiscen eq 9), !! if there is no period trade, set the price to zero.
-- standalone/template.gms:126 ✓ runs by default  cm_emiscen "policy scenario choice"
-- standalone/template.gms:193 ✓ runs by default  cm_emiscen = 1; !! def = 1
+- standalone/template.gms:126 ✓ runs with the default settings  cm_emiscen "policy scenario choice"
+- standalone/template.gms:193 ✓ runs with the default settings  cm_emiscen = 1; !! def = 1
 - lines: get_symbol("cm_emiscen", role="read"[, module="…"]) (also role="assigned")
 ## In scenario configs: set in 223 of 387 REMIND configs
 - 9 (default): 377 (164 leave it empty)  [21_EU11 256 · H12 121]  e.g. SSP2-NPi2025-calibrate (scenario_config.csv:3), SSP2-NDC-LTS-pf (scenario_config.csv:4), SSP2-NDC-LTS-my (scenario_config.csv:5), +374 more

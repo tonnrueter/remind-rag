@@ -1,6 +1,6 @@
 [1] modules/80_optimization/nash/postsolve.gms:616-621  (gams_block)
 » realization nash: DEFAULT
-» compiled only if not "%internalizeDamages%" == "off": INACTIVE by default
+» compiled only if not "%internalizeDamages%" == "off" → off with the default settings
 Module 80 optimization, realization nash, postsolve (modules/80_optimization/nash/postsolve.gms)
 Only compiled if: not "%internalizeDamages%" == "off"
 ```
