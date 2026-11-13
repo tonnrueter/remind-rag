@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
-from .usage import eval_expr, switch_tests
+from .usage import eval_expr, set_content_tests, switch_tests
 
 # the marks as Claude reads them in the tool output (the reference test records them)
 OFF, DEPENDS, ON = "⚠ not in a default run", "? depends on settings", "✓ runs by default"
@@ -67,6 +67,7 @@ class DefaultRun:
     def __init__(self, db: sqlite3.Connection):
         self.db = db
         self._defaults: dict[str, str] | None = None
+        self._sets: set[str] | None = None
 
     @property
     def defaults(self) -> dict[str, str]:
@@ -74,6 +75,13 @@ class DefaultRun:
         if self._defaults is None:
             self._defaults = switch_defaults(self.db)
         return self._defaults
+
+    @property
+    def sets(self) -> set[str]:
+        """The set names of the index, lower case; read once per index."""
+        if self._sets is None:
+            self._sets = {r["name"].lower() for r in self.db.execute("SELECT name FROM symbols WHERE kind = 'set'")}
+        return self._sets
 
     # ---------------------------------------------------------------- modules and conditions
 
@@ -155,6 +163,10 @@ class DefaultRun:
             # about settings, and marking it "?" would flag a large part of REMIND
             elif "depends" in v and any(t for t, _ in switch_tests(g, self.defaults)):
                 tags.append(v)
+            # what a set holds at run time (`if(card(te_used33) eq 0,`): such sets are filled under switches
+            # (te_used33 by cm_33DAC, cm_33EW, cm_33OAE), which the defaults don't evaluate (../TODO.md #56, #61)
+            elif "depends" in v and (names := set_content_tests(g, self.sets)):
+                tags.append(f"inside if {' '.join(g.split())}: depends on what {', '.join(names)} holds at run time")
         return tags
 
     def mark(self, u, tags: list[str]) -> str:

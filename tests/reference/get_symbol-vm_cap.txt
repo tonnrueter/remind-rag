@@ -11,7 +11,7 @@
 - 47_regipol/none: questionnaire
 ## Uses (156 lines)
 ### Declared (1 lines: 1 ✓; core)
-### Assigned / fixed / loaded (108 lines: 71 ✓, 2 ?, 35 ⚠; 32_power, 33_carbonRemoval, 37_industry, 39_carbonUtilization, 40_techpol, 47_regipol, core)
+### Assigned / fixed / loaded (108 lines: 68 ✓, 5 ?, 35 ⚠; 32_power, 33_carbonRemoval, 37_industry, 39_carbonUtilization, 40_techpol, 47_regipol, core)
 - per file: core/bounds.gms 46 (37 ✓, 2 ?, 7 ⚠), modules/47_regipol/regiCarbonPrice/bounds.gms 20 (14 ✓, 6 ⚠), modules/40_techpol/NPi2025/bounds.gms 9 ✓, modules/40_techpol/NDC/bounds.gms 7 ⚠, modules/39_carbonUtilization/on/bounds.gms 6 (5 ✓, 1 ⚠), modules/40_techpol/NDCplus/bounds.gms 6 ⚠, +6 more files
 - core/preloop.gms:36 [core/preloop] ✓ runs by default  vm_cap.l(t,regi,te,rlf) = 0;
 - core/bounds.gms:176 [core/bounds] ⚠ not in a default run  vm_cap.fx("2015",regi,"biopyronly","1") = 0.001 / card(regi);  (same reason: also lines 177, 178)
@@ -24,8 +24,8 @@
     ⚠ inside if cm_emiscen = 1 → inactive by default
 - core/bounds.gms:490 [core/bounds] ⚠ not in a default run  vm_cap.lo(t,regi,"coalftrec","1") $ (t.val > 2005) = 0; !! also relax the lower bound on vm_cap to prevent in…  (same reason: also line 491)
     ⚠ $ifthen %c_SSP_forcing_adjust% == "forcing_SSP1" → inactive by default
-- modules/37_industry/subsectors/bounds.gms:139 [37_industry/subsectors/bounds] ⚠ not in a default run  vm_cap.fx(t,regi,teCCPrc,rlf) = 0.;
-    ⚠ inside if cm_co2captureSteel ne 1 OR cm_co2captureInd ne 1 → inactive by default
+- modules/33_carbonRemoval/portfolio/bounds.gms:42 [33_carbonRemoval/portfolio/bounds] ? depends on settings  vm_cap.lo(t,regi,"dac",rlf)$(teNoTransform2rlf33("dac",rlf) AND (t.val ge 2030)) = sm_eps;
+    ? inside if te_used33(): depends on what te_used33 holds at run time
 - lines: get_symbol("vm_cap", role="assigned"[, module="…"])
 ### Used in equations (41 lines: 31 ✓, 10 ⚠; 32_power, 33_carbonRemoval, 37_industry, 40_techpol, core)
 - per file: core/equations.gms 16 ✓, modules/32_power/IntC/equations.gms 9 ✓, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/33_carbonRemoval/portfolio/equations.gms 2 ✓, modules/37_industry/subsectors/equations.gms 2 ✓, +4 more files

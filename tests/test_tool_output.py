@@ -58,6 +58,14 @@ def test_elseif_head_of_the_default_branch_runs():
     assert "modules/21_tax/on/datainput.gms:88 ✓" in out and "modules/21_tax/on/datainput.gms:90 ⚠" in out
 
 
+def test_test_of_a_run_time_set_depends():
+    # R4: vm_emiCdr.fx = 0 under if(card(te_used33) eq 0, …) was ✓; te_used33 is filled under cm_33DAC (on)
+    out = server.get_symbol("vm_emiCdr", role="assigned", max_uses=60)
+    entry = next(e for e in out.split("\n- ") if e.startswith("modules/33_carbonRemoval/portfolio/bounds.gms:14 "))
+    assert "? depends on settings" in entry
+    assert "card(te_used33) eq 0: depends on what te_used33 holds at run time" in entry
+
+
 def test_roles_separate_declaring_and_assigning_modules():
     # Q10: 21_tax reads pm_taxCO2eqSum but never assigns it
     out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)

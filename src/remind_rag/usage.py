@@ -151,6 +151,24 @@ def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | 
     return list(out.items())
 
 
+# a test of what a set holds: card(s), or a literal element s("dac"); stored guards have their strings blanked: s()
+SET_CONTENT_RE = re.compile(r"""\bcard\s*\(\s*(\w+)\s*\)|(?<![\w.%$])(\w+)\s*\((?:\s|,|"[^"]*"|'[^']*')*\)""", re.I)
+
+
+def set_content_tests(text: str, sets: set[str]) -> list[str]:
+    """The sets whose contents `text` tests (`card(te_used33) eq 0`, `te_used33("dac")`), in order, each once.
+    `sets`: the known set names, lower case; a parameter `p_x("a")` doesn't count, nor a set indexed by a
+    variable (`pe2se(enty,enty2,te)` filters data, it asks nothing about the set).
+
+    >>> set_content_tests('card(te_used33) eq 0 and te_ccs33("dac")', {"te_used33", "te_ccs33"})
+    ['te_used33', 'te_ccs33']
+    >>> set_content_tests("sum(pe2se(,,te2), pm_IO_input(regi,,,te2)) gt 0", {"pe2se"})
+    []
+    """
+    names = ((a or b) for a, b in SET_CONTENT_RE.findall(text))
+    return list(dict.fromkeys(n for n in names if n.lower() in sets))
+
+
 def eval_expr(cond: str, defaults: dict[str, str]) -> bool | None:
     """Value of a run-time or $ifthen condition under the switch values in `defaults` (main.gms or a scenario):
     True, False, or None when the switches alone don't decide it. Switch tests become their truth values;
