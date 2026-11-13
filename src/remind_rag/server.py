@@ -45,8 +45,8 @@ server = MCPServer(
         "them and which modules consume them, get_switch for cm_*/c_* switches and module selections and for "
         "which scenario configs set them, "
         "get_module for a module's realizations, interfaces and limitations, get_scenario for a scenario's "
-        "settings, and search for conceptual questions (pass scenario=... only when the question is about a "
-        "specific scenario). "
+        "settings, and search for conceptual questions. Pass scenario=... to search, get_symbol, get_links or "
+        "get_switch only when the question is about a specific scenario: marks then rest on its settings. "
         "For 'how does X affect Y' or 'where does this value come from', follow the chain with get_links: it "
         "shows what a symbol is computed from, what is computed from it and which equations it shares, one hop "
         "at a time; call it again on the linked symbol that leads toward the target. "
@@ -95,10 +95,11 @@ def search(
         phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,
             bounds, postsolve, ...
         scenario: a scenario name from config/scenario_config*.csv (e.g. "SSP2-PkBudg1000"). Drops
-            realizations the scenario does not select and ranks code compiled out by its switches low.
-            Only use it when the question is about that scenario.
+            realizations the scenario does not select, ranks code compiled out by its switches low and judges
+            the » lines against it. Only use it when the question is about that scenario.
     """
     try:
+        st = _settings(scenario)
         rows = idx.search(
             query,
             k=max(1, min(k, 20)),
@@ -112,7 +113,7 @@ def search(
         return str(e)
     if not rows:
         return "No results."
-    return "\n\n".join(fmt_chunk(default_settings, r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
+    return "\n\n".join(fmt_chunk(st, r, i, cut=SEARCH_LINES) for i, r in enumerate(rows, 1))
 
 
 FULL_LIST_MAX = 15  # symbols with at most this many use lines get the full list instead of a summary
@@ -125,7 +126,12 @@ OTHER_READS = {"read": ("equation", "in equations"), "equation": ("read", "outsi
 
 @server.tool()
 def get_symbol(
-    name: str, role: str | None = None, module: str | None = None, offset: int = 0, max_uses: int = 40
+    name: str,
+    role: str | None = None,
+    module: str | None = None,
+    offset: int = 0,
+    max_uses: int = 40,
+    scenario: str | None = None,
 ) -> str:
     """Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.
 
@@ -134,7 +140,12 @@ def get_symbol(
     come as a summary per role (declared / assigned / equation / read) with counts per file and every use that
     does not run in a default run listed individually. For the lines themselves pass role="assigned" (or
     "equation", "read", "declared"), optionally module="core" / "33" and offset for the next page.
+    scenario="SSP2-PkBudg1000": marks against that scenario's settings instead of the defaults.
     """
+    try:
+        st = _settings(scenario)
+    except ValueError as e:
+        return str(e)
     uses = idx.db.execute(
         "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE ORDER BY path, line", (name,)
     ).fetchall()
@@ -150,12 +161,12 @@ def get_symbol(
         if not matching:
             return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + f".{also}"
         page = matching[offset : offset + max_uses]
-        out = [
+        out = _marks_line(st) + [
             f"# {name}: {ROLE_LABELS.get(role, 'all uses') if role else 'uses'}"
             + (f" in {module}" if module else "")
             + f", {offset + 1}–{offset + len(page)} of {len(matching)}{also}"
         ]
-        out += [use_line(default_settings, u, default_settings.use_tags(u)) for u in page]
+        out += [use_line(st, u, st.use_tags(u)) for u in page]
         if offset + len(page) < len(matching):
             out.append(f"- … next page: offset={offset + len(page)}")
         return "\n".join(out)
@@ -178,10 +189,12 @@ def get_symbol(
             elif reals:
                 loc += f"/{reals[0]}"
             # declared only in realizations a default run doesn't use: say so next to the declaration
-            default = default_settings.realization(mod)
+            default = st.realization(mod)
             note = ""
             if reals and default and default.lower() not in {x.lower() for x in reals}:
-                if default_settings.module_off(mod):
+                if st.name:
+                    note = f"  — only in realizations {st.name} doesn't select (it selects {default})"
+                elif st.module_off(mod):
                     note = f"  — module switched off by default ({default})"
                 else:
                     note = f"  — only in non-default realizations (default: {default})"
@@ -214,7 +227,7 @@ def get_symbol(
         out.append(
             "## Equation definition\n"
             + (f"Generated for (domain and $-condition): {head}\n" if head else "")
-            + fmt_chunk(default_settings, r, cut=60)
+            + fmt_chunk(st, r, cut=60)
         )
     if uses:
         groups: dict[str, list] = {}
@@ -227,16 +240,16 @@ def get_symbol(
             role_uses = groups.get(role_name, [])
             if not role_uses:
                 continue
-            tagged = [(u, default_settings.use_tags(u)) for u in role_uses]
-            split = mark_split(default_settings, tagged)
+            tagged = [(u, st.use_tags(u)) for u in role_uses]
+            split = mark_split(st, tagged)
             mods = sorted({u["module"] or u["path"] for u in role_uses})
             out.append(f"### {ROLE_LABELS[role_name]} ({len(role_uses)} lines: {split}; {', '.join(mods)})")
             if role_name == "declared" and not full:  # the declarations themselves are listed above
                 continue
             if full or len(role_uses) <= SHORT_ROLE:
-                out += [use_line(default_settings, u, t) for u, t in tagged]
+                out += [use_line(st, u, t) for u, t in tagged]
                 continue
-            out.append(f"- per file: {per_file(default_settings, tagged)}")
+            out.append(f"- per file: {per_file(st, tagged)}")
             if role_name == "equation":
                 names = Counter(u["context"] for u in role_uses if u["context"])
                 out.append(f"- equations: {', '.join(names)}")
@@ -247,9 +260,7 @@ def get_symbol(
             flagged = [(u, t) for u, t in tagged if t][:flagged_left]
             flagged_left = max(0, flagged_left - len(flagged))
             # each computation on its own line; uses that are off for the same reason share one
-            out += [use_line(default_settings, u, t, snippet=110) for u, t in computed] + grouped(
-                default_settings, flagged
-            )
+            out += [use_line(st, u, t, snippet=110) for u, t in computed] + grouped(st, flagged)
             if len(computed) + len(flagged) < len(role_uses):
                 out.append(f'- lines: get_symbol("{name}", role="{role_name}"[, module="…"])')
     if not out:
@@ -258,7 +269,7 @@ def get_symbol(
         ).fetchall()
         hint = ", ".join(r[0] for r in similar)
         return f"Symbol {name!r} not found." + (f" Similar: {hint}" if hint else " Try search().")
-    return "\n".join(out)
+    return "\n".join(_marks_line(st) + out)
 
 
 # declaring module and kind of every symbol, filled on first use: get_links asks for each linked name
@@ -303,7 +314,7 @@ class Link(NamedTuple):
 
 
 @server.tool()
-def get_links(name: str, max_links: int = 10) -> str:
+def get_links(name: str, max_links: int = 10, scenario: str | None = None) -> str:
     """Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are
     computed from it, and which other variables/parameters share an equation with it. Each link gives
     path:line, the declaring module of linked symbols when it differs, and whether the code runs in a
@@ -314,8 +325,14 @@ def get_links(name: str, max_links: int = 10) -> str:
         name: exact GAMS symbol (vm_*, pm_*, p33_*, q_*, s_*, ...) or equation name.
         max_links: maximum entries per section (default 10; links that don't run by default get at most half,
             the rest is counted per module).
+        scenario: judge the marks against this scenario's settings instead of the defaults.
     """
     from .links import equation_members, is_load, statement
+
+    try:
+        st = _settings(scenario)
+    except ValueError as e:
+        return str(e)
 
     decl = idx.db.execute(
         "SELECT kind, module, description FROM symbols WHERE name = ? COLLATE NOCASE", (name,)
@@ -337,20 +354,21 @@ def get_links(name: str, max_links: int = 10) -> str:
     out = [
         f"# Links of {name}"
         + (f' — {decl["kind"]} "{decl["description"]}" [declared in {decl["module"] or "core"}]' if decl else ""),
+        *_marks_line(st),
         "One hop. Reasons for ⚠ / ? below the entry · [module] = declared outside the statement's module.",
     ]
 
     # an equation: its members
     for r in eq_chunks:
-        tags = default_settings.use_tags(
+        tags = st.use_tags(
             {"module": r["module"], "realization": r["realization"], "conditions": r["conditions"], "guards": "[]"}
-        ) + default_settings.equation_status(r["path"], r["name"])
+        ) + st.equation_status(r["path"], r["name"])
         members = equation_members(idx.db, r["path"], r["name"])
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
         out.append(
             f"## Equation {r['name']}  {r['path']} [{'/'.join(x for x in (r['module'], r['realization']) if x)}]"
-            f" {default_settings.mark(r, tags)}"
+            f" {st.mark(r, tags)}"
             + detail(tags)
             + f"\n- variables: {_names(variables, r['module'], 40) or '-'}"
             + f"\n- parameters / scalars / switches: {_names(others, r['module'], 40) or '-'}"
@@ -367,7 +385,7 @@ def get_links(name: str, max_links: int = 10) -> str:
         if not stmt or (stmt.path, stmt.start) in seen:  # a statement over several lines: once
             continue
         seen.add((stmt.path, stmt.start))
-        tags = default_settings.use_tags(u)
+        tags = st.use_tags(u)
         if u["role"] == "assigned" or name in stmt.assigned:
             inputs = [n for n in stmt.names_from(u["line"]) if n.lower() != name.lower() and n not in stmt.assigned]
             if is_load(stmt):
@@ -376,14 +394,14 @@ def get_links(name: str, max_links: int = 10) -> str:
                 src = "from " + _names(inputs, u["module"])
             else:
                 src = "constant or set-based (no symbol inputs)"
-            computed.append(Link(rank(tags), u["path"], stmt.start, default_settings.mark(u, tags), src, tags))
+            computed.append(Link(rank(tags), u["path"], stmt.start, st.mark(u, tags), src, tags))
         elif targets := [n for n in stmt.names if n in stmt.assigned and n.lower() != name.lower()]:
             feeds.append(
                 Link(
                     rank(tags),
                     u["path"],
                     stmt.start,
-                    default_settings.mark(u, tags),
+                    st.mark(u, tags),
                     f"→ {_names(targets, u['module'])}",
                     tags,
                 )
@@ -440,12 +458,12 @@ def get_links(name: str, max_links: int = 10) -> str:
 
     eq_items = []
     for (path, eq), u in equations.items():
-        tags = default_settings.use_tags(u) + default_settings.equation_status(path, eq)
+        tags = st.use_tags(u) + st.equation_status(path, eq)
         members = [n for n in equation_members(idx.db, path, eq) if n.lower() != name.lower()]
         variables = [n for n in members if "variable" in _kind(n)]
         others = [n for n in members if n not in variables]
         text = (
-            f"{eq}  {path} {default_settings.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
+            f"{eq}  {path} {st.mark(u, tags)}\n    variables: {_names(variables, u['module']) or '-'}"
             f"\n    parameters / switches: {_names(others, u['module'], 8) or '-'}"
         )
         eq_items.append(Link(rank(tags), None, eq, "", text, tags))  # path None: rendered as is, never merged
@@ -509,6 +527,31 @@ def _config_reach(cond: str) -> str | None:
 
 
 default_settings.reach = _config_reach
+_SCENARIOS: dict[str, Settings] = {}
+
+
+def _settings(scenario: str | None) -> Settings:
+    """The default settings, or a scenario's (its first REMIND row; one Settings per name). ValueError with
+    similar names for an unknown scenario."""
+    if not scenario:
+        return default_settings
+    key = scenario.lower()
+    if key not in _SCENARIOS:
+        try:
+            _SCENARIOS[key] = default_settings.scenario(scenario)
+        except ValueError as e:
+            similar = idx.db.execute(
+                "SELECT DISTINCT name FROM scenarios WHERE name LIKE ? AND name != ? COLLATE NOCASE LIMIT 10",
+                (f"%{scenario}%", scenario),
+            ).fetchall()
+            raise ValueError(f"{e}." + (f" Similar: {', '.join(r[0] for r in similar)}" if similar else "")) from e
+    return _SCENARIOS[key]
+
+
+def _marks_line(st: Settings) -> list[str]:
+    """With a scenario, the line saying which settings the marks rest on; none for the defaults."""
+    return [f"Marks: {st.label} ({st.source})"] if st.name else []
+
 
 CONFIG_GROUPS_LISTED = 8  # values (or value combinations) listed with their configs; the rest in one line
 CONFIG_EXAMPLES = 3  # example rows per listed value
@@ -597,7 +640,7 @@ def _config_use(name: str, value: str | None = None, also: str | None = None) ->
 
 
 @server.tool()
-def get_switch(name: str, value: str | None = None, also: str | None = None) -> str:
+def get_switch(name: str, value: str | None = None, also: str | None = None, scenario: str | None = None) -> str:
     """Look up a configuration switch (cm_*, c_*, a module selection like "carbonprice", or a scenario-config
     column like "regionmapping" / "path_gdx_ref"): its documentation, default and allowed values, which scenario
     configs run with which value (counts per value and region mapping, example rows; copyConfigFrom resolved,
@@ -606,7 +649,12 @@ def get_switch(name: str, value: str | None = None, also: str | None = None) -> 
     value="x": only the configs that run with x, named. also="a,b": split the configs by other settings, e.g.
     get_switch("carbonprice", value="NDC", also="path_gdx_ref,path_gdx_bau"). With either, only the config part.
     Module selections and $setglobal flags act at compile time (which code exists); scalar switches act at run
-    time, and code reassigns a few (cm_iteration_max, cm_peakBudgYr): marks use the main.gms value."""
+    time, and code reassigns a few (cm_iteration_max, cm_peakBudgYr): marks use the main.gms value.
+    scenario="SSP2-PkBudg1000": the scenario's value and marks against its settings."""
+    try:
+        st = _settings(scenario)
+    except ValueError as e:
+        return str(e)
     found = idx.db.execute("SELECT * FROM switches WHERE name = ? COLLATE NOCASE", (name,)).fetchall()
     if not found:
         key = name.lower()
@@ -629,10 +677,12 @@ def get_switch(name: str, value: str | None = None, also: str | None = None) -> 
                 *_config_use(sw["name"], value, also),
             ]
         )
-    out = []
+    out = _marks_line(st)
     for sw in found:
+        here = f"{st.name}: {st.values.get(sw['name'].lower()) or EMPTY} (default {sw['default_value']})"
         out.append(
-            f"## {sw['name']}  default: {sw['default_value']}"
+            f"## {sw['name']}  "
+            + (here if st.name else f"default: {sw['default_value']}")
             + (f"  allowed (regexp): {sw['allowed']}" if sw["allowed"] else "")
             + f"  [{sw['path']}:{sw['line']}]"
         )
@@ -643,16 +693,14 @@ def get_switch(name: str, value: str | None = None, also: str | None = None) -> 
         "SELECT * FROM symbol_uses WHERE name = ? COLLATE NOCASE AND path != 'main.gms' ORDER BY path, line", (name,)
     ).fetchall()
     if uses:
-        tagged = [(u, default_settings.use_tags(u)) for u in uses]
-        split = mark_split(default_settings, tagged)
+        tagged = [(u, st.use_tags(u)) for u in uses]
+        split = mark_split(st, tagged)
         out.append(f"## Referenced in ({len(uses)} lines: {split})")
         if len(uses) > SWITCH_REFS_LISTED:
-            out.append(f"- per file: {per_file(default_settings, tagged)}")
+            out.append(f"- per file: {per_file(st, tagged)}")
         # code that runs by default first: that is what the default value actually steers
         shown = sorted(tagged, key=lambda x: rank(x[1]))[:SWITCH_REFS_LISTED]
-        out += [
-            f"- {u['path']}:{u['line']} {default_settings.mark(u, t)}  {short(u['snippet'], 110)}" for u, t in shown
-        ]
+        out += [f"- {u['path']}:{u['line']} {st.mark(u, t)}  {short(u['snippet'], 110)}" for u, t in shown]
         if len(uses) > SWITCH_REFS_LISTED:
             out.append(f'- lines: get_symbol("{found[0]["name"]}", role="read"[, module="…"]) (also role="assigned")')
     out += _config_use(found[0]["name"])

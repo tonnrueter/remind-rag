@@ -117,10 +117,11 @@ def _compare(a: str, op: str, b: str) -> bool | None:
     return {"==": x == y, "!=": x != y, ">=": x >= y, "<=": x <= y, ">": x > y, "<": x < y}[op]
 
 
-def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | None]]:
+def switch_tests(text: str, defaults: dict[str, str], label: str = "default") -> list[tuple[str, bool | None]]:
     """Switch comparisons in the code of `text` (`cm_emiscen eq 6`, `"%carbonprice%" == "NDC"`), each with its
     value under the main.gms defaults (None: not decidable). Only names that are known switches count; comments
-    and message strings don't (`!! for cm_startyear = 2005 ...` is prose, not a test). Each test once.
+    and message strings don't (`!! for cm_startyear = 2005 ...` is prose, not a test). Each test once. `label`
+    names the values in the text (a scenario's name instead of "default").
 
     >>> switch_tests("if(cm_emiscen eq 6, p = 1); !! cm_emiscen = 1 is prose", {"cm_emiscen": "9"})
     [('cm_emiscen eq 6  (default cm_emiscen = 9)', False)]
@@ -137,7 +138,7 @@ def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | 
         if key is None:
             continue
         out.setdefault(
-            f"{name} {m.group(2)} {val}  (default {key} = {defaults[key]})", _compare(defaults[key], op, val)
+            f"{name} {m.group(2)} {val}  ({label} {key} = {defaults[key]})", _compare(defaults[key], op, val)
         )
     for m in STR_TEST_RE.finditer(text):
         neg, name, op, val = m.group(1), m.group(2), OPS[m.group(3).lower()], m.group(4)
@@ -147,5 +148,5 @@ def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | 
         r = _compare(defaults[key], op, val)
         if r is not None and neg:
             r = not r
-        out.setdefault(f"{m.group(0).strip()}  (default {key} = {defaults[key]})", r)
+        out.setdefault(f"{m.group(0).strip()}  ({label} {key} = {defaults[key]})", r)
     return list(out.items())

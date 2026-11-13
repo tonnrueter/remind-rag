@@ -213,14 +213,18 @@ class Settings:
         return holds(self.trees[cond], self.values, self.compile)
 
     def realization_status(self, module: str | None, realization: str | None) -> str | None:
-        """'realization X: DEFAULT' or 'realization X: NOT DEFAULT (...)' with the switch that selects it; None
-        for code outside a realization."""
+        """'realization X: DEFAULT' or 'realization X: NOT DEFAULT (...)' with the switch that selects it (a
+        scenario: 'selected by S' / 'not selected by S (...)'); None for code outside a realization."""
         sel = self.selected(module, realization)
         if sel is None:
             return None
+        chosen, switch = self.realization(module), module.partition("_")[2]
+        if self.name:
+            if sel:
+                return f"realization {realization}: selected by {self.name}"
+            return f"realization {realization}: not selected by {self.name} (it selects {chosen}; via ${switch})"
         if sel:
             return f"realization {realization}: DEFAULT"
-        chosen, switch = self.realization(module), module.partition("_")[2]
         if self.module_off(module):
             return (
                 f"realization {realization}: NOT DEFAULT (module {module} is switched off by default: "
@@ -257,11 +261,12 @@ class Settings:
         for c in json.loads(r["conditions"] or "[]"):
             out.append(self.condition_status(c, "compiled only if"))
         if r["kind"] in ("equation", "gams_block", "declaration"):
-            tests = switch_tests(r["text"], self.as_written)
+            tests = switch_tests(r["text"], self.as_written, self.name or "default")
             if tests:
                 shown = [f"{t} → {TRUTH[v]}" for t, v in tests[:max_tests]]
                 more = f" (+{len(tests) - max_tests} more)" if len(tests) > max_tests else ""
-                out.append("switch tests in this code (with default values): " + "; ".join(shown) + more)
+                values = f"{self.name} values" if self.name else "default values"
+                out.append(f"switch tests in this code (with {values}): " + "; ".join(shown) + more)
         return out
 
     # ---------------------------------------------------------------- use lines (✓ / ⚠ / ?)
@@ -274,11 +279,12 @@ class Settings:
         tags = []
         if self.selected(u["module"], u["realization"]) is False:
             chosen = self.realization(u["module"])
-            text = (
-                f"module switched off by default ({chosen})"
-                if self.module_off(u["module"])
-                else f"non-default realization (default: {chosen})"
-            )
+            if self.name:
+                text = f"realization not selected by {self.name} (it selects {chosen})"
+            elif self.module_off(u["module"]):
+                text = f"module switched off by default ({chosen})"
+            else:
+                text = f"non-default realization (default: {chosen})"
             tags.append(Reason(text, True))
         for c in json.loads(u["conditions"] or "[]"):
             # an $ifthen the settings don't decide: "?" (it showed ✓ without a word, TODO 56)

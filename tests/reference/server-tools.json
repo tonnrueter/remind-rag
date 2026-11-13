@@ -1,7 +1,7 @@
 [
  {
   "name": "search",
-  "description": "Hybrid (keyword + semantic) search over REMIND code and docs.\n\nArgs:\n    query: natural-language question or identifiers.\n    k: number of chunks to return (default 5, at most 20). Long chunks are cut after 12 lines, with a\n        path:line range for the rest (read the file for it).\n    module: restrict to a module, e.g. \"33\", \"carbonRemoval\", \"33_carbonRemoval\" or \"core\".\n    realization: restrict to a realization, e.g. \"portfolio\", \"nash\".\n    kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,\n        module_interface, limitations, scenario, gams_block, r_code, md_section.\n    phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,\n        bounds, postsolve, ...\n    scenario: a scenario name from config/scenario_config*.csv (e.g. \"SSP2-PkBudg1000\"). Drops\n        realizations the scenario does not select and ranks code compiled out by its switches low.\n        Only use it when the question is about that scenario.\n",
+  "description": "Hybrid (keyword + semantic) search over REMIND code and docs.\n\nArgs:\n    query: natural-language question or identifiers.\n    k: number of chunks to return (default 5, at most 20). Long chunks are cut after 12 lines, with a\n        path:line range for the rest (read the file for it).\n    module: restrict to a module, e.g. \"33\", \"carbonRemoval\", \"33_carbonRemoval\" or \"core\".\n    realization: restrict to a realization, e.g. \"portfolio\", \"nash\".\n    kind: restrict to a chunk kind: equation, declaration, switch, module_doc, realization_doc,\n        module_interface, limitations, scenario, gams_block, r_code, md_section.\n    phase: restrict to a GAMS phase file: sets, declarations, datainput, equations, preloop, presolve,\n        bounds, postsolve, ...\n    scenario: a scenario name from config/scenario_config*.csv (e.g. \"SSP2-PkBudg1000\"). Drops\n        realizations the scenario does not select, ranks code compiled out by its switches low and judges\n        the » lines against it. Only use it when the question is about that scenario.\n",
   "parameters": {
    "properties": {
     "query": {
@@ -83,7 +83,7 @@
  },
  {
   "name": "get_symbol",
-  "description": "Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.\n\nReturns its declaration(s) with domain and description/unit, which module declares it and which modules\nconsume it (gms::codeCheck), the equation definition if it is an equation, and where it is used. Use sites\ncome as a summary per role (declared / assigned / equation / read) with counts per file and every use that\ndoes not run in a default run listed individually. For the lines themselves pass role=\"assigned\" (or\n\"equation\", \"read\", \"declared\"), optionally module=\"core\" / \"33\" and offset for the next page.\n",
+  "description": "Look up a GAMS symbol (variable, parameter, scalar, equation, set, table) by exact name.\n\nReturns its declaration(s) with domain and description/unit, which module declares it and which modules\nconsume it (gms::codeCheck), the equation definition if it is an equation, and where it is used. Use sites\ncome as a summary per role (declared / assigned / equation / read) with counts per file and every use that\ndoes not run in a default run listed individually. For the lines themselves pass role=\"assigned\" (or\n\"equation\", \"read\", \"declared\"), optionally module=\"core\" / \"33\" and offset for the next page.\nscenario=\"SSP2-PkBudg1000\": marks against that scenario's settings instead of the defaults.\n",
   "parameters": {
    "properties": {
     "name": {
@@ -123,6 +123,18 @@
      "default": 40,
      "title": "Max Uses",
      "type": "integer"
+    },
+    "scenario": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scenario"
     }
    },
    "required": [
@@ -134,7 +146,7 @@
  },
  {
   "name": "get_links",
-  "description": "Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are\ncomputed from it, and which other variables/parameters share an equation with it. Each link gives\npath:line, the declaring module of linked symbols when it differs, and whether the code runs in a\ndefault configuration. Call get_links again on a linked name for the next hop; use it to trace how an\neffect travels across modules (e.g. from a carbon price to land-use emissions).\n\nArgs:\n    name: exact GAMS symbol (vm_*, pm_*, p33_*, q_*, s_*, ...) or equation name.\n    max_links: maximum entries per section (default 10; links that don't run by default get at most half,\n        the rest is counted per module).\n",
+  "description": "Follow a GAMS symbol one hop through the code: which symbols it is computed from, which symbols are\ncomputed from it, and which other variables/parameters share an equation with it. Each link gives\npath:line, the declaring module of linked symbols when it differs, and whether the code runs in a\ndefault configuration. Call get_links again on a linked name for the next hop; use it to trace how an\neffect travels across modules (e.g. from a carbon price to land-use emissions).\n\nArgs:\n    name: exact GAMS symbol (vm_*, pm_*, p33_*, q_*, s_*, ...) or equation name.\n    max_links: maximum entries per section (default 10; links that don't run by default get at most half,\n        the rest is counted per module).\n    scenario: judge the marks against this scenario's settings instead of the defaults.\n",
   "parameters": {
    "properties": {
     "name": {
@@ -145,6 +157,18 @@
      "default": 10,
      "title": "Max Links",
      "type": "integer"
+    },
+    "scenario": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scenario"
     }
    },
    "required": [
@@ -156,7 +180,7 @@
  },
  {
   "name": "get_switch",
-  "description": "Look up a configuration switch (cm_*, c_*, a module selection like \"carbonprice\", or a scenario-config\ncolumn like \"regionmapping\" / \"path_gdx_ref\"): its documentation, default and allowed values, which scenario\nconfigs run with which value (counts per value and region mapping, example rows; copyConfigFrom resolved,\nan empty cell counts as the default), and the GAMS and R lines that reference it with their default status\n(✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role=\"read\").\nvalue=\"x\": only the configs that run with x, named. also=\"a,b\": split the configs by other settings, e.g.\nget_switch(\"carbonprice\", value=\"NDC\", also=\"path_gdx_ref,path_gdx_bau\"). With either, only the config part.\nModule selections and $setglobal flags act at compile time (which code exists); scalar switches act at run\ntime, and code reassigns a few (cm_iteration_max, cm_peakBudgYr): marks use the main.gms value.",
+  "description": "Look up a configuration switch (cm_*, c_*, a module selection like \"carbonprice\", or a scenario-config\ncolumn like \"regionmapping\" / \"path_gdx_ref\"): its documentation, default and allowed values, which scenario\nconfigs run with which value (counts per value and region mapping, example rows; copyConfigFrom resolved,\nan empty cell counts as the default), and the GAMS and R lines that reference it with their default status\n(✓ / ⚠ / ?), code that runs by default first. All lines: get_symbol(name, role=\"read\").\nvalue=\"x\": only the configs that run with x, named. also=\"a,b\": split the configs by other settings, e.g.\nget_switch(\"carbonprice\", value=\"NDC\", also=\"path_gdx_ref,path_gdx_bau\"). With either, only the config part.\nModule selections and $setglobal flags act at compile time (which code exists); scalar switches act at run\ntime, and code reassigns a few (cm_iteration_max, cm_peakBudgYr): marks use the main.gms value.\nscenario=\"SSP2-PkBudg1000\": the scenario's value and marks against its settings.",
   "parameters": {
    "properties": {
     "name": {
@@ -186,6 +210,18 @@
      ],
      "default": null,
      "title": "Also"
+    },
+    "scenario": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Scenario"
     }
    },
    "required": [

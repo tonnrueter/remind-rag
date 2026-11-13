@@ -576,3 +576,25 @@ def test_config_column_that_is_no_switch():
 def test_unknown_second_setting_is_flagged():
     out = configs("carbonprice", also="cm_no_such_switch")
     assert "- note: cm_no_such_switch is no main.gms switch and no config sets it" in out
+
+
+# ------------------------------------------------------------------ 56: marks against a scenario's settings
+
+
+def test_scenario_marks_rest_on_its_settings():
+    # SSP2-PkBudg650 selects carbonprice = functionalForm (not the default NPi2025): its code runs there
+    sc = "SSP2-PkBudg650"
+    plain, scen = server.get_switch("carbonprice"), server.get_switch("carbonprice", scenario=sc)
+    assert not plain.startswith("Marks:") and scen.startswith(f"Marks: {sc} settings (config/scenario_config")
+    assert f"## carbonprice  {sc}: functionalForm (default " in scen
+    lines = server.get_symbol("s45_actualbudgetco2", role="assigned", module="45")
+    lines_sc = server.get_symbol("s45_actualbudgetco2", role="assigned", module="45", scenario=sc)
+    assert "non-default realization (default: NPi2025)" in lines
+    assert "realization not selected" not in lines_sc and "non-default realization" not in lines_sc
+    hits = server.search("functionalForm carbon price trajectory", k=8, scenario=sc)
+    assert f"» realization functionalForm: selected by {sc}" in hits and "NOT DEFAULT" not in hits
+
+
+def test_unknown_scenario_names_similar_ones():
+    out = server.get_links("vm_cap", scenario="PkBudg650")
+    assert out.startswith("unknown scenario 'PkBudg650'. Similar: ") and "SSP2-PkBudg650" in out
