@@ -11,7 +11,7 @@ import sqlite_vec
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 PINNED = DATA / "remind-bge.db"  # the index used when REMIND_RAG_DB is not set; index --promote copies to it
-SCHEMA_VERSION = 1  # bump when tables or their meaning change; the server refuses older indexes
+SCHEMA_VERSION = 2  # bump when tables or their meaning change; the server refuses older indexes
 
 SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -50,6 +50,9 @@ CREATE INDEX module_interfaces_name ON module_interfaces(name COLLATE NOCASE);
 CREATE TABLE not_used (module TEXT, realization TEXT, name TEXT, type TEXT, reason TEXT);
 CREATE TABLE scenarios (name TEXT, path TEXT, line INTEGER, settings TEXT, description TEXT);
 CREATE INDEX scenarios_name ON scenarios(name COLLATE NOCASE);
+-- every condition text stored above ($ifthen conditions, if() guards, abort_if, equation $-conditions) parsed
+-- once: tree = JSON (conditions.py)
+CREATE TABLE conditions (text TEXT PRIMARY KEY, tree TEXT);
 """
 
 

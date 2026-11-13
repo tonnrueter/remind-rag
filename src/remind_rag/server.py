@@ -15,12 +15,12 @@ from typing import NamedTuple
 from mcp.server.mcpserver import MCPServer
 
 from . import checkout, embeddings, store
+from .conditions import holds, lower
 from .render import doc_text, first_sentence, fmt_chunk, grouped, mark_split, per_file, short, use_line
 from .scenarios import cfg_defaults, is_magpie_side, region_label
 from .search import Index, module_match
 from .status import DefaultRun, detail, equation_domain, rank
 from .steering import steering
-from .usage import eval_expr
 
 idx = Index(store.default_db())
 if (_schema := int(idx.meta.get("schema_version", 0))) < store.SCHEMA_VERSION:
@@ -492,8 +492,8 @@ def _config_defaults() -> dict[str, str]:
 
 @cache
 def _config_settings() -> list[dict[str, str]]:
-    """Per REMIND config, the main.gms switch values it runs with: its cell, else the default."""
-    return [{k: r.cells.get(k.lower(), v) for k, v in default_run.defaults.items()} for r in _config_rows()]
+    """Per REMIND config, the main.gms switch values it runs with (lower-case names): its cell, else the default."""
+    return [lower({k: r.cells.get(k.lower(), v) for k, v in default_run.defaults.items()}) for r in _config_rows()]
 
 
 @cache
@@ -502,7 +502,8 @@ def _config_reach(cond: str) -> str | None:
     alone may leave it open in some ("undecided in K": the rest of the condition tests data). None: no configs."""
     if not (settings := _config_settings()):
         return None
-    results = Counter(eval_expr(cond, s) for s in settings)
+    tree = default_run.trees[cond]
+    results = Counter(holds(tree, s) for s in settings)
     open_ = f", undecided in {results[None]}" if results[None] else ""
     return f"holds in {results[True]} of {len(settings)} REMIND configs{open_}"
 

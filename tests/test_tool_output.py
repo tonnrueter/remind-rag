@@ -113,6 +113,20 @@ def test_carbonprice_default_marked():
     assert re.search(r"realization functionalForm\s+\[not default\]", out)
 
 
+def test_every_condition_has_a_tree():
+    # 56: the readers evaluate the trees parsed at build time; a text without one would be parsed again at run time
+    db = server.idx.db
+    trees = {r[0] for r in db.execute("SELECT text FROM conditions")}
+    texts = set()
+    for r in db.execute("SELECT conditions, guards FROM symbol_uses"):
+        texts |= {*json.loads(r[0]), *json.loads(r[1])}
+    for r in db.execute("SELECT conditions FROM chunks WHERE conditions IS NOT NULL"):
+        texts |= set(json.loads(r[0]))
+    for r in db.execute("SELECT abort_if FROM preconditions"):
+        texts |= set(json.loads(r[0]))
+    assert texts and texts <= trees
+
+
 # ------------------------------------------------------------------ get_module: which switches steer a realization
 
 

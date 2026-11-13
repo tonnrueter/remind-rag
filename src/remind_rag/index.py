@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import checkout, embeddings, gmsdata, preconditions, scenarios, store
+from . import checkout, conditions, embeddings, gmsdata, preconditions, scenarios, store
 from .chunkers import chunk_file, declaration_entries, path_meta
 from .corpus import iter_files
 from .enrich import IDENT_RE, USE_KINDS, make_header, symbol_descriptions
@@ -32,6 +32,7 @@ from .gams import (
     line_conditions,
     stmt_end,
 )
+from .status import equation_condition
 from .usage import LOAD_RE, role
 
 
@@ -214,6 +215,22 @@ def build_uses(db, files: list[tuple[str, str]]) -> int:
     return len(uses)
 
 
+def build_conditions(db) -> int:
+    """Parse every condition text the tables above store into the conditions table (conditions.py): $ifthen
+    conditions and if() guards of uses and chunks, abort conditions, and equation $-conditions."""
+    texts = set()
+    for c, g in db.execute("SELECT conditions, guards FROM symbol_uses"):
+        texts |= {*json.loads(c), *json.loads(g)}
+    for (c,) in db.execute("SELECT conditions FROM chunks WHERE conditions IS NOT NULL"):
+        texts |= set(json.loads(c))
+    for (a,) in db.execute("SELECT abort_if FROM preconditions"):
+        texts |= set(json.loads(a))
+    for text, name in db.execute("SELECT text, name FROM chunks WHERE kind = 'equation'"):
+        if cond := equation_condition(text, name):
+            texts.add(cond)
+    return conditions.store(db, texts)
+
+
 def build_preconditions(db, root: Path) -> int:
     """Every abort in modules/ and core/ with the conditions that reach it, classified by preconditions.py:
     category precondition (switch settings alone) or assertion (data / run-time state), severity against the
@@ -347,6 +364,7 @@ def build(
 
     n_uses = build_uses(db, files)
     n_pre = build_preconditions(db, root)
+    n_cond = build_conditions(db)
 
     t1 = time.perf_counter()
     # GAMS tokenizes at ~2.6 chars/token, so embedding dominates build time on CPU. The model reads header + start
@@ -385,6 +403,7 @@ def build(
         "symbols": len(symbols),
         "symbol_uses": n_uses,
         "preconditions": n_pre,
+        "conditions": n_cond,
         "switches": len(switches),
         "scenarios": len(scens),
         "gms_export": bool(gms_export),

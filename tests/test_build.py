@@ -103,3 +103,33 @@ def test_ontext_blocks_are_no_uses(tmp_path):
     index.build_uses(db, [("core/presolve.gms", text)])
     rows = db.execute("SELECT name, line, role FROM symbol_uses").fetchall()
     assert [tuple(r) for r in rows] == [("p_b", 4, "assigned")]
+
+
+def test_every_stored_condition_is_parsed_once(tmp_path):
+    # 56: $ifthen conditions, if() guards and equation $-conditions get a tree in `conditions`; readers look it up
+    from remind_rag.conditions import Trees, holds
+
+    db = store.create(tmp_path / "t.db", 4)
+    db.execute("INSERT INTO symbols (name, kind) VALUES ('p_x', 'parameter')")
+    db.execute("INSERT INTO switches (name, value) VALUES ('cm_x', '2')")
+    eq = "q_x(t)$(cm_x eq 2)..\n  v_x(t) =e= p_x(t);"
+    db.execute(
+        "INSERT INTO chunks (id, kind, name, path, text) VALUES (1, 'equation', 'q_x', 'core/equations.gms', ?)", (eq,)
+    )
+    gms = '$ifthen "%cm_y%" == "on"\nif(cm_x eq 1,\n  p_x(t) = 1;\n);\n$endif\n'
+    index.build_uses(db, [("core/presolve.gms", gms)])
+    n = index.build_conditions(db)
+    stored = {r[0] for r in db.execute("SELECT text FROM conditions")}
+    assert stored == {'"%cm_y%" == "on"', "cm_x eq 1", "(cm_x eq 2)"} and n == 3
+    trees = Trees(db)
+    assert holds(trees["(cm_x eq 2)"], {"cm_x": "2"}) is True
+    assert trees["cm_x eq 1"] == ["sw", "cm_x", "==", "1", "r"]
+
+
+def test_conditions_of_an_index_without_the_table_are_parsed_on_the_spot(tmp_path):
+    # retrieval_eval reads old indexes (schema 1 has no conditions table)
+    from remind_rag.conditions import Trees
+
+    db = store.connect(tmp_path / "old.db")
+    db.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    assert Trees(db)["not (cm_x eq 1)"] == ["not", ["sw", "cm_x", "==", "1", "r"]]

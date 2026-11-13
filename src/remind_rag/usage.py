@@ -1,5 +1,5 @@
-"""How a symbol is used on a line (role), and switch tests and conditions evaluated against switch values
-(the main.gms defaults, or a scenario's). Used by the indexer (symbol_uses), the tools and the sweeps."""
+"""How a symbol is used on a line (role), and the switch tests in code with their values under the main.gms defaults.
+Used by the indexer (symbol_uses), the tools and the sweeps; whole conditions are evaluated in conditions.py."""
 
 from __future__ import annotations
 
@@ -149,71 +149,3 @@ def switch_tests(text: str, defaults: dict[str, str]) -> list[tuple[str, bool | 
             r = not r
         out.setdefault(f"{m.group(0).strip()}  (default {key} = {defaults[key]})", r)
     return list(out.items())
-
-
-def eval_expr(cond: str, defaults: dict[str, str]) -> bool | None:
-    """Value of a run-time or $ifthen condition under the switch values in `defaults` (main.gms or a scenario):
-    True, False, or None when the switches alone don't decide it. Switch tests become their truth values;
-    everything else (indexed symbols, sameas(), other comparisons) becomes an unknown, and the result counts
-    only if it is the same for every combination of the unknowns (at most 6 of them).
-
-    >>> d = {"cm_emiscen": "9", "optimization": "nash"}
-    >>> eval_expr("cm_emiscen eq 9 and not (%optimization% == 'negishi')", d)
-    True
-    >>> eval_expr("cm_emiscen eq 6 and sameas(t, '2005')", d)  # false whatever t is
-    False
-    >>> eval_expr("cm_emiscen eq 9 and sameas(t, '2005')", d) is None  # depends on t
-    True
-    """
-    # Approach: every switch test is replaced by a placeholder __t0, __t1, ... holding its truth value; every
-    # other operand becomes a placeholder with value None (unknown). What is left is a Python expression of
-    # placeholders, and/or/not and parentheses. It is evaluated for every True/False combination of the
-    # unknowns (a truth table): if all combinations agree, the switches decide it.
-    tokens: list[bool | None] = []
-
-    def sub(m: re.Match, string: bool) -> str:
-        if string:
-            neg, name, op, val = m.group(1), m.group(2), OPS[m.group(3).lower()], m.group(4)
-        else:
-            neg, name, op, val = None, m.group(1), OPS[m.group(2).lower()], m.group(3)
-        key = next((k for k in defaults if k.lower() == name.lower()), None)
-        r = None if key is None else _compare(defaults[key], op, val)
-        if r is not None and neg:
-            r = not r
-        tokens.append(r)
-        return f" __t{len(tokens) - 1} "
-
-    expr = STR_TEST_RE.sub(lambda m: sub(m, True), cond)
-    expr = TEST_RE.sub(lambda m: sub(m, False), expr)
-    if not tokens:
-        return None
-
-    def unknown(_m: re.Match) -> str:
-        tokens.append(None)
-        return f" __t{len(tokens) - 1} "
-
-    # everything that isn't a switch test becomes an unknown: function calls / indexed symbols, comparisons,
-    # bare names. The result is only reported if the switch tests alone decide it.
-    for _ in range(5):  # innermost calls first, so nested ones (up to 5 deep) go from the inside out
-        new = re.sub(r"(?<!\w)(?!(?:and|or|not)\b)[A-Za-z_][\w.]*\s*\([^()]*\)", unknown, expr, flags=re.I)
-        if new == expr:
-            break
-        expr = new
-    expr = re.sub(r"(?<!\w)[\w.\"']+\s*(?:eq|ne|gt|lt|ge|le|<>|<=|>=|<|>|=)\s*[-\w.\"']+", unknown, expr, flags=re.I)
-    expr = re.sub(r"(?<!\w)(?!(?:and|or|not)\b)(?!__t\d)[A-Za-z_]\w*", unknown, expr, flags=re.I)
-    if re.search(r"[^\w\s()]", expr):  # something left that isn't a placeholder, keyword or parenthesis
-        return None
-    py = re.sub(r"\b(and|or|not)\b", lambda m: m.group(1).lower(), expr, flags=re.I)
-    open_ = [i for i, t in enumerate(tokens) if t is None]
-    if len(open_) > 6:  # 2**6 = 64 combinations; with more unknowns the switches rarely decide anyway
-        return None
-    results = set()
-    for mask in range(2 ** len(open_)):
-        env = {f"__t{i}": t for i, t in enumerate(tokens)}
-        for j, i in enumerate(open_):
-            env[f"__t{i}"] = bool(mask >> j & 1)
-        try:
-            results.add(bool(eval(py, {"__builtins__": {}}, env)))  # noqa: S307 - only and/or/not/parens/names
-        except SyntaxError:
-            return None
-    return results.pop() if len(results) == 1 else None

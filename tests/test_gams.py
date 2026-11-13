@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import pytest
 
+from remind_rag.conditions import holds, lower, parse
 from remind_rag.gams import decl_start, if_guards, line_conditions, strip_comments
-from remind_rag.usage import eval_expr, role, switch_tests
+from remind_rag.usage import role, switch_tests
 
 DEFAULTS = {"cm_emiscen": "9", "cm_startyear": "2005", "carbonprice": "functionalForm", "optimization": "nash"}
 
@@ -87,8 +88,8 @@ def test_if_guards_ignore_comments_and_strings():
         ("ord(t) gt 1", None),  # no switch test at all
     ],
 )
-def test_eval_expr(cond, expected):
-    assert eval_expr(cond, DEFAULTS) is expected
+def test_condition_value(cond, expected):
+    assert holds(parse(cond), lower(DEFAULTS)) is expected
 
 
 @pytest.mark.parametrize(
@@ -101,7 +102,7 @@ def test_eval_expr(cond, expected):
 )
 def test_single_quoted_string_tests_are_decided(cond, expected):
     # `$ifi not %damages% == 'DiceLike'` was read with an empty value and stayed undecided
-    assert eval_expr(cond, DEFAULTS) is expected
+    assert holds(parse(cond), lower(DEFAULTS)) is expected
 
 
 # ------------------------------------------------------------------ #50: switch tests come from code only

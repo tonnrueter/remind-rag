@@ -7,7 +7,8 @@ import json
 import sqlite3
 from collections.abc import Callable
 
-from .usage import eval_expr, switch_tests
+from .conditions import Trees, holds, lower, tests_setting
+from .usage import switch_tests
 
 # the marks as Claude reads them in the tool output (the reference test records them)
 OFF, DEPENDS, ON = "⚠ not in a default run", "? depends on settings", "✓ runs by default"
@@ -25,6 +26,17 @@ def equation_domain(text: str, name: str) -> str | None:
     i = code.lower().find(name.lower())
     j = code.find("..", i)
     return " ".join(code[i:j].split()) if i >= 0 and j > i else None
+
+
+def equation_condition(text: str, name: str) -> str | None:
+    r"""The $-condition of an equation's domain (`q_x(t,regi)$(cond)..`: the part after the first $), None if it
+    has none.
+
+    >>> equation_condition("q_x(t)$(t.val ge 2010)..\n  v_x(t) =g= 0;", "q_x")
+    '(t.val ge 2010)'
+    """
+    head = equation_domain(text, name)
+    return head[head.index("$") + 1 :] if head and "$" in head else None
 
 
 def off(tag: str) -> bool:
@@ -68,6 +80,8 @@ class DefaultRun:
     def __init__(self, db: sqlite3.Connection):
         self.db = db
         self._defaults: dict[str, str] | None = None
+        self._values: dict[str, str] | None = None
+        self.trees = Trees(db)
         # condition -> "holds in N of M REMIND configs", set by the server (status can't read the configs' rows);
         # None (the hierarchy report): reasons without a config count
         self.reach: Callable[[str], str | None] | None = None
@@ -78,6 +92,13 @@ class DefaultRun:
         if self._defaults is None:
             self._defaults = switch_defaults(self.db)
         return self._defaults
+
+    @property
+    def values(self) -> dict[str, str]:
+        """The defaults keyed by lower-case name, as conditions.holds reads them."""
+        if self._values is None:
+            self._values = lower(self.defaults)
+        return self._values
 
     # ---------------------------------------------------------------- modules and conditions
 
@@ -109,8 +130,8 @@ class DefaultRun:
 
     def condition_status(self, cond: str, what: str) -> str:
         """'<what> <cond>: active by default' / 'INACTIVE by default' / 'depends on non-default settings',
-        from eval_expr under the defaults; `what` names the kind of condition ("$ifthen", "inside if", ...)."""
-        v = eval_expr(cond, self.defaults)
+        from its tree under the defaults; `what` names the kind of condition ("$ifthen", "inside if", ...)."""
+        v = holds(self.trees[cond], self.values)
         label = {True: "active by default", False: "INACTIVE by default"}.get(v, "depends on non-default settings")
         return f"{what} {' '.join(cond.split())}: {label}"
 
@@ -165,7 +186,7 @@ class DefaultRun:
                 tags.append(self.off_reason(v, g))
             # an undecided if() counts only if it tests a switch: one over data (`if(p_x gt 0,`) says nothing
             # about settings, and marking it "?" would flag a large part of REMIND
-            elif "depends" in v and any(t for t, _ in switch_tests(g, self.defaults)):
+            elif "depends" in v and tests_setting(self.trees[g], self.values):
                 tags.append(v)
         return tags
 
@@ -187,11 +208,8 @@ class DefaultRun:
         row = self.db.execute(
             "SELECT text FROM chunks WHERE kind = 'equation' AND path = ? AND name = ? COLLATE NOCASE", (path, equation)
         ).fetchone()
-        head = equation_domain(row["text"], equation) if row else None
-        if not head or "$" not in head:
-            return []
-        cond = head[head.index("$") + 1 :]  # q_x(t,regi)$(cond): the part after the first $
-        if not switch_tests(cond, self.defaults):
+        cond = equation_condition(row["text"], equation) if row else None
+        if not cond or not tests_setting(self.trees[cond], self.values):
             return []
         v = self.condition_status(cond, "generated only if")
         return [] if v.endswith(": active by default") else [self.off_reason(v, cond)]

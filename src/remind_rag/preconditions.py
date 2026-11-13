@@ -14,10 +14,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .chunkers import SETGLOBAL_RE, Switch, chunk_gams, path_meta
+from .conditions import holds, lower, parse
 from .corpus import iter_files
 from .gams import code_part, if_guards, is_comment, line_conditions
 from .scenarios import read_scenarios
-from .usage import OPS, STR_TEST_RE, TEST_RE, eval_expr
+from .usage import OPS, STR_TEST_RE, TEST_RE
 
 SINGLE_IF_RE = re.compile(r"^\s*\$\$?if[ei]?\s+(.*?)\s+\$?abort\b(.*)$", re.I)
 COMPILE_ABORT_RE = re.compile(r"^\s*\$\$?abort\b(.*)$", re.I)
@@ -293,14 +294,14 @@ def classify(p: Precondition, ctx: Context) -> None:
     if not p.abort_if:
         p.default_aborts = True  # unconditional abort (in this file / branch)
     else:
-        p.default_aborts = eval_expr(cond, ctx.defaults)
+        p.default_aborts = holds(parse(cond), lower(ctx.defaults))
     if p.category != "precondition":
         p.severity = "-"
         return
     bad = [t for t in p.tests if t.problems]
     if bad:
         # the problematic switch can't take the tested value: decide the condition with all other tests open
-        const = eval_expr(cond, {t.switch: NONE for t in bad})
+        const = holds(parse(cond), lower({t.switch: NONE for t in bad}))
         p.severity = {True: "impossible", False: "dead check"}.get(const, "suspicious")
         return
     p.severity = {True: "aborts by default", False: "ok"}.get(p.default_aborts, "depends")

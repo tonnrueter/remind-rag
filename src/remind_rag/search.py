@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, store
+from .conditions import Trees, holds, lower
 from .scenarios import is_magpie_side
 from .status import switch_defaults
-from .usage import eval_expr
 
 # Reciprocal rank fusion: each ranking adds weight / (RRF_K + rank) to a chunk's score. Only ranks count, so
 # BM25 scores and vector distances, which live on different scales, never need to be compared. 60 is the
@@ -38,6 +38,7 @@ class Index:
         self.model = self.meta["model"]
         self.root = Path(self.meta["root"])
         self._scenario_names: list[str] | None = None
+        self.trees = Trees(self.db)
 
     # ---------------------------------------------------------------- rankers
 
@@ -209,10 +210,11 @@ class Index:
                 scores[cid] = scores.get(cid, 0.0) + weight / (RRF_K + rank + 1)
         rows = self._rows(list(scores))
         if values is not None:
+            low = lower(values)
             for cid, r in rows.items():
                 if _inactive_realization(r, values):
                     scores[cid] = 0.0  # dropped below
-                elif r["conditions"] and any(eval_expr(c, values) is False for c in json.loads(r["conditions"])):
+                elif r["conditions"] and any(holds(self.trees[c], low) is False for c in json.loads(r["conditions"])):
                     scores[cid] *= 0.3  # code compiled out in this scenario: keep, but rank low
         ordered = sorted(scores, key=scores.__getitem__, reverse=True)
         out = []
