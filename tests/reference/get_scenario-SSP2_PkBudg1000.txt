@@ -37,4 +37,6 @@ SSP2-PkBudg1050: This climate policy scenario follows the Shared Socioeconomic P
 - cm_EDGEtr_scen: Mix2ICEban -> Mix3ICEban
 - c_changeProdCost: 5 -> 1
 - cm_startyear: 2005 -> 2030
-(also defined in: config/scenario_config_magpie.csv, config/scenario_config_magpie_NGFS_v6c2.csv, config/scenario_config_magpie_PRISMA.csv, config/scenario_config_NGFS_v6c2.csv, config/scenario_config_PRISMA.csv)
+Also in config/scenario_config_NGFS_v6c2.csv:10: c_regi_earlyreti_rate = (default); c_NearTermProjectCompletion = (default); techpol = NDC; cm_maxProdBiolc = 100; cm_implicitQttyTargetType = config; cm_implicitQttyTarget = 2030.EUR_regi.tax.t.FE_wo_b_wo_n_e.all 1.2809
+Also in config/scenario_config_PRISMA.csv:11: same settings
+MAgPIE side of a coupled run (MAgPIE settings): config/scenario_config_magpie.csv:16, config/scenario_config_magpie_NGFS_v6c2.csv:7, config/scenario_config_magpie_PRISMA.csv:7

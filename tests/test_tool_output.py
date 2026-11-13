@@ -63,6 +63,15 @@ def test_read_role_names_the_reads_in_equations():
     assert 'reads in equations, role="equation")' in server.get_symbol("vm_cap", role="read").splitlines()[0]
 
 
+def test_scenario_shows_the_remind_row_and_only_names_the_magpie_side():
+    # a review got only the MAgPIE row of M-SSP2-NPi-KLW (scenario_config_magpie_RIKEN.csv)
+    out = server.get_scenario("M-SSP2-NPi-KLW")
+    assert out.startswith("# M-SSP2-NPi-KLW  [config/scenario_config_RIKEN.csv:")
+    assert out.splitlines()[-1].startswith(
+        "MAgPIE side of a coupled run (MAgPIE settings): config/scenario_config_magpie"
+    )
+
+
 def test_roles_separate_declaring_and_assigning_modules():
     # Q10: 21_tax reads pm_taxCO2eqSum but never assigns it
     out = server.get_symbol("pm_taxCO2eqSum", max_uses=60)

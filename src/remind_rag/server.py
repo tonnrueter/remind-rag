@@ -784,29 +784,43 @@ def get_module(name: str | None = None, realization: str | None = None, module: 
 def get_scenario(name: str) -> str:
     """A scenario from config/scenario_config*.csv: its description, its settings (after copyConfigFrom), and
     which switches and module realizations differ from the main.gms defaults."""
-    resolved = idx.scenario_values(name)
-    if resolved is None:
+    rows = idx.scenario_rows(name)
+    if not rows:
         similar = idx.db.execute(
             "SELECT DISTINCT name FROM scenarios WHERE name LIKE ? LIMIT 20", (f"%{name}%",)
         ).fetchall()
         return f"Scenario {name!r} not found." + (f" Similar: {', '.join(r[0] for r in similar)}" if similar else "")
-    _, row = resolved
-    settings = json.loads(row["settings"])
-    out = [f"# {row['name']}  [{row['path']}:{row['line']}]", row["description"] or "", "## Settings"]
-    out += [f"- {k} = {v}" for k, v in settings.items()]
     written = {r["name"]: r["value"] for r in idx.db.execute("SELECT name, value FROM switches")}
     defaults = default_run.defaults  # compared without quotes: `"a, b"` in main.gms equals `a, b` in a config
-    changed = [
-        k for k in settings if k in defaults and defaults[k].lower() != str(settings[k]).strip().strip("\"'").lower()
-    ]
-    if changed:
-        out.append("## Differs from main.gms")
-        out += [f"- {k}: {written[k]} -> {settings[k]}" for k in changed]
-    others = idx.db.execute(
-        "SELECT path FROM scenarios WHERE name = ? COLLATE NOCASE AND path != ?", (row["name"], row["path"])
-    ).fetchall()
-    if others:
-        out.append("(also defined in: " + ", ".join(r[0] for r in others) + ")")
+    out = []
+    # the first REMIND row in full, other REMIND rows as their differences to it, the MAgPIE side only named: a
+    # review got the MAgPIE row alone (TODO 66)
+    remind = [r for r in rows if not is_magpie_side(r["path"])]
+    if remind:
+        row = remind[0]
+        settings = json.loads(row["settings"])
+        out += [f"# {row['name']}  [{row['path']}:{row['line']}]", row["description"] or "", "## Settings"]
+        out += [f"- {k} = {v}" for k, v in settings.items()]
+        changed = [
+            k
+            for k in settings
+            if k in defaults and defaults[k].lower() != str(settings[k]).strip().strip("\"'").lower()
+        ]
+        if changed:
+            out.append("## Differs from main.gms")
+            out += [f"- {k}: {written[k]} -> {settings[k]}" for k in changed]
+    for r in remind[1:]:
+        other = json.loads(r["settings"])
+        diff = [
+            f"{k} = {other.get(k, '(default)')}"
+            for k in dict.fromkeys([*settings, *other])
+            if settings.get(k) != other.get(k)
+        ]
+        out.append(f"Also in {r['path']}:{r['line']}: " + ("; ".join(diff) if diff else "same settings"))
+    if magpie := [f"{r['path']}:{r['line']}" for r in rows if is_magpie_side(r["path"])]:
+        if not out:
+            out.append(f"# {rows[0]['name']}: no REMIND row of that name in config/")
+        out.append("MAgPIE side of a coupled run (MAgPIE settings): " + ", ".join(magpie))
     return "\n".join(out)
 
 

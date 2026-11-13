@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from . import embeddings, store
+from .scenarios import is_magpie_side
 from .status import switch_defaults
 from .usage import eval_expr
 
@@ -142,14 +143,20 @@ class Index:
 
     # ---------------------------------------------------------------- public
 
-    def scenario_values(self, scenario: str) -> tuple[dict[str, str], sqlite3.Row] | None:
-        """Switch values of a scenario: main.gms values overridden by its scenario_config row."""
-        row = self.db.execute(
-            "SELECT * FROM scenarios WHERE name = ? COLLATE NOCASE ORDER BY path = 'config/scenario_config.csv' DESC",
+    def scenario_rows(self, scenario: str) -> list[sqlite3.Row]:
+        """The config rows of that name: config/scenario_config.csv first, the MAgPIE side of a coupled run last."""
+        rows = self.db.execute(
+            "SELECT * FROM scenarios WHERE name = ? COLLATE NOCASE ORDER BY path = 'config/scenario_config.csv' DESC,"
+            " path, line",
             (scenario,),
-        ).fetchone()
-        if row is None:
+        ).fetchall()
+        return sorted(rows, key=lambda r: is_magpie_side(r["path"]))
+
+    def scenario_values(self, scenario: str) -> tuple[dict[str, str], sqlite3.Row] | None:
+        """Switch values of a scenario: main.gms values overridden by its first scenario_config row."""
+        if not (rows := self.scenario_rows(scenario)):
             return None
+        row = rows[0]
         values = switch_defaults(self.db)
         values.update(json.loads(row["settings"]))
         return values, row
