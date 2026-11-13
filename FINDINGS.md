@@ -626,3 +626,45 @@ model on the machine differs. v0.7.0 = #50, #51, quote fix, #40 (reference outpu
   `get_scenario` with several REMIND rows +14 %.
 - **What it showed**: fixing the reviews' cases one by one patched the same weak spot twice (conditions stored as
   text, re-parsed by each reader). #56 comes before more mark fixes; #72 asks what each part of an answer is for.
+
+## 24. v0.15.0: index v15, conditions parsed once; marks for a scenario's settings (`../TODO.md` #56, 2026-11-13)
+
+- **Why**: every reader re-parsed the stored condition texts with its own regexes (marks, reach, search's scenario
+  filter, the precondition sweep), and an `$ifthen` the defaults didn't decide showed ✓ without a word. Design and
+  counts in `../TODO.md` #56 (955 distinct texts; 9 silent ✓ rows; 680 config cells a test couldn't compare).
+- **Changes** (one commit each):
+  - `conditions.py`: each condition text parsed once at build into a tree (`conditions` table, schema 2), evaluated
+    with three-valued logic (exact: each operand occurs once). Pure refactor first: the old and new evaluators
+    agree on 1,151 texts × 775 settings, an index-wide snapshot of every verdict and of 34 + 112 + 84 tool calls
+    was byte-identical; the verdict pass takes 0.7 s instead of 9 s.
+  - `DefaultRun` → `Settings` (the defaults, or a scenario's first REMIND row); reasons are values, not words the
+    callers search for. A name with only MAgPIE rows says so instead of searching with MAgPIE values (38 names).
+  - An `$ifthen` / `$elseif` condition ends after its test; the rest of the line is branch code. Checked with GAMS
+    51 (`$ifthen %x% == "a"<tab>+(10)$(…)` adds the term; `or` after a test is compiled as code, so there is no
+    and/or). 31_fossil MOFEX and timeDepGrades write `q31_fuExtrInc` terms there (17 use rows).
+  - Operands run to the next and / or, so arithmetic stays inside one: unparsed texts 94 → 1 (37_industry's
+    condition with `$ifthen` inside it). `nash/preloop.gms:65-70` ? → ⚠ (`cm_emiscen ne 9` under the default 9).
+  - Compile-time variables: one defined nowhere is its own text `%x%` (as in GAMS); `$set` lines outside main.gms
+    are followed (`flags` table, 6 rows); an undecided `$ifthen` shows ?. `37_industry/subsectors/bounds.gms:121-122`
+    and `nash/datainput.gms:64` (`%banking%`, module deleted 2023) ✓ → ⚠.
+  - A switch compared with a name is decided from both values (`cm_peakBudgYr lt cm_startyear`); the year was
+    compared with the word before, which made one reason wrong.
+  - Marks name their settings: "✓ runs with the default settings", "⚠ doesn't run with …", "? the settings don't
+    decide it" (the old "depends on settings" said the opposite), reasons "→ off with …". Wording reviewed in #72.
+  - `get_switch`'s description says what acts when (compile-time selections and flags, run-time scalars that code
+    reassigns: 5 scalars and 1 flag at `1e2dbd972`; the design's "17" counted set elements).
+  - `scenario=` on `get_symbol`, `get_links`, `get_switch`, `get_module`: marks, reasons, realization lines and
+    abort checks against the scenario, one "Marks: S settings (path:line)" line on top; `search(scenario=)`'s »
+    lines follow it too. Without `scenario=` the output is unchanged.
+- **Build**: 4,690 chunks (+2: the block after the MOFEX / timeDepGrades equations splits at the `$elseif` line),
+  4,686 embeddings reused, 0 parser warnings; codeCheck's 6 declarations missed by our parser unchanged since v13.
+  Retrieval unchanged: hybrid 81 % / 0.69 (`eval/results/retrieval-v15-settings.txt`). Compiler check
+  (`eval/results/compiler-v15.txt`): wrong ✓ 12 → 8 (the four lines above); with run-time guards ? 21 → 17.
+- **Cost**: tool output +1.9 % on the 15 reference calls (the mark wording; `SYMBOL_BUDGET` 5,000 → 5,500,
+  `vm_deltaCap` 5,213); server instructions 1,640 → 1,770 characters; tool list (compact JSON) 6,374 → 7,151
+  (+12 %: the `get_switch` sentence, `scenario=` on four tools).
+- **Found on the way** (workspace files): MOFEX's code after `$ifthen` is real (lead checked); timeDepGrades'
+  REF oil term has run under `highOil` since a 2020 edit dropped its guard (new lead, 0 configs);
+  STALE_COMMENTS #123 (`cm_less_TS`).
+- **Left out**: set-content tests stay undecided (#61); 72's `display` role; the precondition sweep still extracts
+  its tests with its own regexes (the `switches` column), only its evaluation uses the trees.
