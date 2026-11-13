@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable
 
 from .usage import eval_expr, switch_tests
 
@@ -28,7 +29,7 @@ def equation_domain(text: str, name: str) -> str | None:
 
 def off(tag: str) -> bool:
     """A reason that keeps the code out of a default run (the other reasons depend on settings)."""
-    return tag.endswith("inactive by default") or tag.startswith(("non-default realization", "module switched off"))
+    return " → inactive by default" in tag or tag.startswith(("non-default realization", "module switched off"))
 
 
 def detail(tags: list[str]) -> str:
@@ -67,6 +68,9 @@ class DefaultRun:
     def __init__(self, db: sqlite3.Connection):
         self.db = db
         self._defaults: dict[str, str] | None = None
+        # condition -> "holds in N of M REMIND configs", set by the server (status can't read the configs' rows);
+        # None (the hierarchy report): reasons without a config count
+        self.reach: Callable[[str], str | None] | None = None
 
     @property
     def defaults(self) -> dict[str, str]:
@@ -110,6 +114,14 @@ class DefaultRun:
         label = {True: "active by default", False: "INACTIVE by default"}.get(v, "depends on non-default settings")
         return f"{what} {' '.join(cond.split())}: {label}"
 
+    def off_reason(self, verdict: str, cond: str) -> str:
+        """A condition_status verdict as a reason; an INACTIVE one also says how many scenario configs run the code
+        (R5: ⚠ on a line 242 configs run read as "unused")."""
+        reason = _inactive(verdict)
+        if "INACTIVE" in verdict and self.reach and (r := self.reach(cond)):
+            reason += f"; {r}"
+        return reason
+
     # ---------------------------------------------------------------- chunks (» lines)
 
     def chunk_status(self, r: sqlite3.Row, max_tests: int = 4) -> list[str]:
@@ -146,11 +158,11 @@ class DefaultRun:
             )
         for c in json.loads(u["conditions"] or "[]"):
             if (v := self.condition_status(c, "$ifthen")) and "INACTIVE" in v:
-                tags.append(_inactive(v))
+                tags.append(self.off_reason(v, c))
         for g in json.loads(u["guards"] or "[]"):
             v = self.condition_status(g, "inside if")
             if "INACTIVE" in v:
-                tags.append(_inactive(v))
+                tags.append(self.off_reason(v, g))
             # an undecided if() counts only if it tests a switch: one over data (`if(p_x gt 0,`) says nothing
             # about settings, and marking it "?" would flag a large part of REMIND
             elif "depends" in v and any(t for t, _ in switch_tests(g, self.defaults)):
@@ -182,4 +194,4 @@ class DefaultRun:
         if not switch_tests(cond, self.defaults):
             return []
         v = self.condition_status(cond, "generated only if")
-        return [] if v.endswith(": active by default") else [_inactive(v)]
+        return [] if v.endswith(": active by default") else [self.off_reason(v, cond)]

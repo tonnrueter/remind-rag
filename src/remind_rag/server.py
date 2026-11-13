@@ -20,6 +20,7 @@ from .scenarios import cfg_defaults, is_magpie_side, region_label
 from .search import Index, module_match
 from .status import DefaultRun, detail, equation_domain, rank
 from .steering import steering
+from .usage import eval_expr
 
 idx = Index(store.default_db())
 if (_schema := int(idx.meta.get("schema_version", 0))) < store.SCHEMA_VERSION:
@@ -481,6 +482,25 @@ def _config_defaults() -> dict[str, str]:
     cfg = "\n".join(r[0] for r in idx.db.execute("SELECT text FROM chunks WHERE path = 'config/default.cfg'"))
     return {**cfg_defaults(cfg), **{k.lower(): v for k, v in default_run.defaults.items()}}
 
+
+@cache
+def _config_settings() -> list[dict[str, str]]:
+    """Per REMIND config, the main.gms switch values it runs with: its cell, else the default."""
+    return [{k: r.cells.get(k.lower(), v) for k, v in default_run.defaults.items()} for r in _config_rows()]
+
+
+@cache
+def _config_reach(cond: str) -> str | None:
+    """'holds in N of M REMIND configs' for one condition, evaluated under each config's settings; the switches
+    alone may leave it open in some ("undecided in K": the rest of the condition tests data). None: no configs."""
+    if not (settings := _config_settings()):
+        return None
+    results = Counter(eval_expr(cond, s) for s in settings)
+    open_ = f", undecided in {results[None]}" if results[None] else ""
+    return f"holds in {results[True]} of {len(settings)} REMIND configs{open_}"
+
+
+default_run.reach = _config_reach
 
 CONFIG_GROUPS_LISTED = 8  # values (or value combinations) listed with their configs; the rest in one line
 CONFIG_EXAMPLES = 3  # example rows per listed value

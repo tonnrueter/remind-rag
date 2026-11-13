@@ -5,16 +5,16 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
 - core/preloop.gms:44 ✓ runs by default  constant or set-based (no symbol inputs)
 - core/presolve.gms:10 ✓ runs by default  from pm_taxCO2eq, pm_taxCO2eqRegi [46_carbonpriceRegi], pm_taxCO2eqSCC [51_internalizeDamages]
 - core/postsolve.gms:51 ⚠ not in a default run  from q_co2eq, pm_ts, pm_pvp, sm_eps
-    ⚠ $ifthen %optimization% == 'negishi' → inactive by default
-    ⚠ inside if (cm_emiscen eq 6) → inactive by default
+    ⚠ $ifthen %optimization% == 'negishi' → inactive by default; holds in 0 of 387 REMIND configs
+    ⚠ inside if (cm_emiscen eq 6) → inactive by default; holds in 0 of 387 REMIND configs
 - core/postsolve.gms:53 ⚠ not in a default run  from q_co2eq, qm_budget [01_macro], sm_eps
-    ⚠ inside if (cm_emiscen eq 6) → inactive by default
+    ⚠ inside if (cm_emiscen eq 6) → inactive by default; holds in 0 of 387 REMIND configs
 - core/postsolve.gms:55 ⚠ not in a default run  from pm_taxCO2eq
-    ⚠ inside if not ((cm_emiscen eq 6)) and ((cm_emiscen eq 1)) → inactive by default
+    ⚠ inside if not ((cm_emiscen eq 6)) and ((cm_emiscen eq 1)) → inactive by default; holds in 0 of 387 REMIND configs
 - core/presolve.gms:14 ⚠ not in a default run  from pm_CO2PriceLimit, sm_DptCO2_2_TDpGtC
-    ⚠ $ifthen not "%cm_CO2PriceLimit%" == "off" → inactive by default
+    ⚠ $ifthen not "%cm_CO2PriceLimit%" == "off" → inactive by default; holds in 3 of 387 REMIND configs
 - modules/47_regipol/regiCarbonPrice/postsolve.gms:148 ⚠ not in a default run  constant or set-based (no symbol inputs)
-    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default
+    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default; holds in 227 of 387 REMIND configs
 - ... 5 more (47_regipol 5): get_symbol("pm_taxCO2eqSum", role=…, module=…) lists them
 ## Feeds into (statements reading pm_taxCO2eqSum and assigning another symbol) (16 statements: 12 run by default, 4 not in a default run)
 - core/presolve.gms:256 ✓ runs by default  → p_priceCO2
@@ -23,7 +23,7 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
 - modules/46_carbonpriceRegi/netZero/postsolve.gms:67 ⚠ not in a default run  → p46_taxCO2eqRegiPeak
     ⚠ module switched off by default (none)
 - modules/47_regipol/regiCarbonPrice/postsolve.gms:448 ⚠ not in a default run  → p47_taxCO2eq_AggEmi; :458 → p47_taxCO2eq_AggFE; :468 → p47_taxCO2eq_SectorAggFE
-    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default
+    ⚠ $ifthen not "%cm_emiMktTarget%" == "off" → inactive by default; holds in 227 of 387 REMIND configs
 ## In equations (other symbols in the same equation) (6 equations: 6 run by default)
 - q21_taxrevCDR  modules/21_tax/on/equations.gms ✓ default realization
     variables: v21_taxrevCDR, vm_emiCdrAll [core]

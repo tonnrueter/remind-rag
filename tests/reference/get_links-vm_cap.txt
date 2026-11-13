@@ -12,11 +12,11 @@ One hop. ✓ runs by default · ⚠ doesn't (reasons below) · ? depends on sett
 - core/bounds.gms:86 ✓ runs by default  from pm_histCap
 - core/bounds.gms:125 ✓ runs by default  from pm_eta_conv, pm_gdp
 - core/bounds.gms:176 ⚠ not in a default run  constant or set-based (no symbol inputs); :177 constant or set-based (no symbol inputs); :178 constant or set-based (no symbol inputs)
-    ⚠ $ifthen not "%c_BCLearning%" == 0 → inactive by default
+    ⚠ $ifthen not "%c_BCLearning%" == 0 → inactive by default; holds in 0 of 387 REMIND configs
 - core/bounds.gms:231 ⚠ not in a default run  constant or set-based (no symbol inputs)
-    ⚠ inside if cm_nucscen = 5 → inactive by default
+    ⚠ inside if cm_nucscen = 5 → inactive by default; holds in 8 of 387 REMIND configs
 - core/bounds.gms:383 ⚠ not in a default run  constant or set-based (no symbol inputs)
-    ⚠ inside if cm_emiscen = 1 → inactive by default
+    ⚠ inside if cm_emiscen = 1 → inactive by default; holds in 0 of 387 REMIND configs
 - ... 93 more (core 32, 40_techpol 29, 47_regipol 20, 39_carbonUtilization 6, 33_carbonRemoval 4, 32_power 1, 37_industry 1): get_symbol("vm_cap", role=…, module=…) lists them
 ## Feeds into (statements reading vm_cap and assigning another symbol) (1 statements: 1 run by default)
 - modules/70_water/heat/output.gms:29 ✓ default realization  → p70_cap_vintages_share
