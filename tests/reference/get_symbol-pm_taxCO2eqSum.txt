@@ -35,6 +35,6 @@
 - per file: modules/21_tax/on/equations.gms 6 ✓, modules/33_carbonRemoval/portfolio/equations.gms 1 ✓
 - equations: q21_taxrevGHG, q21_taxrevCO2Sector, q21_taxrevCO2luc, q21_taxrevImport, q21_taxrevCDR, q33_carbonRemovalspending
 - lines: get_symbol("pm_taxCO2eqSum", role="equation"[, module="…"])
-### Read (19 lines: 14 ✓, 5 ⚠; 21_tax, 46_carbonpriceRegi, 47_regipol, core)
+### Read outside equations (19 lines: 14 ✓, 5 ⚠; 21_tax, 46_carbonpriceRegi, 47_regipol, core)
 - per file: modules/21_tax/on/presolve.gms 7 ✓, modules/21_tax/on/postsolve.gms 6 ✓, modules/47_regipol/regiCarbonPrice/postsolve.gms 3 ⚠, core/presolve.gms 2 (1 ✓, 1 ⚠), modules/46_carbonpriceRegi/netZero/postsolve.gms 1 ⚠
 - lines: get_symbol("pm_taxCO2eqSum", role="read"[, module="…"])

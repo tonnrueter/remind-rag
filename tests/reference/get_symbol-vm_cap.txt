@@ -31,6 +31,6 @@
 - per file: core/equations.gms 16 ✓, modules/32_power/IntC/equations.gms 9 ✓, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/33_carbonRemoval/portfolio/equations.gms 2 ✓, modules/37_industry/subsectors/equations.gms 2 ✓, +4 more files
 - equations: q_costOM, q_limitCapSe, q_limitCapSe2se, q_limitCapFe, q_limitCapCCS, q_cap, q_capDistr, q_capNonDecreasing, q_capTotal, q_PE_histCap, q_PE_histCap_NGCC_2020_up, q_capH2BI, q_limitCapFeH2BI, q32_limitCapTeStor, q32_h2turbVREcapfromTestor, q32_h2turbVREcapfromTestorUp, q32_elh2capfromTestor, q32_limitCapTeGrid, q33_capconst, q33_EW_capconst, q37_limitCapMatHist, q37_limitCapMat, q40_NewRenBound, q40_ElecBioBound, q40_windBound, q40_ElCap_RenShare
 - lines: get_symbol("vm_cap", role="equation"[, module="…"])
-### Read (6 lines: 3 ✓, 3 ⚠; 40_techpol, 70_water)
+### Read outside equations (6 lines: 3 ✓, 3 ⚠; 40_techpol, 70_water)
 - per file: modules/70_water/heat/output.gms 2 ✓, modules/40_techpol/NDC/bounds.gms 1 ⚠, modules/40_techpol/NDCplus/bounds.gms 1 ⚠, modules/40_techpol/NPi2018/bounds.gms 1 ⚠, modules/40_techpol/NPi2025/bounds.gms 1 ✓
 - lines: get_symbol("vm_cap", role="read"[, module="…"])

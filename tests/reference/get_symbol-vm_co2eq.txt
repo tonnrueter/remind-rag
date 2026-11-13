@@ -24,7 +24,7 @@
 - per file: core/equations.gms 5 ✓, modules/21_tax/on/equations.gms 1 ✓, modules/80_optimization/nash/equations.gms 1 ✓
 - equations: q_co2eq, q_co2eqGlob, q_emiCap, qm_co2eqCum, q21_taxrevGHG, q80_budgetPermRestr
 - lines: get_symbol("vm_co2eq", role="equation"[, module="…"])
-### Read (6 lines: 3 ✓, 3 ⚠; 21_tax, 46_carbonpriceRegi, core)
+### Read outside equations (6 lines: 3 ✓, 3 ⚠; 21_tax, 46_carbonpriceRegi, core)
 - per file: modules/46_carbonpriceRegi/netZero/postsolve.gms 3 ⚠, core/presolve.gms 1 ✓, modules/21_tax/on/postsolve.gms 1 ✓, modules/21_tax/on/presolve.gms 1 ✓
 - modules/46_carbonpriceRegi/netZero/postsolve.gms:25 [46_carbonpriceRegi/netZero/postsolve] ⚠ not in a default run  p46_refRun_co2eq = vm_co2eq.l,  (same reason: also lines 35, 36)
     ⚠ module switched off by default (none)

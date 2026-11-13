@@ -39,6 +39,6 @@
 - per file: core/equations.gms 8 ✓, modules/40_techpol/CombLowCandCoalPO/equations.gms 3 ⚠, modules/40_techpol/NDC/equations.gms 3 ⚠, modules/40_techpol/NDCplus/equations.gms 3 ⚠, modules/40_techpol/coalPhaseout/equations.gms 3 ⚠, modules/40_techpol/coalPhaseoutRegional/equations.gms 3 ⚠, +2 more files
 - equations: q_costInvTeDir, q_transPe2se, q_cap, q_windoff_low, qm_deltaCapCumNet, q_eqadj, q21_taxrevEI, q22_costSubsidizeLearningForeign, q40_CoalBound
 - lines: get_symbol("vm_deltaCap", role="equation"[, module="…"])
-### Read (33 lines: 27 ✓, 6 ⚠; 05_initialCap, 21_tax, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 70_water, core)
+### Read outside equations (33 lines: 27 ✓, 6 ⚠; 05_initialCap, 21_tax, 22_subsidizeLearning, 29_CES_parameters, 30_biomass, 70_water, core)
 - per file: modules/05_initialCap/on/preloop.gms 17 ✓, core/postsolve.gms 5 ✓, modules/30_biomass/magpie/bounds.gms 3 (2 ✓, 1 ⚠), modules/29_CES_parameters/calibrate/output.gms 2 ⚠, modules/29_CES_parameters/calibrate/preloop.gms 2 ⚠, modules/21_tax/on/postsolve.gms 1 ✓, +3 more files
 - lines: get_symbol("vm_deltaCap", role="read"[, module="…"])

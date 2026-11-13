@@ -69,7 +69,7 @@ ROLE_LABELS = {
     "declared": "Declared",
     "assigned": "Assigned / fixed / loaded",
     "equation": "Used in equations",
-    "read": "Read",
+    "read": "Read outside equations",
 }
 
 
@@ -121,7 +121,7 @@ FLAGGED_MAX = 10  # ⚠ / ? lines listed individually in a summary
 COMPUTED_MAX = 4  # ✓ assignments outside bounds listed individually: where the value is computed
 SHORT_ROLE = 3  # a role with at most this many lines is listed in full
 # an equation use reads the symbol too: role="read" alone was taken for every read (TODO 66)
-OTHER_READS = {"read": ("equation", "reads in equations"), "equation": ("read", "reads outside equations")}
+OTHER_READS = {"read": ("equation", "in equations"), "equation": ("read", "outside equations")}
 
 
 @server.tool()
@@ -147,7 +147,7 @@ def get_symbol(
         if role in OTHER_READS:
             other, what = OTHER_READS[role]
             n = sum(u["role"] == other and (not module or module_match(module, u["module"])) for u in uses)
-            also = f' (not counted: {n} {what}, role="{other}")' if n else ""
+            also = f' (+{n} {what}: role="{other}")' if n else ""
         if not matching:
             return f"No {role or ''} uses of {name}" + (f" in {module}" if module else "") + f".{also}"
         page = matching[offset : offset + max_uses]

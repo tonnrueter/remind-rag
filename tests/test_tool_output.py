@@ -60,7 +60,7 @@ def test_elseif_head_of_the_default_branch_runs():
 
 def test_read_role_names_the_reads_in_equations():
     # a review took role="read" for every read of vm_cap; most of them sit in equations
-    assert 'reads in equations, role="equation")' in server.get_symbol("vm_cap", role="read").splitlines()[0]
+    assert ' in equations: role="equation")' in server.get_symbol("vm_cap", role="read").splitlines()[0]
 
 
 def test_scenario_shows_the_remind_row_and_only_names_the_magpie_side():
