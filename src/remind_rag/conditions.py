@@ -6,8 +6,10 @@ A tree is a JSON list:
   ["and", a, b, ...] / ["or", a, b, ...] / ["not", a]
   ["sw", name, op, value, "c" | "r"]   a switch test: compile time (`"%x%" == "on"`) or run time (`cm_x eq 2`);
                                        op as in Python (==, !=, >=, ...), value without quotes
-  ["sw2", name, op, text]              a switch compared with something that isn't a literal (`cm_startyear <=
-                                       t.val`): it tests a setting, but the setting alone doesn't decide it
+  ["sw2", name, op, text]              a switch compared with something that isn't a literal: another switch
+                                       (`cm_peakBudgYr < cm_startyear`, decided by both values) or data
+                                       (`cm_startyear <= t.val`: it tests a setting, the setting alone doesn't
+                                       decide it)
   ["def", name]                        `$if set name` and its kin: whether a compile-time variable is defined
   ["env", text]                        `exist "file"`: the checkout, not the settings, decides it
   ["other", text]                      anything else (indexed symbols, sameas(), t.val, arithmetic, comparisons
@@ -53,6 +55,8 @@ def parse(cond: str) -> Tree:
     (['not', ['def', 'cm_x']], ['env', 'exist "./in.inc"'])
     >>> parse("( t.val > 2010 ) AND ( cm_startyear <= t.val )")
     ['and', ['other', 't.val > 2010'], ['sw2', 'cm_startyear', '<=', 't.val']]
+    >>> parse("cm_peakBudgYr < cm_startyear")
+    ['sw2', 'cm_peakBudgYr', '<', 'cm_startyear']
     >>> parse("cm_x eq 1 xor cm_y eq 2")
     ['?', 'cm_x eq 1 xor cm_y eq 2', ['sw', 'cm_x', '==', '1', 'r'], ['sw', 'cm_y', '==', '2', 'r']]
     """
@@ -76,6 +80,8 @@ def _string_test(m: re.Match) -> Tree:
 
 
 def _run_test(m: re.Match) -> Tree:
+    if re.match(r"[A-Za-z_]", m.group(3)):  # a name, not a literal: at run time a bare word is a symbol
+        return ["sw2", m.group(1), OPS[m.group(2).lower()], m.group(3)]
     return ["sw", m.group(1), OPS[m.group(2).lower()], m.group(3).strip("\"'"), "r"]
 
 
@@ -192,6 +198,9 @@ def holds(tree: Tree, values: dict[str, str], compile: dict[str, str | None] | N
     True
     >>> holds(parse('"%cm_gone%" == "on"'), v) is None, holds(parse('"%cm_gone%" == "on"'), v, compile=v)
     (True, False)
+    >>> w = {"cm_peakbudgyr": "2050", "cm_startyear": "2025"}
+    >>> holds(parse("cm_peakBudgYr < cm_startyear"), w), holds(parse("cm_peakBudgYr eq s45_check"), w) is None
+    (False, True)
     """
     # Kleene's three-valued logic: and is False if any part is, True if all are; or the other way round. Each
     # operand occurs once in the tree, so this is exactly "the same for every value of the unknowns".
@@ -212,6 +221,9 @@ def holds(tree: Tree, values: dict[str, str], compile: dict[str, str | None] | N
     if kind == "sw":
         value = values.get(tree[1].lower())
         return None if value is None else _compare(value, tree[2], tree[3])
+    if kind == "sw2":  # decided only if the other side is a setting too
+        a, b = values.get(tree[1].lower()), values.get(tree[3].lower())
+        return None if a is None or b is None else _compare(a, tree[2], b)
     if kind == "def" and compile is not None:  # defined; None also when it may or may not be
         name = tree[1].lower()
         return None if name in compile and compile[name] is None else name in compile
